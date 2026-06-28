@@ -23,7 +23,7 @@
       },
       "add_zone": {
         "title": "Add an Irrigation Zone",
-        "description": "An Irrigation Zone observes soil moisture and typed inputs, and optionally waters through a generic Watering Actuator.",
+        "description": "An Irrigation Zone observes soil moisture and typed inputs, and optionally waters through a generic Watering Actuator. Pick the actuator type here; its specific fields appear on the next step.",
         "data": {
           "name": "Zone name",
           "moisture_sensors": "Soil moisture sensors",
@@ -48,25 +48,12 @@
           "enabled": "Automation enabled",
           "schedule_weekdays": "Scheduled weekdays (empty = every day)",
           "schedule_times": "Scheduled start times (HH:MM)",
-          "actuator_type": "Watering Actuator type",
-          "actuator_switch": "Actuator switch (start/stop)",
-          "actuator_start_service": "Start service (domain.service)",
-          "actuator_start_data": "Start service data",
-          "actuator_stop_service": "Stop service (domain.service)",
-          "actuator_stop_data": "Stop service data",
-          "actuator_start_script": "Start script",
-          "actuator_stop_script": "Stop script",
-          "volume_field": "Volume field/variable name",
-          "watering_sensor": "Watering feedback sensor (confirms flow)",
-          "volume_sensor": "Cumulative volume sensor (confirms flow)",
-          "linktap_topic": "LinkTap MQTT topic",
-          "linktap_id": "LinkTap id (taplinker entity id)",
-          "linktap_failsafe": "LinkTap failsafe duration (s)"
+          "actuator_type": "Watering Actuator type"
         }
       },
       "edit_zone": {
         "title": "Edit an Irrigation Zone",
-        "description": "Select a zone to edit, then adjust its inputs.",
+        "description": "Select a zone to edit, then adjust its inputs. Watering Actuator fields appear on the next step.",
         "data": {
           "zone": "Irrigation Zone",
           "name": "Zone name",
@@ -92,7 +79,13 @@
           "enabled": "Automation enabled",
           "schedule_weekdays": "Scheduled weekdays (empty = every day)",
           "schedule_times": "Scheduled start times (HH:MM)",
-          "actuator_type": "Watering Actuator type",
+          "actuator_type": "Watering Actuator type"
+        }
+      },
+      "actuator": {
+        "title": "Watering Actuator",
+        "description": "Configure how this zone waters using the selected actuator type ({actuator_type}). Only the fields for that type are shown.",
+        "data": {
           "actuator_switch": "Actuator switch (start/stop)",
           "actuator_start_service": "Start service (domain.service)",
           "actuator_start_data": "Start service data",
