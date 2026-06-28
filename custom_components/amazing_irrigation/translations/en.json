@@ -1,0 +1,13 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Amazing Irrigation",
+        "description": "Set up Amazing Irrigation. After installation you can add Irrigation Zones from the integration's configuration."
+      }
+    },
+    "abort": {
+      "already_configured": "Amazing Irrigation is already configured."
+    }
+  }
+}
