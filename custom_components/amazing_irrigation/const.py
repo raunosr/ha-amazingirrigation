@@ -65,6 +65,9 @@ STORAGE_VERSION = 1
 # hass.data[DOMAIN][entry_id] sub-key holding the ZoneStateStore.
 DATA_ZONE_STATE = "zone_state"
 
+# hass.data[DOMAIN][entry_id] sub-key holding ZoneLearner objects by zone_id.
+DATA_LEARNERS = "learners"
+
 # Weekday tokens used by zone schedules (Monday = index 0).
 WEEKDAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 
