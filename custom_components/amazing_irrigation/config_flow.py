@@ -79,7 +79,10 @@ from .const import (
     INTEGRATION_TITLE,
     WEEKDAYS,
 )
-from .linktap import async_resolve_linktap_device
+from .linktap import (
+    async_resolve_linktap_device,
+    async_resolve_linktap_from_entity,
+)
 
 # Up to three optional schedule start times are presented as individual time
 # pickers (HA's TimeSelector has no multi-value mode) and mapped to/from the
@@ -432,28 +435,53 @@ class AmazingIrrigationOptionsFlow(OptionsFlow):
         )
 
     def _resolve_actuator_input(self, user_input: dict[str, Any]) -> dict[str, Any]:
-        """For a LinkTap device selection, fill in the derived entities/id.
+        """Fill empty actuator fields from the underlying MQTT device.
 
-        Any explicitly entered field overrides the device-derived value.
+        Two sources are tried, in order; any value the user typed wins:
+
+        1. An explicit LinkTap *device* selection (LinkTap type only).
+        2. The device of the chosen actuator *switch* — so a LinkTap MQTT
+           switch auto-fills the watering/volume feedback sensors that live on
+           the same device, for any actuator type.
         """
-        if self._actuator_type != ACTUATOR_LINKTAP:
-            return user_input
-        device_id = user_input.get(CONF_LINKTAP_DEVICE)
-        if not device_id:
-            return user_input
+        merged = dict(user_input)
 
-        resolution = async_resolve_linktap_device(self.hass, device_id)
+        if self._actuator_type == ACTUATOR_LINKTAP:
+            device_id = merged.get(CONF_LINKTAP_DEVICE)
+            if device_id:
+                self._fill_from_resolution(
+                    merged, async_resolve_linktap_device(self.hass, device_id)
+                )
+
+        switch = merged.get(CONF_ACTUATOR_SWITCH)
+        if switch:
+            resolution = async_resolve_linktap_from_entity(self.hass, switch)
+            if resolution.watering_sensor and not merged.get(CONF_WATERING_SENSOR):
+                merged[CONF_WATERING_SENSOR] = resolution.watering_sensor
+            if resolution.volume_sensor and not merged.get(CONF_VOLUME_SENSOR):
+                merged[CONF_VOLUME_SENSOR] = resolution.volume_sensor
+            if (
+                self._actuator_type == ACTUATOR_LINKTAP
+                and resolution.linktap_id
+                and not merged.get(CONF_LINKTAP_ID)
+            ):
+                merged[CONF_LINKTAP_ID] = resolution.linktap_id
+
+        return merged
+
+    def _fill_from_resolution(
+        self, merged: dict[str, Any], resolution: Any
+    ) -> None:
+        """Fill empty merged fields from a LinkTap resolution (in place)."""
         derived = {
             CONF_LINKTAP_ID: resolution.linktap_id,
             CONF_ACTUATOR_SWITCH: resolution.switch,
             CONF_WATERING_SENSOR: resolution.watering_sensor,
             CONF_VOLUME_SENSOR: resolution.volume_sensor,
         }
-        merged = dict(user_input)
         for key, value in derived.items():
             if value and not merged.get(key):
                 merged[key] = value
-        return merged
 
     async def _continue_to_actuator(
         self, basics: dict[str, Any], existing: dict[str, Any] | None = None

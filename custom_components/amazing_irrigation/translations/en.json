@@ -88,7 +88,7 @@
       },
       "actuator": {
         "title": "Watering Actuator",
-        "description": "Configure how this zone waters using the selected actuator type ({actuator_type}). Only the fields for that type are shown.",
+        "description": "Configure how this zone waters using the selected actuator type ({actuator_type}). Only the fields for that type are shown. If the actuator switch belongs to a LinkTap MQTT device, leave the feedback sensors blank and they are auto-detected from that device.",
         "data": {
           "actuator_switch": "Actuator switch (start/stop)",
           "actuator_start_service": "Start service (domain.service)",
@@ -98,12 +98,16 @@
           "actuator_start_script": "Start script",
           "actuator_stop_script": "Stop script",
           "volume_field": "Volume field/variable name",
-          "watering_sensor": "Watering feedback sensor (confirms flow)",
-          "volume_sensor": "Cumulative volume sensor (confirms flow)",
+          "watering_sensor": "Watering feedback sensor (optional, auto-detected)",
+          "volume_sensor": "Cumulative volume sensor (optional, auto-detected)",
           "linktap_device": "LinkTap device (auto-fills id, switch and sensors)",
           "linktap_topic": "LinkTap MQTT topic",
           "linktap_id": "LinkTap id (auto-filled from device; optional override)",
           "linktap_failsafe": "LinkTap failsafe duration (s)"
+        },
+        "data_description": {
+          "watering_sensor": "Leave blank to auto-detect the '_is_watering' binary sensor from the actuator switch's device.",
+          "volume_sensor": "Leave blank to auto-detect the cumulative '_volume' sensor (never '_volume_limit') from the actuator switch's device."
         }
       },
       "remove_zone": {

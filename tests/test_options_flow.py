@@ -269,6 +269,62 @@ async def test_add_zone_linktap_device_autofills_entities(hass: HomeAssistant) -
     assert record[CONF_VOLUME_SENSOR] == "sensor.1f43b22f004b1200_4_volume"
 
 
+async def test_switch_actuator_autodetects_feedback_sensors(
+    hass: HomeAssistant,
+) -> None:
+    """A LinkTap MQTT switch fills the feedback sensors in the Switch type."""
+    entry = await _setup_entry(hass)
+
+    device = dr.async_get(hass).async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={("mqtt", "1F43B22F004B1200_4")},
+        manufacturer="LinkTap",
+        model="V1-4Z",
+    )
+    ent_reg = er.async_get(hass)
+    for domain, suffix, unique in (
+        ("switch", "water_switch", "sw"),
+        ("binary_sensor", "is_watering", "bw"),
+        ("sensor", "volume", "vol"),
+        ("sensor", "volume_limit", "voll"),
+    ):
+        ent_reg.async_get_or_create(
+            domain,
+            "mqtt",
+            unique,
+            suggested_object_id=f"1f43b22f004b1200_4_{suffix}",
+            config_entry=entry,
+            device_id=device.id,
+        )
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "add_zone"}
+    )
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {
+            CONF_NAME: "Cones",
+            CONF_MOISTURE_SENSORS: ["sensor.a"],
+            CONF_ACTUATOR_TYPE: ACTUATOR_SWITCH,
+        },
+    )
+    assert result["step_id"] == "actuator"
+
+    # Only the actuator switch is chosen; the feedback sensors are derived
+    # from the switch's MQTT device.
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {CONF_ACTUATOR_SWITCH: "switch.1f43b22f004b1200_4_water_switch"},
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+
+    record = next(iter(entry.options[CONF_ZONES].values()))
+    assert record[CONF_ACTUATOR_TYPE] == ACTUATOR_SWITCH
+    assert record[CONF_WATERING_SENSOR] == "binary_sensor.1f43b22f004b1200_4_is_watering"
+    assert record[CONF_VOLUME_SENSOR] == "sensor.1f43b22f004b1200_4_volume"
+
+
 async def test_remove_zone(hass: HomeAssistant) -> None:
     """A user can remove an Irrigation Zone."""
     entry = MockConfigEntry(

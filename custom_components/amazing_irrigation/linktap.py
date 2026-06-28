@@ -109,3 +109,18 @@ def async_resolve_linktap_device(hass, device_id: str) -> LinkTapResolution:
         )
     ]
     return resolve_linktap_device(device.identifiers, entity_ids)
+
+
+def async_resolve_linktap_from_entity(hass, entity_id: str) -> LinkTapResolution:
+    """Resolve the LinkTap entities from a sibling entity (e.g. the switch).
+
+    The actuator switch a user picks usually belongs to the LinkTap MQTT
+    device, so its device gives us the matching watering/volume feedback
+    sensors without the user hunting for them individually.
+    """
+    from homeassistant.helpers import entity_registry as er
+
+    entry = er.async_get(hass).async_get(entity_id)
+    if entry is None or entry.device_id is None:
+        return LinkTapResolution()
+    return async_resolve_linktap_device(hass, entry.device_id)
