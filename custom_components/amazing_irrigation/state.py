@@ -98,6 +98,8 @@ class ZoneState:
     model_confidence: dict[str, float] | None = None
     bootstrapped_days: float | None = None
     model_updated: str | None = None
+    # Latest predictive decision explanation for UI/model insight surfaces.
+    decision_explanation: dict[str, Any] | None = None
     # Cumulative Total Watering Volume in liters.
     total_liters: float = 0.0
     # Opaque bookkeeping for the learning engine (EMA counters, last samples).

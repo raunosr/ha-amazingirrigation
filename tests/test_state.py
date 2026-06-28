@@ -82,12 +82,19 @@ def test_active_schedule_times_ignores_inactive_slot() -> None:
 
 
 def test_roundtrip_serialisation_ignores_unknown_keys() -> None:
-    state = ZoneState(zone_id="z1", target_moisture=40, total_liters=12.5)
+    explanation = {"mode": "predictive", "chosen_liters": 1.25}
+    state = ZoneState(
+        zone_id="z1",
+        target_moisture=40,
+        total_liters=12.5,
+        decision_explanation=explanation,
+    )
     data = state.to_dict()
     data["some_future_key"] = "ignored"
     restored = ZoneState.from_dict("z1", data)
     assert restored.target_moisture == 40
     assert restored.total_liters == 12.5
+    assert restored.decision_explanation == explanation
 
 
 def test_apply_model_to_state_persists_model_and_legacy_mirrors() -> None:
@@ -172,6 +179,7 @@ def test_from_dict_loads_old_records_without_model_fields() -> None:
     assert restored.model_confidence is None
     assert restored.bootstrapped_days is None
     assert restored.model_updated is None
+    assert restored.decision_explanation is None
     assert restored.learned_gain_per_liter == 1.4
 
 

@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+from unittest.mock import patch
+
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -10,6 +13,7 @@ from custom_components.amazing_irrigation.const import (
     CONF_FORECAST_AIR_TEMPERATURE,
     CONF_GREENHOUSE,
     CONF_HUMIDITY_SENSOR,
+    CONF_LEARNING_ENABLED,
     CONF_MAX_LITERS,
     CONF_MOISTURE_SENSORS,
     CONF_NAME,
@@ -24,10 +28,15 @@ from custom_components.amazing_irrigation.const import (
     CONF_TEMPERATURE_SENSOR,
     CONF_WIND_SPEED,
     CONF_ZONES,
+    DATA_ZONE_STATE,
     DOMAIN,
     EVENT_DECISION,
     SERVICE_EVALUATE_ZONE,
 )
+from custom_components.amazing_irrigation.decision import build_inputs
+from custom_components.amazing_irrigation.state import ZoneState, apply_model_to_state
+from custom_components.amazing_irrigation.waterbalance import WaterBalanceParams
+from custom_components.amazing_irrigation.zone import ZoneConfig
 
 
 async def _setup(hass: HomeAssistant, record: dict) -> MockConfigEntry:
@@ -262,3 +271,117 @@ async def test_run_button_present_stop_absent_without_actuator(
     assert "switch.herb_bed_zone_enabled" in switches
     assert "button.herb_bed_run" in buttons
     assert "button.herb_bed_stop" not in buttons
+
+
+def test_build_inputs_enables_predictive_with_model_and_horizon(
+    hass: HomeAssistant,
+) -> None:
+    """A learned model produces predictive engine inputs to the next slot."""
+    hass.states.async_set("sensor.soil", "39.0")
+    hass.states.async_set("sensor.rain", "2.0")
+    hass.states.async_set("sensor.probability", "80.0")
+    hass.states.async_set("sensor.forecast_temp", "25.0")
+    hass.states.async_set("sensor.forecast_humidity", "60.0")
+    zone = ZoneConfig(
+        zone_id="abc123",
+        name="Bed",
+        moisture_sensors=["sensor.soil"],
+        forecast_rain_amount="sensor.rain",
+        forecast_rain_probability="sensor.probability",
+        forecast_air_temperature="sensor.forecast_temp",
+        forecast_air_humidity="sensor.forecast_humidity",
+        target_moisture=40.0,
+        max_liters=10.0,
+        learning_enabled=True,
+    )
+    state = ZoneState(
+        zone_id="abc123",
+        target_moisture=40.0,
+        max_liters=10.0,
+        learning_enabled=True,
+        schedule_1_time="02:30",
+        schedule_1_active=True,
+        schedule_2_active=False,
+    )
+    apply_model_to_state(
+        state,
+        WaterBalanceParams(2.0, 1.0, 1.0, 0.0, 50.0, 10.0),
+        {"eta_irr": 1.0},
+    )
+    now = datetime(2026, 6, 28, 1, 30, tzinfo=UTC)
+
+    with patch("custom_components.amazing_irrigation.decision.dt_util.now", return_value=now):
+        inputs = build_inputs(hass, zone, state=state)
+
+    assert inputs.predictive is True
+    assert inputs.params is not None
+    assert inputs.target_band is not None
+    assert inputs.target_band.low == 40.0
+    assert inputs.target_band.high == 45.0
+    assert inputs.horizon is not None
+    assert len(inputs.horizon) == 1
+    assert inputs.horizon[0].dt == 1.0
+    assert inputs.horizon[0].rain_mm == 2.0
+    assert inputs.horizon[0].climate.air_temp_c == 25.0
+
+
+def test_build_inputs_missing_model_uses_rule_based_fallback(
+    hass: HomeAssistant,
+) -> None:
+    """Learning without a persisted model keeps the existing decision path."""
+    hass.states.async_set("sensor.soil", "39.0")
+    zone = ZoneConfig(
+        zone_id="abc123",
+        name="Bed",
+        moisture_sensors=["sensor.soil"],
+        target_moisture=40.0,
+        max_liters=10.0,
+        learning_enabled=True,
+    )
+    state = ZoneState(
+        zone_id="abc123",
+        target_moisture=40.0,
+        max_liters=10.0,
+        learning_enabled=True,
+    )
+
+    inputs = build_inputs(hass, zone, state=state)
+
+    assert inputs.predictive is False
+    assert inputs.params is None
+    assert inputs.horizon is None
+
+
+async def test_decision_sensor_exposes_and_persists_predictive_explanation(
+    hass: HomeAssistant,
+) -> None:
+    """Slice F can read the explanation and trajectory from sensor attrs."""
+    hass.states.async_set("sensor.a", "39.0")
+    entry = await _setup(
+        hass,
+        {
+            CONF_NAME: "Predictive Bed",
+            CONF_MOISTURE_SENSORS: ["sensor.a"],
+            CONF_TARGET_MOISTURE: 40,
+            CONF_MAX_LITERS: 30,
+            CONF_LEARNING_ENABLED: True,
+        },
+    )
+    store = hass.data[DOMAIN][entry.entry_id][DATA_ZONE_STATE]
+    zone_state = store.get("abc123")
+    zone_state.learning_enabled = True
+    apply_model_to_state(
+        zone_state,
+        WaterBalanceParams(2.0, 1.0, 1.0, 0.0, 50.0, 10.0),
+        {"eta_irr": 1.0},
+    )
+
+    hass.states.async_set("sensor.a", "38.5")
+    await hass.async_block_till_done()
+
+    sensor_state = hass.states.get("sensor.predictive_bed_irrigation_decision")
+    assert sensor_state is not None
+    assert sensor_state.attributes["reason"] == "predictive_water"
+    assert "explanation" in sensor_state.attributes
+    assert "predicted_trajectory" in sensor_state.attributes
+    assert zone_state.decision_explanation == sensor_state.attributes["explanation"]
