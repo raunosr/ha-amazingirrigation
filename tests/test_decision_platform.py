@@ -26,16 +26,22 @@ from custom_components.amazing_irrigation.const import (
     CONF_SOLAR_RADIATION,
     CONF_TARGET_MOISTURE,
     CONF_TEMPERATURE_SENSOR,
+    CONF_WEATHER_FORECAST_ENTITY,
     CONF_WIND_SPEED,
     CONF_ZONES,
+    DATA_WEATHER_FORECAST,
     DATA_ZONE_STATE,
     DOMAIN,
     EVENT_DECISION,
     SERVICE_EVALUATE_ZONE,
 )
-from custom_components.amazing_irrigation.decision import build_inputs
+from custom_components.amazing_irrigation.decision import (
+    _forecast_horizon,
+    build_inputs,
+)
 from custom_components.amazing_irrigation.state import ZoneState, apply_model_to_state
 from custom_components.amazing_irrigation.waterbalance import WaterBalanceParams
+from custom_components.amazing_irrigation.weather_forecast import ForecastPoint
 from custom_components.amazing_irrigation.zone import ZoneConfig
 
 
@@ -154,6 +160,7 @@ async def test_decision_sensor_references_climate_inputs(
             CONF_OBSERVED_AIR_HUMIDITY: "sensor.air_humidity",
             CONF_FORECAST_AIR_TEMPERATURE: "sensor.forecast_temp",
             CONF_FORECAST_AIR_HUMIDITY: "sensor.forecast_humidity",
+            CONF_WEATHER_FORECAST_ENTITY: "weather.home",
             CONF_WIND_SPEED: "sensor.wind_speed",
             CONF_SOLAR_RADIATION: "sensor.solar_radiation",
         },
@@ -165,6 +172,7 @@ async def test_decision_sensor_references_climate_inputs(
         "moisture_sensors": ["sensor.soil"],
         "forecast_rain_amount": None,
         "forecast_rain_probability": None,
+        "weather_forecast_entity": "weather.home",
         "observed_rain_amount": None,
         "temperature_sensor": None,
         "humidity_sensor": None,
@@ -393,6 +401,93 @@ def test_build_inputs_missing_model_uses_rule_based_fallback(
     assert inputs.predictive is False
     assert inputs.params is None
     assert inputs.horizon is None
+
+
+def test_weather_forecast_cache_drives_horizon_and_rule_based_rain(
+    hass: HomeAssistant,
+) -> None:
+    """A configured weather entity supplies per-step climate and forecast rain."""
+    now = datetime(2026, 6, 28, 1, 0, tzinfo=UTC)
+    hass.data.setdefault(DOMAIN, {})[DATA_WEATHER_FORECAST] = {
+        "weather.home": [
+            ForecastPoint(now, 20, 60, 2, 1, 90),
+            ForecastPoint(now.replace(hour=2), 21, 61, 3, 2, 30),
+            ForecastPoint(now.replace(hour=3), 22, 62, 4, 3, 80),
+        ]
+    }
+    hass.states.async_set("sensor.soil", "39.0")
+    hass.states.async_set("sensor.solar", "450")
+    zone = ZoneConfig(
+        zone_id="abc123",
+        name="Bed",
+        moisture_sensors=["sensor.soil"],
+        weather_forecast_entity="weather.home",
+        forecast_rain_amount="sensor.scalar_rain",
+        forecast_rain_probability="sensor.scalar_probability",
+        solar_radiation="sensor.solar",
+        target_moisture=40.0,
+        max_liters=10.0,
+    )
+    state = ZoneState(
+        zone_id="abc123",
+        target_moisture=40.0,
+        max_liters=10.0,
+        schedule_1_time="04:00",
+        schedule_1_active=True,
+        schedule_2_active=False,
+    )
+
+    horizon = _forecast_horizon(hass, zone, state, now)
+    with patch("custom_components.amazing_irrigation.decision.dt_util.now", return_value=now):
+        inputs = build_inputs(hass, zone, state=state)
+
+    assert [interval.climate.air_temp_c for interval in horizon] == [20, 21, 22]
+    assert [interval.climate.air_humidity_pct for interval in horizon] == [60, 61, 62]
+    assert [interval.climate.wind_ms for interval in horizon] == [2, 3, 4]
+    assert horizon[0].climate.solar == 450
+    assert [interval.rain_mm for interval in horizon] == [1, 0, 3]
+    assert inputs.forecast_rain_mm == 4
+    assert inputs.forecast_rain_probability == 90
+
+
+def test_scalar_forecast_fallback_still_works_without_weather_cache(
+    hass: HomeAssistant,
+) -> None:
+    """Without a weather cache the existing scalar forecast behavior remains."""
+    now = datetime(2026, 6, 28, 1, 0, tzinfo=UTC)
+    hass.data.setdefault(DOMAIN, {})[DATA_WEATHER_FORECAST] = {}
+    hass.states.async_set("sensor.soil", "39.0")
+    hass.states.async_set("sensor.rain", "6.0")
+    hass.states.async_set("sensor.probability", "80.0")
+    hass.states.async_set("sensor.forecast_temp", "25.0")
+    zone = ZoneConfig(
+        zone_id="abc123",
+        name="Bed",
+        moisture_sensors=["sensor.soil"],
+        weather_forecast_entity="weather.home",
+        forecast_rain_amount="sensor.rain",
+        forecast_rain_probability="sensor.probability",
+        forecast_air_temperature="sensor.forecast_temp",
+        target_moisture=40.0,
+        max_liters=10.0,
+    )
+    state = ZoneState(
+        zone_id="abc123",
+        target_moisture=40.0,
+        max_liters=10.0,
+        schedule_1_time="04:00",
+        schedule_1_active=True,
+        schedule_2_active=False,
+    )
+
+    horizon = _forecast_horizon(hass, zone, state, now)
+    with patch("custom_components.amazing_irrigation.decision.dt_util.now", return_value=now):
+        inputs = build_inputs(hass, zone, state=state)
+
+    assert [interval.rain_mm for interval in horizon] == [2, 2, 2]
+    assert {interval.climate.air_temp_c for interval in horizon} == {25}
+    assert inputs.forecast_rain_mm == 6
+    assert inputs.forecast_rain_probability == 80
 
 
 async def test_decision_sensor_exposes_and_persists_predictive_explanation(

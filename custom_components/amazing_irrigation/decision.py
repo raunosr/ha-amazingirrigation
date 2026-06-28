@@ -18,10 +18,12 @@ from datetime import datetime, timedelta
 from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 
+from .const import DATA_WEATHER_FORECAST, DOMAIN
 from .controller import ForecastInterval, TargetBand, band_from_target
 from .engine import Decision, DecisionInputs, decide
 from .state import ZoneState, params_from_state
 from .waterbalance import Climate
+from .weather_forecast import ForecastPoint, horizon_from_forecast, near_term_rain
 from .zone import ZoneConfig, aggregate_zone_moisture, is_in_season
 
 _INVALID_STATES = ("unknown", "unavailable", "", None)
@@ -170,6 +172,15 @@ def _effective_forecast_rain(hass: HomeAssistant, zone: ZoneConfig) -> float:
     return max(0.0, rain)
 
 
+def _weather_points(hass: HomeAssistant, zone: ZoneConfig) -> list[ForecastPoint] | None:
+    """Return cached points for the zone's preferred weather entity."""
+    if not zone.weather_forecast_entity:
+        return None
+    cache = hass.data.get(DOMAIN, {}).get(DATA_WEATHER_FORECAST, {})
+    points = cache.get(zone.weather_forecast_entity)
+    return points if points else None
+
+
 def _forecast_horizon(
     hass: HomeAssistant,
     zone: ZoneConfig,
@@ -180,6 +191,19 @@ def _forecast_horizon(
     total_hours = _hours_until_next_schedule(now, state.active_schedule_times())
     if total_hours <= 0:
         total_hours = _DEFAULT_HORIZON_HOURS
+    points = _weather_points(hass, zone)
+    if points:
+        weather_intervals = horizon_from_forecast(
+            points,
+            start=now,
+            total_hours=total_hours,
+            step_hours=_MAX_HORIZON_STEP_HOURS,
+            protected_rain=zone.protected_rain,
+            rain_skip_probability=zone.rain_skip_probability,
+            solar=read_number(hass, zone.solar_radiation),
+        )
+        if weather_intervals:
+            return weather_intervals
     climate = _climate_from_entities(hass, zone)
     forecast_rain = _effective_forecast_rain(hass, zone)
     intervals: list[ForecastInterval] = []
@@ -249,6 +273,32 @@ def _target_band(
     return explicit
 
 
+def _forecast_rain_inputs(
+    hass: HomeAssistant,
+    zone: ZoneConfig,
+    state: ZoneState | None,
+    now: datetime,
+) -> tuple[float | None, float | None]:
+    """Return forecast rain inputs for the rule-based decision path."""
+    points = _weather_points(hass, zone)
+    if points:
+        schedule_times = state.active_schedule_times() if state else zone.schedule_times
+        hours = _hours_until_next_schedule(now, schedule_times)
+        if hours <= 0:
+            hours = _DEFAULT_HORIZON_HOURS
+        return near_term_rain(
+            points,
+            start=now,
+            hours=hours,
+            protected_rain=zone.protected_rain,
+            rain_skip_probability=zone.rain_skip_probability,
+        )
+    return (
+        read_number(hass, zone.forecast_rain_amount),
+        read_number(hass, zone.forecast_rain_probability),
+    )
+
+
 def build_inputs(
     hass: HomeAssistant,
     zone: ZoneConfig,
@@ -274,6 +324,9 @@ def build_inputs(
     if zone.target_moisture_low is not None:
         target_moisture = zone.target_moisture_low
     predictive = _predictive_kwargs(hass, zone, state, target_moisture, now)
+    forecast_rain_mm, forecast_rain_probability = _forecast_rain_inputs(
+        hass, zone, state, now
+    )
 
     return DecisionInputs(
         moisture=moisture,
@@ -281,8 +334,8 @@ def build_inputs(
         max_liters=max_liters,
         gain_per_liter=_gain_per_liter(zone, state),
         observed_rain_mm=read_number(hass, zone.observed_rain_amount),
-        forecast_rain_mm=read_number(hass, zone.forecast_rain_amount),
-        forecast_rain_probability=read_number(hass, zone.forecast_rain_probability),
+        forecast_rain_mm=forecast_rain_mm,
+        forecast_rain_probability=forecast_rain_probability,
         rain_skip_mm=zone.rain_skip_mm,
         rain_skip_probability=zone.rain_skip_probability,
         safety_blocked=_safety_blocked(hass, zone.safety_blockers),

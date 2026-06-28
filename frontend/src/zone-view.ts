@@ -211,6 +211,7 @@ function buildReferences(
   const single: Array<[string, string]> = [
     ["forecast_rain_amount", "Rain forecast"],
     ["forecast_rain_probability", "Rain chance"],
+    ["weather_forecast_entity", "Weather forecast"],
     ["observed_rain_amount", "Observed rain"],
     ["temperature_sensor", "Temperature"],
     ["humidity_sensor", "Humidity"],

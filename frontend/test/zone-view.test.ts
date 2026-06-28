@@ -238,6 +238,7 @@ describe("surfaced zone entities", () => {
           reason: "below_target",
           references: {
             moisture_sensors: ["sensor.soil_a", "sensor.soil_b"],
+            weather_forecast_entity: "weather.forecast_home",
             observed_rain_amount: "sensor.rain_today",
             temperature_sensor: "sensor.gh_temp",
             observed_air_temperature: "sensor.air_temp",
@@ -255,6 +256,10 @@ describe("surfaced zone entities", () => {
         attributes: { unit_of_measurement: "%", friendly_name: "Soil A" },
       },
       "sensor.soil_b": { state: "34", attributes: { unit_of_measurement: "%" } },
+      "weather.forecast_home": {
+        state: "cloudy",
+        attributes: { friendly_name: "Home forecast" },
+      },
       "sensor.rain_today": {
         state: "2.4",
         attributes: { unit_of_measurement: "mm" },
@@ -384,6 +389,7 @@ describe("surfaced zone entities", () => {
     expect(view.references.map((r) => r.entityId)).toEqual([
       "sensor.soil_a",
       "sensor.soil_b",
+      "weather.forecast_home",
       "sensor.rain_today",
       "sensor.gh_temp",
       "sensor.air_temp",
@@ -396,14 +402,15 @@ describe("surfaced zone entities", () => {
     ]);
     expect(view.references[0].name).toBe("Soil A");
     expect(view.references[0].label).toBe("Moisture sensor");
-    expect(view.references[2].label).toBe("Observed rain");
-    expect(view.references[4].label).toBe("Air temperature");
-    expect(view.references[5].label).toBe("Air humidity");
-    expect(view.references[6].label).toBe("Forecast air temp");
-    expect(view.references[7].label).toBe("Forecast air humidity");
-    expect(view.references[8].label).toBe("Wind speed");
-    expect(view.references[9].label).toBe("Solar");
-    expect(view.references[10].label).toBe("Safety blocker");
+    expect(view.references[2].label).toBe("Weather forecast");
+    expect(view.references[3].label).toBe("Observed rain");
+    expect(view.references[5].label).toBe("Air temperature");
+    expect(view.references[6].label).toBe("Air humidity");
+    expect(view.references[7].label).toBe("Forecast air temp");
+    expect(view.references[8].label).toBe("Forecast air humidity");
+    expect(view.references[9].label).toBe("Wind speed");
+    expect(view.references[10].label).toBe("Solar");
+    expect(view.references[11].label).toBe("Safety blocker");
   });
 
   it("skips references whose entity is missing", () => {

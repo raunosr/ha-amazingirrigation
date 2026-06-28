@@ -8,6 +8,7 @@ from custom_components.amazing_irrigation.const import (
     CONF_OBSERVED_AIR_HUMIDITY,
     CONF_OBSERVED_AIR_TEMPERATURE,
     CONF_SOLAR_RADIATION,
+    CONF_WEATHER_FORECAST_ENTITY,
     CONF_WIND_SPEED,
 )
 from custom_components.amazing_irrigation.zone import (
@@ -61,6 +62,7 @@ def test_zone_config_from_record_normalises_optionals() -> None:
             "name": "Herb Bed",
             "moisture_sensors": ["sensor.a", "sensor.b"],
             "forecast_rain_amount": "sensor.rain_mm",
+            CONF_WEATHER_FORECAST_ENTITY: "weather.home",
             "safety_blockers": ["binary_sensor.lock"],
             CONF_OBSERVED_AIR_TEMPERATURE: "sensor.air_temp",
             CONF_OBSERVED_AIR_HUMIDITY: "sensor.air_humidity",
@@ -75,6 +77,7 @@ def test_zone_config_from_record_normalises_optionals() -> None:
     assert zone.moisture_sensors == ["sensor.a", "sensor.b"]
     assert zone.forecast_rain_amount == "sensor.rain_mm"
     assert zone.forecast_rain_probability is None
+    assert zone.weather_forecast_entity == "weather.home"
     assert zone.observed_rain_amount is None
     assert zone.safety_blockers == ["binary_sensor.lock"]
     assert zone.observed_air_temperature == "sensor.air_temp"
