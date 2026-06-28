@@ -3,6 +3,7 @@ import { customElement, property, state } from "lit/decorators.js";
 
 import {
   buildOverview,
+  decisionEntities,
   type HassState,
   type OverviewCardConfig,
   type ZoneView,
@@ -18,8 +19,17 @@ export class AmazingIrrigationOverviewCard extends LitElement {
 
   @state() private _config?: OverviewCardConfig;
 
-  public static getStubConfig(): Partial<OverviewCardConfig> {
-    return { zones: [] };
+  public static getStubConfig(hass?: {
+    states?: Record<string, HassState>;
+  }): Partial<OverviewCardConfig> {
+    const zones = decisionEntities(hass?.states).map((entity) => ({
+      decision_entity: entity,
+    }));
+    return { zones };
+  }
+
+  public static async getConfigElement(): Promise<HTMLElement> {
+    return document.createElement("amazing-irrigation-overview-card-editor");
   }
 
   public setConfig(config: OverviewCardConfig): void {

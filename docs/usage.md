@@ -182,6 +182,17 @@ They are registered as a Lovelace resource automatically, so they appear in the
 dashboard **Add card** picker as *Amazing Irrigation Zone* and *Amazing
 Irrigation Overview*.
 
+Both cards ship a **visual editor** — no YAML required. When you add or edit a
+card, the UI shows entity pickers:
+
+- *Zone card:* pick the required **Decision sensor**
+  (`sensor.<zone>_irrigation_decision`) plus optional soil-moisture, status,
+  and history sensors, and an optional display name.
+- *Overview card:* set an optional title, then **+ Add zone** / **Remove** rows,
+  each selecting that zone's Decision sensor (and optional sensors).
+
+You can still switch to **Show code editor** for raw YAML if you prefer.
+
 > **After updating via HACS:** the resource URL is cache-busted per version, but
 > if the cards still show a loading spinner or "Custom element not found",
 > hard-refresh the browser (Ctrl/Cmd+Shift+R) once to clear the frontend
