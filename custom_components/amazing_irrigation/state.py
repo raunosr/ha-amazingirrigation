@@ -104,6 +104,9 @@ class ZoneState:
     total_liters: float = 0.0
     # Opaque bookkeeping for the learning engine (EMA counters, last samples).
     learning_state: dict[str, Any] = field(default_factory=dict)
+    # Snapshot of the config-controlled values last applied from the options
+    # record, used to detect config edits across reloads (see reconcile_zone_state).
+    config_signature: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialise for the Store."""
@@ -129,6 +132,83 @@ class ZoneState:
         return sorted(out)
 
 
+def _normalized_schedule_times(zone: ZoneConfig) -> list[str]:
+    """Return the zone's configured schedule times, normalized and filtered."""
+    times = [normalize_time(value) for value in zone.schedule_times]
+    return [value for value in times if value is not None]
+
+
+def zone_config_signature(zone: ZoneConfig) -> dict[str, Any]:
+    """Capture the config-controlled values that seed a zone's live state.
+
+    Used to detect which fields a user changed in the options flow across
+    reloads, so config edits are honoured without clobbering values tuned
+    through the live switch/number/time entities.
+    """
+    return {
+        "enabled": bool(zone.enabled),
+        "learning_enabled": bool(zone.learning_enabled),
+        "target_moisture": clamp_percent(zone.target_moisture),
+        "max_liters": max(0.0, zone.max_liters),
+        "schedule_times": _normalized_schedule_times(zone),
+    }
+
+
+def _apply_schedule(state: ZoneState, configured: list[str]) -> None:
+    """Seed the two schedule slots from configured times (slot active if set)."""
+    if not configured:
+        return
+    state.schedule_1_time = configured[0]
+    state.schedule_1_active = True
+    if len(configured) > 1:
+        state.schedule_2_time = configured[1]
+        state.schedule_2_active = True
+    else:
+        state.schedule_2_time = configured[0]
+        state.schedule_2_active = False
+
+
+def _apply_config_field(state: ZoneState, key: str, value: Any) -> None:
+    """Apply a single config-controlled value onto the live state."""
+    if key == "schedule_times":
+        _apply_schedule(state, value)
+    elif key == "target_moisture":
+        state.target_moisture = value
+    elif key == "max_liters":
+        state.max_liters = value
+    elif key == "enabled":
+        state.enabled = bool(value)
+    elif key == "learning_enabled":
+        state.learning_enabled = bool(value)
+
+
+# Boolean flags re-synced from config on the first reconcile (e.g. when
+# upgrading from a build that stored no signature), so a config edit predating
+# this version takes effect without resetting numeric/schedule values that may
+# have been tuned through the live entities.
+_FIRST_RUN_CONFIG_FIELDS = ("enabled", "learning_enabled")
+
+
+def reconcile_zone_state(state: ZoneState, zone: ZoneConfig) -> None:
+    """Apply config edits onto an existing persisted state.
+
+    A field is adopted from the config record only when its value differs from
+    the signature last applied, so operational changes made through the live
+    switch/number/time entities are preserved across reloads. On the first
+    reconcile (no stored signature), only the boolean flags are synced.
+    """
+    signature = zone_config_signature(zone)
+    previous = state.config_signature or {}
+    first_run = not previous
+    for key, value in signature.items():
+        if first_run:
+            if key in _FIRST_RUN_CONFIG_FIELDS:
+                _apply_config_field(state, key, value)
+        elif previous.get(key) != value:
+            _apply_config_field(state, key, value)
+    state.config_signature = signature
+
+
 def seed_zone_state(zone_id: str, record: dict[str, Any]) -> ZoneState:
     """Build a zone's initial state from its config-entry options record.
 
@@ -149,17 +229,8 @@ def seed_zone_state(zone_id: str, record: dict[str, Any]) -> ZoneState:
         learned_wilting_point=zone.wilting_point,
     )
 
-    configured = [normalize_time(value) for value in zone.schedule_times]
-    configured = [value for value in configured if value is not None]
-    if configured:
-        state.schedule_1_time = configured[0]
-        state.schedule_1_active = True
-        if len(configured) > 1:
-            state.schedule_2_time = configured[1]
-            state.schedule_2_active = True
-        else:
-            state.schedule_2_time = configured[0]
-            state.schedule_2_active = False
+    _apply_schedule(state, _normalized_schedule_times(zone))
+    state.config_signature = zone_config_signature(zone)
     return state
 
 
@@ -315,7 +386,9 @@ class ZoneStateStore:
         states: dict[str, ZoneState] = {}
         for zone_id, record in zones.items():
             if zone_id in persisted:
-                states[zone_id] = ZoneState.from_dict(zone_id, persisted[zone_id])
+                state = ZoneState.from_dict(zone_id, persisted[zone_id])
+                reconcile_zone_state(state, ZoneConfig.from_record(zone_id, record))
+                states[zone_id] = state
             else:
                 states[zone_id] = seed_zone_state(zone_id, record)
         self.states = states

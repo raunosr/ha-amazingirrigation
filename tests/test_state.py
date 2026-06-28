@@ -6,6 +6,7 @@ from homeassistant.core import HomeAssistant
 
 from custom_components.amazing_irrigation.const import (
     CONF_GAIN_PER_LITER,
+    CONF_LEARNING_ENABLED,
     CONF_MAX_LITERS,
     CONF_NAME,
     CONF_SCHEDULE_TIMES,
@@ -211,3 +212,67 @@ async def test_store_drops_removed_zone_and_seeds_new(hass: HomeAssistant) -> No
     await store.async_load({"new": {CONF_NAME: "New"}})
     assert store.get("old") is None
     assert store.get("new") is not None
+
+
+async def test_reload_applies_config_learning_toggle(hass: HomeAssistant) -> None:
+    """Editing the learning toggle in config takes effect on the next reload."""
+    zones = {"z1": {CONF_NAME: "Bed", CONF_LEARNING_ENABLED: False}}
+    store = ZoneStateStore(hass, "entry_learn")
+    await store.async_load(zones)
+    assert store.get("z1").learning_enabled is False
+
+    # User enables learning in the zone config; a reload re-runs async_load.
+    zones = {"z1": {CONF_NAME: "Bed", CONF_LEARNING_ENABLED: True}}
+    reloaded = ZoneStateStore(hass, "entry_learn")
+    await reloaded.async_load(zones)
+    assert reloaded.get("z1").learning_enabled is True
+
+
+async def test_reload_preserves_runtime_target_when_config_unchanged(
+    hass: HomeAssistant,
+) -> None:
+    """A target tuned via the live entity survives reloads with no config edit."""
+    zones = {"z1": {CONF_NAME: "Bed", CONF_TARGET_MOISTURE: 40}}
+    store = ZoneStateStore(hass, "entry_runtime")
+    await store.async_load(zones)
+
+    # Simulate a runtime change via the number entity.
+    store.get("z1").target_moisture = 55
+    await store.async_save()
+
+    reloaded = ZoneStateStore(hass, "entry_runtime")
+    await reloaded.async_load(zones)
+    assert reloaded.get("z1").target_moisture == 55
+
+
+async def test_reload_applies_changed_config_target(hass: HomeAssistant) -> None:
+    """Editing the target in config overrides the persisted runtime value."""
+    zones = {"z1": {CONF_NAME: "Bed", CONF_TARGET_MOISTURE: 40}}
+    store = ZoneStateStore(hass, "entry_target")
+    await store.async_load(zones)
+    store.get("z1").target_moisture = 55
+    await store.async_save()
+
+    zones = {"z1": {CONF_NAME: "Bed", CONF_TARGET_MOISTURE: 30}}
+    reloaded = ZoneStateStore(hass, "entry_target")
+    await reloaded.async_load(zones)
+    assert reloaded.get("z1").target_moisture == 30
+
+
+async def test_first_reload_syncs_learning_flag_without_signature(
+    hass: HomeAssistant,
+) -> None:
+    """A persisted state from before signatures adopts the config learning flag."""
+    legacy = ZoneState(zone_id="z1", learning_enabled=False, target_moisture=55)
+    assert legacy.config_signature == {}
+    store = ZoneStateStore(hass, "entry_legacy")
+    store.states = {"z1": legacy}
+    await store.async_save()
+
+    zones = {"z1": {CONF_NAME: "Bed", CONF_LEARNING_ENABLED: True, CONF_TARGET_MOISTURE: 40}}
+    reloaded = ZoneStateStore(hass, "entry_legacy")
+    await reloaded.async_load(zones)
+    # Boolean flag is synced from config on first reconcile ...
+    assert reloaded.get("z1").learning_enabled is True
+    # ... but a numeric value tuned at runtime is preserved.
+    assert reloaded.get("z1").target_moisture == 55
