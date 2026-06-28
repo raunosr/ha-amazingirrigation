@@ -28,6 +28,20 @@ CONF_RAIN_SKIP_PROBABILITY = "rain_skip_probability"
 CONF_SEASON_START = "season_start"
 CONF_SEASON_END = "season_end"
 
+# Advanced per-zone calibration keys (visible, manually set in this slice).
+CONF_FIELD_CAPACITY = "field_capacity"
+CONF_WILTING_POINT = "wilting_point"
+CONF_LEARNING_ENABLED = "learning_enabled"
+
+# Bounded Irrigation History size kept per zone for explainability.
+HISTORY_LIMIT = 50
+
+# hass.data[DOMAIN][entry_id] sub-key holding IrrigationHistory by zone_id.
+DATA_HISTORY = "history"
+
+# hass.data[DOMAIN][entry_id] sub-key holding the RainWatcher list.
+DATA_RAIN_WATCHERS = "rain_watchers"
+
 # Per-zone enablement and built-in scheduling keys.
 CONF_ENABLED = "enabled"
 CONF_SCHEDULE_WEEKDAYS = "schedule_weekdays"

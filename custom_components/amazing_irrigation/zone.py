@@ -15,9 +15,11 @@ from dataclasses import dataclass, field
 
 from .const import (
     CONF_ENABLED,
+    CONF_FIELD_CAPACITY,
     CONF_FORECAST_RAIN_AMOUNT,
     CONF_FORECAST_RAIN_PROBABILITY,
     CONF_GAIN_PER_LITER,
+    CONF_LEARNING_ENABLED,
     CONF_MAX_LITERS,
     CONF_MOISTURE_SENSORS,
     CONF_NAME,
@@ -30,6 +32,7 @@ from .const import (
     CONF_SEASON_END,
     CONF_SEASON_START,
     CONF_TARGET_MOISTURE,
+    CONF_WILTING_POINT,
     DEFAULT_MAX_LITERS,
     DEFAULT_RAIN_SKIP_MM,
     DEFAULT_RAIN_SKIP_PROBABILITY,
@@ -101,6 +104,9 @@ class ZoneConfig:
     enabled: bool = True
     schedule_weekdays: list[str] = field(default_factory=list)
     schedule_times: list[str] = field(default_factory=list)
+    field_capacity: float | None = None
+    wilting_point: float | None = None
+    learning_enabled: bool = False
 
     @classmethod
     def from_record(cls, zone_id: str, record: dict) -> ZoneConfig:
@@ -125,6 +131,9 @@ class ZoneConfig:
             enabled=bool(record.get(CONF_ENABLED, True)),
             schedule_weekdays=list(record.get(CONF_SCHEDULE_WEEKDAYS, []) or []),
             schedule_times=list(record.get(CONF_SCHEDULE_TIMES, []) or []),
+            field_capacity=_as_float(record.get(CONF_FIELD_CAPACITY), None),
+            wilting_point=_as_float(record.get(CONF_WILTING_POINT), None),
+            learning_enabled=bool(record.get(CONF_LEARNING_ENABLED, False)),
         )
 
 

@@ -35,9 +35,11 @@ from .const import (
     CONF_ACTUATOR_SWITCH,
     CONF_ACTUATOR_TYPE,
     CONF_ENABLED,
+    CONF_FIELD_CAPACITY,
     CONF_FORECAST_RAIN_AMOUNT,
     CONF_FORECAST_RAIN_PROBABILITY,
     CONF_GAIN_PER_LITER,
+    CONF_LEARNING_ENABLED,
     CONF_LINKTAP_FAILSAFE,
     CONF_LINKTAP_ID,
     CONF_LINKTAP_TOPIC,
@@ -56,6 +58,7 @@ from .const import (
     CONF_VOLUME_FIELD,
     CONF_VOLUME_SENSOR,
     CONF_WATERING_SENSOR,
+    CONF_WILTING_POINT,
     CONF_ZONES,
     DEFAULT_LINKTAP_FAILSAFE,
     DEFAULT_LINKTAP_TOPIC,
@@ -123,6 +126,19 @@ def _zone_schema() -> vol.Schema:
             vol.Optional(CONF_SAFETY_BLOCKERS): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain="binary_sensor", multiple=True)
             ),
+            vol.Optional(CONF_FIELD_CAPACITY): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=0, max=100, step=1, unit_of_measurement="%", mode="box"
+                )
+            ),
+            vol.Optional(CONF_WILTING_POINT): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=0, max=100, step=1, unit_of_measurement="%", mode="box"
+                )
+            ),
+            vol.Optional(
+                CONF_LEARNING_ENABLED, default=False
+            ): selector.BooleanSelector(),
             vol.Optional(CONF_SEASON_START): selector.TextSelector(),
             vol.Optional(CONF_SEASON_END): selector.TextSelector(),
             vol.Optional(CONF_ENABLED, default=True): selector.BooleanSelector(),
