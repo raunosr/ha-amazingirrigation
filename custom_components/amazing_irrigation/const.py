@@ -56,6 +56,15 @@ CONF_ENABLED = "enabled"
 CONF_SCHEDULE_WEEKDAYS = "schedule_weekdays"
 CONF_SCHEDULE_TIMES = "schedule_times"
 
+# Default evening watering time used when a zone has no configured schedule.
+DEFAULT_SCHEDULE_TIME = "21:00"
+
+# Persistent ZoneState store (live tunables, learned params, cumulative volume).
+STORAGE_VERSION = 1
+
+# hass.data[DOMAIN][entry_id] sub-key holding the ZoneStateStore.
+DATA_ZONE_STATE = "zone_state"
+
 # Weekday tokens used by zone schedules (Monday = index 0).
 WEEKDAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 
