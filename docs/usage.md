@@ -178,6 +178,16 @@ The integration auto-registers two cards (no manual resource setup):
 - `custom:amazing-irrigation-card` — single-zone detail/control.
 - `custom:amazing-irrigation-overview-card` — compact multi-zone overview.
 
+They are registered as a Lovelace resource automatically, so they appear in the
+dashboard **Add card** picker as *Amazing Irrigation Zone* and *Amazing
+Irrigation Overview*.
+
+> **After updating via HACS:** the resource URL is cache-busted per version, but
+> if the cards still show a loading spinner or "Custom element not found",
+> hard-refresh the browser (Ctrl/Cmd+Shift+R) once to clear the frontend
+> service-worker cache. A Home Assistant restart after the update is also
+> recommended so the resource is (re)registered.
+
 See the README for the card YAML and
 [`examples/test-dashboard.yaml`](./examples/test-dashboard.yaml) for a
 non-destructive validation view.
