@@ -147,6 +147,31 @@ def test_observed_rain_counts_regardless_of_probability() -> None:
     assert decision.reason is DecisionReason.RAIN_SUFFICIENT
 
 
+def test_protected_rain_ignores_rain_in_greenhouse() -> None:
+    # A protected Greenhouse Zone receives no rainfall, so abundant observed and
+    # forecast rain must not skip or reduce its watering.
+    decision = decide(
+        _inputs(
+            observed_rain_mm=20.0,
+            forecast_rain_mm=20.0,
+            forecast_rain_probability=100.0,
+            rain_skip_mm=3.0,
+            protected_rain=True,
+        )
+    )
+    assert decision.action is DecisionAction.WATER
+    assert decision.reason is DecisionReason.BELOW_TARGET
+    assert decision.recommended_liters == 20.0
+
+
+def test_protected_rain_false_still_skips_on_rain() -> None:
+    decision = decide(
+        _inputs(observed_rain_mm=20.0, rain_skip_mm=3.0, protected_rain=False)
+    )
+    assert decision.action is DecisionAction.SKIP
+    assert decision.reason is DecisionReason.RAIN_SUFFICIENT
+
+
 def test_degraded_flag_propagates() -> None:
     decision = decide(
         _inputs(moisture=_moisture(20.0, used=1, configured=3), target_moisture=40.0)

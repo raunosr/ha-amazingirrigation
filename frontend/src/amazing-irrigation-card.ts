@@ -1,6 +1,7 @@
 import { LitElement, html, css, nothing, type TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 
+import "./amazing-irrigation-overview-card";
 import {
   buildZoneView,
   canRun,
@@ -111,6 +112,7 @@ export class AmazingIrrigationCard extends LitElement {
             : nothing}
         </div>
 
+        ${this._renderGreenhouse(view)}
         ${this._renderHistory(view)}
 
         <div class="actions">
@@ -134,6 +136,26 @@ export class AmazingIrrigationCard extends LitElement {
             : nothing}
         </div>
       </ha-card>
+    `;
+  }
+
+  private _renderGreenhouse(view: ZoneView): TemplateResult | typeof nothing {
+    if (!view.greenhouse) {
+      return nothing;
+    }
+    return html`
+      <div class="greenhouse">
+        <span class="badge">🌱 Greenhouse</span>
+        <span class="ctx ${view.protectedRain ? "on" : ""}">
+          ${view.protectedRain ? "Protected from rain" : "Open to rain"}
+        </span>
+        ${view.temperature !== null
+          ? html`<span class="ctx">${view.temperature}°C</span>`
+          : nothing}
+        ${view.humidity !== null
+          ? html`<span class="ctx">${view.humidity}% RH</span>`
+          : nothing}
+      </div>
     `;
   }
 
@@ -243,6 +265,27 @@ export class AmazingIrrigationCard extends LitElement {
     .decision-reason {
       color: var(--secondary-text-color);
       font-size: 0.85rem;
+    }
+    .greenhouse {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .greenhouse .badge {
+      font-weight: 600;
+      font-size: 0.85rem;
+    }
+    .greenhouse .ctx {
+      font-size: 0.8rem;
+      padding: 2px 6px;
+      border-radius: 6px;
+      background: var(--secondary-background-color);
+      color: var(--secondary-text-color);
+    }
+    .greenhouse .ctx.on {
+      color: var(--primary-color);
     }
     .history {
       margin-bottom: 12px;

@@ -19,11 +19,14 @@ from .const import (
     CONF_FORECAST_RAIN_AMOUNT,
     CONF_FORECAST_RAIN_PROBABILITY,
     CONF_GAIN_PER_LITER,
+    CONF_GREENHOUSE,
+    CONF_HUMIDITY_SENSOR,
     CONF_LEARNING_ENABLED,
     CONF_MAX_LITERS,
     CONF_MOISTURE_SENSORS,
     CONF_NAME,
     CONF_OBSERVED_RAIN_AMOUNT,
+    CONF_PROTECTED_RAIN,
     CONF_RAIN_SKIP_MM,
     CONF_RAIN_SKIP_PROBABILITY,
     CONF_SAFETY_BLOCKERS,
@@ -32,6 +35,7 @@ from .const import (
     CONF_SEASON_END,
     CONF_SEASON_START,
     CONF_TARGET_MOISTURE,
+    CONF_TEMPERATURE_SENSOR,
     CONF_WILTING_POINT,
     DEFAULT_MAX_LITERS,
     DEFAULT_RAIN_SKIP_MM,
@@ -107,6 +111,10 @@ class ZoneConfig:
     field_capacity: float | None = None
     wilting_point: float | None = None
     learning_enabled: bool = False
+    greenhouse: bool = False
+    protected_rain: bool = False
+    temperature_sensor: str | None = None
+    humidity_sensor: str | None = None
 
     @classmethod
     def from_record(cls, zone_id: str, record: dict) -> ZoneConfig:
@@ -134,6 +142,10 @@ class ZoneConfig:
             field_capacity=_as_float(record.get(CONF_FIELD_CAPACITY), None),
             wilting_point=_as_float(record.get(CONF_WILTING_POINT), None),
             learning_enabled=bool(record.get(CONF_LEARNING_ENABLED, False)),
+            greenhouse=bool(record.get(CONF_GREENHOUSE, False)),
+            protected_rain=bool(record.get(CONF_PROTECTED_RAIN, False)),
+            temperature_sensor=record.get(CONF_TEMPERATURE_SENSOR) or None,
+            humidity_sensor=record.get(CONF_HUMIDITY_SENSOR) or None,
         )
 
 

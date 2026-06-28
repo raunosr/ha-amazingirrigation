@@ -36,6 +36,10 @@ export interface ZoneView {
   historyCount: number;
   lastKind: string | null;
   historyEntries: Array<Record<string, unknown>>;
+  greenhouse: boolean;
+  protectedRain: boolean;
+  temperature: number | null;
+  humidity: number | null;
 }
 
 function num(value: unknown): number | null {
@@ -103,6 +107,10 @@ export function buildZoneView(
     historyEntries: Array.isArray(historyAttrs["entries"])
       ? (historyAttrs["entries"] as Array<Record<string, unknown>>)
       : [],
+    greenhouse: decisionAttrs["greenhouse"] === true,
+    protectedRain: decisionAttrs["protected_rain"] === true,
+    temperature: num(decisionAttrs["temperature"]),
+    humidity: num(decisionAttrs["humidity"]),
   };
 }
 
@@ -114,4 +122,19 @@ export function canRun(_view: ZoneView): boolean {
 /** Stop is offered only when the backend reports a stoppable, active run. */
 export function canStop(view: ZoneView): boolean {
   return view.canStop && view.isWatering;
+}
+
+export interface OverviewCardConfig {
+  type: string;
+  title?: string;
+  zones: ZoneCardConfig[];
+}
+
+/** Build a view model for every zone referenced by an overview card. */
+export function buildOverview(
+  config: OverviewCardConfig,
+  states: Record<string, HassState | undefined>,
+): ZoneView[] {
+  const zones = Array.isArray(config.zones) ? config.zones : [];
+  return zones.map((zone) => buildZoneView(zone, states));
 }

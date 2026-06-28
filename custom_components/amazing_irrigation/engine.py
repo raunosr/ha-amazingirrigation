@@ -74,6 +74,7 @@ class DecisionInputs:
     in_season: bool = True
     zone_locked: bool = False
     force: bool = False
+    protected_rain: bool = False
 
 
 @dataclass(frozen=True)
@@ -102,7 +103,13 @@ def _liters_for_deficit(inp: DecisionInputs, deficit: float) -> float:
 
 
 def _effective_rain_mm(inp: DecisionInputs) -> float:
-    """Rain that counts toward the deficit: observed plus likely forecast."""
+    """Rain that counts toward the deficit: observed plus likely forecast.
+
+    A Greenhouse Zone with protected rain receives no rainfall, so rain never
+    reduces or cancels its watering regardless of observed/forecast inputs.
+    """
+    if inp.protected_rain:
+        return 0.0
     rain = inp.observed_rain_mm or 0.0
     probability = inp.forecast_rain_probability
     if inp.forecast_rain_mm and (

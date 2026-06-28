@@ -65,6 +65,7 @@ def build_inputs(
         in_season=in_season,
         zone_locked=zone_locked,
         force=force,
+        protected_rain=zone.protected_rain,
     )
 
 
