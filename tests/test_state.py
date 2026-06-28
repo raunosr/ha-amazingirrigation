@@ -15,10 +15,13 @@ from custom_components.amazing_irrigation.const import (
 from custom_components.amazing_irrigation.state import (
     ZoneState,
     ZoneStateStore,
+    apply_model_to_state,
     clamp_percent,
     normalize_time,
+    params_from_state,
     seed_zone_state,
 )
+from custom_components.amazing_irrigation.waterbalance import WaterBalanceParams
 
 
 def test_clamp_percent_bounds() -> None:
@@ -85,6 +88,91 @@ def test_roundtrip_serialisation_ignores_unknown_keys() -> None:
     restored = ZoneState.from_dict("z1", data)
     assert restored.target_moisture == 40
     assert restored.total_liters == 12.5
+
+
+def test_apply_model_to_state_persists_model_and_legacy_mirrors() -> None:
+    state = ZoneState(zone_id="z1")
+    params = WaterBalanceParams(1.8, 1.1, 0.5, 0.12, 48.0, 16.0)
+    confidence = {"eta_irr": 0.8, "eta_rain": 0.6, "k_et": 0.4, "drain_rate": 0.2}
+    covariance = [
+        [1.0, 0.0, 0.0, 0.0],
+        [0.0, 2.0, 0.0, 0.0],
+        [0.0, 0.0, 3.0, 0.0],
+        [0.0, 0.0, 0.0, 4.0],
+    ]
+
+    result = apply_model_to_state(
+        state,
+        params,
+        confidence,
+        covariance=covariance,
+        updated="2026-06-28T20:00:00+00:00",
+    )
+
+    assert result is state
+    assert state.model_params == {
+        "eta_irr": 1.8,
+        "eta_rain": 1.1,
+        "k_et": 0.5,
+        "drain_rate": 0.12,
+        "field_capacity": 48.0,
+        "wilting_point": 16.0,
+    }
+    assert state.model_confidence == confidence
+    assert state.model_covariance == covariance
+    assert state.model_updated == "2026-06-28T20:00:00+00:00"
+    assert state.learned_gain_per_liter == 1.8
+    assert state.learned_rain_efficiency == 1.1
+    assert state.learned_drying_rate == 0.48
+    assert state.learned_field_capacity == 48.0
+    assert state.learned_wilting_point == 16.0
+
+
+def test_params_from_state_round_trips_model_params() -> None:
+    state = ZoneState(zone_id="z1")
+    params = WaterBalanceParams(1.7, 1.2, 0.7, 0.09, 47.0, 15.0)
+    apply_model_to_state(state, params, {"eta_irr": 0.5})
+
+    restored = params_from_state(state)
+
+    assert restored == params
+
+
+def test_params_from_state_falls_back_to_legacy_mirrors() -> None:
+    state = ZoneState(
+        zone_id="z1",
+        learned_gain_per_liter=2.0,
+        learned_rain_efficiency=1.5,
+        learned_drying_rate=1.92,
+        learned_field_capacity=52.0,
+        learned_wilting_point=20.0,
+    )
+
+    restored = params_from_state(state)
+
+    assert restored.eta_irr == 2.0
+    assert restored.eta_rain == 1.5
+    assert restored.k_et == 2.0
+    assert restored.field_capacity == 52.0
+    assert restored.wilting_point == 20.0
+
+
+def test_from_dict_loads_old_records_without_model_fields() -> None:
+    restored = ZoneState.from_dict(
+        "z1",
+        {
+            "target_moisture": 40,
+            "learned_gain_per_liter": 1.4,
+            "learning_state": {"gain_samples": 2},
+        },
+    )
+
+    assert restored.model_params is None
+    assert restored.model_covariance is None
+    assert restored.model_confidence is None
+    assert restored.bootstrapped_days is None
+    assert restored.model_updated is None
+    assert restored.learned_gain_per_liter == 1.4
 
 
 async def test_store_seeds_then_persists_and_reloads(hass: HomeAssistant) -> None:
