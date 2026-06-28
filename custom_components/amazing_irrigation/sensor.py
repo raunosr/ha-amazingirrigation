@@ -206,6 +206,12 @@ class IrrigationDecisionSensor(SensorEntity):
             self._zone.observed_rain_amount,
             self._zone.temperature_sensor,
             self._zone.humidity_sensor,
+            self._zone.observed_air_temperature,
+            self._zone.observed_air_humidity,
+            self._zone.forecast_air_temperature,
+            self._zone.forecast_air_humidity,
+            self._zone.wind_speed,
+            self._zone.solar_radiation,
         ):
             if entity_id:
                 tracked.append(entity_id)
@@ -303,6 +309,12 @@ class IrrigationDecisionSensor(SensorEntity):
             "observed_rain_amount": self._zone.observed_rain_amount,
             "temperature_sensor": self._zone.temperature_sensor,
             "humidity_sensor": self._zone.humidity_sensor,
+            "observed_air_temperature": self._zone.observed_air_temperature,
+            "observed_air_humidity": self._zone.observed_air_humidity,
+            "forecast_air_temperature": self._zone.forecast_air_temperature,
+            "forecast_air_humidity": self._zone.forecast_air_humidity,
+            "wind_speed": self._zone.wind_speed,
+            "solar_radiation": self._zone.solar_radiation,
             "safety_blockers": list(self._zone.safety_blockers),
         }
 

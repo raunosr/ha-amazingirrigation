@@ -13,13 +13,19 @@ from custom_components.amazing_irrigation.const import (
     ACTUATOR_SWITCH,
     CONF_ACTUATOR_SWITCH,
     CONF_ACTUATOR_TYPE,
+    CONF_FORECAST_AIR_HUMIDITY,
+    CONF_FORECAST_AIR_TEMPERATURE,
     CONF_LINKTAP_DEVICE,
     CONF_LINKTAP_ID,
     CONF_MOISTURE_SENSORS,
     CONF_NAME,
+    CONF_OBSERVED_AIR_HUMIDITY,
+    CONF_OBSERVED_AIR_TEMPERATURE,
     CONF_SCHEDULE_TIMES,
+    CONF_SOLAR_RADIATION,
     CONF_VOLUME_SENSOR,
     CONF_WATERING_SENSOR,
+    CONF_WIND_SPEED,
     CONF_ZONES,
     DOMAIN,
 )
@@ -51,6 +57,12 @@ async def test_add_zone_creates_record(hass: HomeAssistant) -> None:
         {
             CONF_NAME: "Herb Bed",
             CONF_MOISTURE_SENSORS: ["sensor.gw2000a_soil_moisture_5"],
+            CONF_OBSERVED_AIR_TEMPERATURE: "sensor.outdoor_temp",
+            CONF_OBSERVED_AIR_HUMIDITY: "sensor.outdoor_humidity",
+            CONF_FORECAST_AIR_TEMPERATURE: "sensor.forecast_temp",
+            CONF_FORECAST_AIR_HUMIDITY: "sensor.forecast_humidity",
+            CONF_WIND_SPEED: "sensor.wind_speed",
+            CONF_SOLAR_RADIATION: "sensor.solar_radiation",
         },
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
@@ -60,6 +72,12 @@ async def test_add_zone_creates_record(hass: HomeAssistant) -> None:
     record = next(iter(zones.values()))
     assert record[CONF_NAME] == "Herb Bed"
     assert record[CONF_MOISTURE_SENSORS] == ["sensor.gw2000a_soil_moisture_5"]
+    assert record[CONF_OBSERVED_AIR_TEMPERATURE] == "sensor.outdoor_temp"
+    assert record[CONF_OBSERVED_AIR_HUMIDITY] == "sensor.outdoor_humidity"
+    assert record[CONF_FORECAST_AIR_TEMPERATURE] == "sensor.forecast_temp"
+    assert record[CONF_FORECAST_AIR_HUMIDITY] == "sensor.forecast_humidity"
+    assert record[CONF_WIND_SPEED] == "sensor.wind_speed"
+    assert record[CONF_SOLAR_RADIATION] == "sensor.solar_radiation"
 
 
 async def test_add_zone_time_pickers_map_to_schedule_times(

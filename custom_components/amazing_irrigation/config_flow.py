@@ -39,6 +39,8 @@ from .const import (
     CONF_ACTUATOR_TYPE,
     CONF_ENABLED,
     CONF_FIELD_CAPACITY,
+    CONF_FORECAST_AIR_HUMIDITY,
+    CONF_FORECAST_AIR_TEMPERATURE,
     CONF_FORECAST_RAIN_AMOUNT,
     CONF_FORECAST_RAIN_PROBABILITY,
     CONF_GAIN_PER_LITER,
@@ -52,6 +54,8 @@ from .const import (
     CONF_MAX_LITERS,
     CONF_MOISTURE_SENSORS,
     CONF_NAME,
+    CONF_OBSERVED_AIR_HUMIDITY,
+    CONF_OBSERVED_AIR_TEMPERATURE,
     CONF_OBSERVED_RAIN_AMOUNT,
     CONF_PROTECTED_RAIN,
     CONF_RAIN_SKIP_MM,
@@ -61,12 +65,14 @@ from .const import (
     CONF_SCHEDULE_WEEKDAYS,
     CONF_SEASON_END,
     CONF_SEASON_START,
+    CONF_SOLAR_RADIATION,
     CONF_TARGET_MOISTURE,
     CONF_TEMPERATURE_SENSOR,
     CONF_VOLUME_FIELD,
     CONF_VOLUME_SENSOR,
     CONF_WATERING_SENSOR,
     CONF_WILTING_POINT,
+    CONF_WIND_SPEED,
     CONF_ZONES,
     DEFAULT_LINKTAP_FAILSAFE,
     DEFAULT_LINKTAP_TOPIC,
@@ -169,6 +175,24 @@ def _zone_basics_schema() -> vol.Schema:
                 selector.EntitySelectorConfig(domain=["sensor", "input_number"])
             ),
             vol.Optional(CONF_OBSERVED_RAIN_AMOUNT): selector.EntitySelector(
+                selector.EntitySelectorConfig(domain=["sensor", "input_number"])
+            ),
+            vol.Optional(CONF_OBSERVED_AIR_TEMPERATURE): selector.EntitySelector(
+                selector.EntitySelectorConfig(domain=["sensor", "input_number"])
+            ),
+            vol.Optional(CONF_OBSERVED_AIR_HUMIDITY): selector.EntitySelector(
+                selector.EntitySelectorConfig(domain=["sensor", "input_number"])
+            ),
+            vol.Optional(CONF_FORECAST_AIR_TEMPERATURE): selector.EntitySelector(
+                selector.EntitySelectorConfig(domain=["sensor", "input_number"])
+            ),
+            vol.Optional(CONF_FORECAST_AIR_HUMIDITY): selector.EntitySelector(
+                selector.EntitySelectorConfig(domain=["sensor", "input_number"])
+            ),
+            vol.Optional(CONF_WIND_SPEED): selector.EntitySelector(
+                selector.EntitySelectorConfig(domain=["sensor", "input_number"])
+            ),
+            vol.Optional(CONF_SOLAR_RADIATION): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain=["sensor", "input_number"])
             ),
             vol.Optional(CONF_SAFETY_BLOCKERS): selector.EntitySelector(

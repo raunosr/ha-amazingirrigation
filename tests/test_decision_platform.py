@@ -6,17 +6,23 @@ from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.amazing_irrigation.const import (
+    CONF_FORECAST_AIR_HUMIDITY,
+    CONF_FORECAST_AIR_TEMPERATURE,
     CONF_GREENHOUSE,
     CONF_HUMIDITY_SENSOR,
     CONF_MAX_LITERS,
     CONF_MOISTURE_SENSORS,
     CONF_NAME,
+    CONF_OBSERVED_AIR_HUMIDITY,
+    CONF_OBSERVED_AIR_TEMPERATURE,
     CONF_OBSERVED_RAIN_AMOUNT,
     CONF_PROTECTED_RAIN,
     CONF_RAIN_SKIP_MM,
     CONF_SAFETY_BLOCKERS,
+    CONF_SOLAR_RADIATION,
     CONF_TARGET_MOISTURE,
     CONF_TEMPERATURE_SENSOR,
+    CONF_WIND_SPEED,
     CONF_ZONES,
     DOMAIN,
     EVENT_DECISION,
@@ -124,6 +130,43 @@ async def test_greenhouse_zone_exposes_context_and_ignores_rain(
     assert state.attributes["protected_rain"] is True
     assert state.attributes["temperature"] == 27.4
     assert state.attributes["humidity"] == 65.0
+
+
+async def test_decision_sensor_references_climate_inputs(
+    hass: HomeAssistant,
+) -> None:
+    """Configured ET climate inputs are surfaced for the card."""
+    await _setup(
+        hass,
+        {
+            CONF_NAME: "Climate Bed",
+            CONF_MOISTURE_SENSORS: ["sensor.soil"],
+            CONF_OBSERVED_AIR_TEMPERATURE: "sensor.air_temp",
+            CONF_OBSERVED_AIR_HUMIDITY: "sensor.air_humidity",
+            CONF_FORECAST_AIR_TEMPERATURE: "sensor.forecast_temp",
+            CONF_FORECAST_AIR_HUMIDITY: "sensor.forecast_humidity",
+            CONF_WIND_SPEED: "sensor.wind_speed",
+            CONF_SOLAR_RADIATION: "sensor.solar_radiation",
+        },
+    )
+
+    state = hass.states.get("sensor.climate_bed_irrigation_decision")
+    assert state is not None
+    assert state.attributes["references"] == {
+        "moisture_sensors": ["sensor.soil"],
+        "forecast_rain_amount": None,
+        "forecast_rain_probability": None,
+        "observed_rain_amount": None,
+        "temperature_sensor": None,
+        "humidity_sensor": None,
+        "observed_air_temperature": "sensor.air_temp",
+        "observed_air_humidity": "sensor.air_humidity",
+        "forecast_air_temperature": "sensor.forecast_temp",
+        "forecast_air_humidity": "sensor.forecast_humidity",
+        "wind_speed": "sensor.wind_speed",
+        "solar_radiation": "sensor.solar_radiation",
+        "safety_blockers": [],
+    }
 
 
 async def test_decision_sensor_tracks_input_changes(hass: HomeAssistant) -> None:

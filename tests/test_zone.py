@@ -2,6 +2,14 @@
 
 from __future__ import annotations
 
+from custom_components.amazing_irrigation.const import (
+    CONF_FORECAST_AIR_HUMIDITY,
+    CONF_FORECAST_AIR_TEMPERATURE,
+    CONF_OBSERVED_AIR_HUMIDITY,
+    CONF_OBSERVED_AIR_TEMPERATURE,
+    CONF_SOLAR_RADIATION,
+    CONF_WIND_SPEED,
+)
 from custom_components.amazing_irrigation.zone import (
     ZoneConfig,
     aggregate_zone_moisture,
@@ -54,6 +62,12 @@ def test_zone_config_from_record_normalises_optionals() -> None:
             "moisture_sensors": ["sensor.a", "sensor.b"],
             "forecast_rain_amount": "sensor.rain_mm",
             "safety_blockers": ["binary_sensor.lock"],
+            CONF_OBSERVED_AIR_TEMPERATURE: "sensor.air_temp",
+            CONF_OBSERVED_AIR_HUMIDITY: "sensor.air_humidity",
+            CONF_FORECAST_AIR_TEMPERATURE: "sensor.forecast_temp",
+            CONF_FORECAST_AIR_HUMIDITY: "sensor.forecast_humidity",
+            CONF_WIND_SPEED: "sensor.wind_speed",
+            CONF_SOLAR_RADIATION: "sensor.solar_radiation",
         },
     )
     assert zone.zone_id == "abc123"
@@ -63,6 +77,12 @@ def test_zone_config_from_record_normalises_optionals() -> None:
     assert zone.forecast_rain_probability is None
     assert zone.observed_rain_amount is None
     assert zone.safety_blockers == ["binary_sensor.lock"]
+    assert zone.observed_air_temperature == "sensor.air_temp"
+    assert zone.observed_air_humidity == "sensor.air_humidity"
+    assert zone.forecast_air_temperature == "sensor.forecast_temp"
+    assert zone.forecast_air_humidity == "sensor.forecast_humidity"
+    assert zone.wind_speed == "sensor.wind_speed"
+    assert zone.solar_radiation == "sensor.solar_radiation"
 
 
 def test_no_season_means_always_in_season() -> None:

@@ -39,6 +39,14 @@ CONF_PROTECTED_RAIN = "protected_rain"
 CONF_TEMPERATURE_SENSOR = "temperature_sensor"
 CONF_HUMIDITY_SENSOR = "humidity_sensor"
 
+# Optional ET / climate inputs for the physics-based soil model.
+CONF_OBSERVED_AIR_TEMPERATURE = "observed_air_temperature"
+CONF_OBSERVED_AIR_HUMIDITY = "observed_air_humidity"
+CONF_FORECAST_AIR_TEMPERATURE = "forecast_air_temperature"
+CONF_FORECAST_AIR_HUMIDITY = "forecast_air_humidity"
+CONF_WIND_SPEED = "wind_speed"
+CONF_SOLAR_RADIATION = "solar_radiation"
+
 # Bounded Irrigation History size kept per zone for explainability.
 HISTORY_LIMIT = 50
 
