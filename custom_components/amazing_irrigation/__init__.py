@@ -14,20 +14,21 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 
-from .const import DOMAIN
+from .const import CONF_ZONES, DATA_CONTROLLERS, DOMAIN
 from .services import async_setup_services, async_unload_services
+from .watering import build_controllers
 
 _LOGGER = logging.getLogger(__name__)
 
-# Observe-only platforms. Control platforms (switch/button/number) arrive in
-# later slices; nothing here can actuate water.
-PLATFORMS: list[Platform] = [Platform.SENSOR]
+# Sensors observe; buttons run/stop watering through the generic actuator.
+PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.BUTTON]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Amazing Irrigation from a config entry."""
     domain_data = hass.data.setdefault(DOMAIN, {})
-    domain_data[entry.entry_id] = {}
+    controllers = build_controllers(hass, entry.options.get(CONF_ZONES, {}))
+    domain_data[entry.entry_id] = {DATA_CONTROLLERS: controllers}
 
     if PLATFORMS:
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
@@ -51,7 +52,10 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     if unload_ok:
         domain_data = hass.data.get(DOMAIN, {})
-        domain_data.pop(entry.entry_id, None)
+        entry_data = domain_data.pop(entry.entry_id, None)
+        if entry_data:
+            for controller in entry_data.get(DATA_CONTROLLERS, {}).values():
+                controller.teardown()
         if not domain_data:
             async_unload_services(hass)
 

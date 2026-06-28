@@ -23,7 +23,7 @@
       },
       "add_zone": {
         "title": "Add an Irrigation Zone",
-        "description": "An Irrigation Zone observes one or more soil moisture sensors and typed environmental and safety inputs. This zone cannot water yet.",
+        "description": "An Irrigation Zone observes soil moisture and typed inputs, and optionally waters through a generic Watering Actuator.",
         "data": {
           "name": "Zone name",
           "moisture_sensors": "Soil moisture sensors",
@@ -37,7 +37,18 @@
           "observed_rain_amount": "Observed Rain Amount (mm)",
           "safety_blockers": "Safety Blockers (block watering when on or unavailable)",
           "season_start": "Active season start (MM-DD, optional)",
-          "season_end": "Active season end (MM-DD, optional)"
+          "season_end": "Active season end (MM-DD, optional)",
+          "actuator_type": "Watering Actuator type",
+          "actuator_switch": "Actuator switch (start/stop)",
+          "actuator_start_service": "Start service (domain.service)",
+          "actuator_start_data": "Start service data",
+          "actuator_stop_service": "Stop service (domain.service)",
+          "actuator_stop_data": "Stop service data",
+          "actuator_start_script": "Start script",
+          "actuator_stop_script": "Stop script",
+          "volume_field": "Volume field/variable name",
+          "watering_sensor": "Watering feedback sensor (confirms flow)",
+          "volume_sensor": "Cumulative volume sensor (confirms flow)"
         }
       },
       "edit_zone": {
@@ -57,7 +68,18 @@
           "observed_rain_amount": "Observed Rain Amount (mm)",
           "safety_blockers": "Safety Blockers (block watering when on or unavailable)",
           "season_start": "Active season start (MM-DD, optional)",
-          "season_end": "Active season end (MM-DD, optional)"
+          "season_end": "Active season end (MM-DD, optional)",
+          "actuator_type": "Watering Actuator type",
+          "actuator_switch": "Actuator switch (start/stop)",
+          "actuator_start_service": "Start service (domain.service)",
+          "actuator_start_data": "Start service data",
+          "actuator_stop_service": "Stop service (domain.service)",
+          "actuator_stop_data": "Stop service data",
+          "actuator_start_script": "Start script",
+          "actuator_stop_script": "Stop script",
+          "volume_field": "Volume field/variable name",
+          "watering_sensor": "Watering feedback sensor (confirms flow)",
+          "volume_sensor": "Cumulative volume sensor (confirms flow)"
         }
       },
       "remove_zone": {
@@ -69,6 +91,16 @@
     },
     "error": {
       "no_moisture_sensors": "Select at least one soil moisture sensor for the zone."
+    }
+  },
+  "selector": {
+    "actuator_type": {
+      "options": {
+        "none": "None (observe only)",
+        "switch": "Switch (on/off)",
+        "service": "Service call",
+        "script": "Script"
+      }
     }
   },
   "services": {
@@ -83,6 +115,38 @@
         "force": {
           "name": "Force water",
           "description": "Bypass soft checks (still respects Safety Blockers)."
+        }
+      }
+    },
+    "run_zone": {
+      "name": "Run zone",
+      "description": "Create a Run Request that waters the targeted zones through their Watering Actuator when the decision allows.",
+      "fields": {
+        "entity_id": {
+          "name": "Zone entity",
+          "description": "An entity belonging to the zone(s) to run."
+        },
+        "device_id": {
+          "name": "Zone device",
+          "description": "The zone device(s) to run."
+        },
+        "force": {
+          "name": "Force water",
+          "description": "Bypass soft checks (still respects Safety Blockers)."
+        }
+      }
+    },
+    "stop_zone": {
+      "name": "Stop zone",
+      "description": "Stop an in-progress Watering Event for the targeted zones (only zones with a configured stop path).",
+      "fields": {
+        "entity_id": {
+          "name": "Zone entity",
+          "description": "An entity belonging to the zone(s) to stop."
+        },
+        "device_id": {
+          "name": "Zone device",
+          "description": "The zone device(s) to stop."
         }
       }
     }

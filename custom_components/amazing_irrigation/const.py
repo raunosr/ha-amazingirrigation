@@ -36,9 +36,40 @@ DEFAULT_RAIN_SKIP_PROBABILITY = 60.0
 
 # Services.
 SERVICE_EVALUATE_ZONE = "evaluate_zone"
+SERVICE_RUN_ZONE = "run_zone"
+SERVICE_STOP_ZONE = "stop_zone"
 
 # Event fired when a Run Request is evaluated into an Irrigation Decision.
 EVENT_DECISION = "amazing_irrigation_decision"
 
+# Event fired when a Watering Event changes state (commanded/confirmed/...).
+EVENT_WATERING = "amazing_irrigation_watering"
+
 # hass.data[DOMAIN][entry_id] sub-key holding decision sensor entities by id.
 DATA_DECISION_ENTITIES = "decision_entities"
+
+# hass.data[DOMAIN][entry_id] sub-key holding WateringController by zone_id.
+DATA_CONTROLLERS = "controllers"
+
+# Watering Actuator config keys.
+CONF_ACTUATOR_TYPE = "actuator_type"
+CONF_ACTUATOR_SWITCH = "actuator_switch"
+CONF_ACTUATOR_START_SERVICE = "actuator_start_service"
+CONF_ACTUATOR_START_DATA = "actuator_start_data"
+CONF_ACTUATOR_STOP_SERVICE = "actuator_stop_service"
+CONF_ACTUATOR_STOP_DATA = "actuator_stop_data"
+CONF_ACTUATOR_START_SCRIPT = "actuator_start_script"
+CONF_ACTUATOR_STOP_SCRIPT = "actuator_stop_script"
+CONF_VOLUME_FIELD = "volume_field"
+CONF_WATERING_SENSOR = "watering_sensor"
+CONF_VOLUME_SENSOR = "volume_sensor"
+
+# Actuator types.
+ACTUATOR_NONE = "none"
+ACTUATOR_SWITCH = "switch"
+ACTUATOR_SERVICE = "service"
+ACTUATOR_SCRIPT = "script"
+ACTUATOR_TYPES = [ACTUATOR_NONE, ACTUATOR_SWITCH, ACTUATOR_SERVICE, ACTUATOR_SCRIPT]
+
+# Default variable/field name used to inject the bounded Watering Volume.
+DEFAULT_VOLUME_FIELD = "volume"

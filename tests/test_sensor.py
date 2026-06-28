@@ -81,12 +81,15 @@ async def test_zone_moisture_tracks_source_updates(hass: HomeAssistant) -> None:
     assert float(hass.states.get("sensor.herb_bed_zone_moisture").state) == 20.0
 
 
-async def test_no_water_control_entities_created(hass: HomeAssistant) -> None:
-    """Observe-only: no switch/button entities may exist for the zone."""
+async def test_run_button_created_without_stop_when_no_actuator(
+    hass: HomeAssistant,
+) -> None:
+    """A Run button exists; Stop only when a stop path is configured."""
     hass.states.async_set("sensor.a", "40.0")
     await _setup_zone(hass, ["sensor.a"])
 
     switches = [e for e in hass.states.async_entity_ids() if e.startswith("switch.")]
     buttons = [e for e in hass.states.async_entity_ids() if e.startswith("button.")]
     assert switches == []
-    assert buttons == []
+    assert "button.herb_bed_run" in buttons
+    assert "button.herb_bed_stop" not in buttons

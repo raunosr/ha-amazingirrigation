@@ -163,8 +163,10 @@ async def test_evaluate_zone_service_force_waters_above_target(
     assert hass.states.get("sensor.herb_bed_irrigation_decision").state == "skip"
 
 
-async def test_no_water_control_entities_created(hass: HomeAssistant) -> None:
-    """Observe-only: still no switch/button entities for the zone."""
+async def test_run_button_present_stop_absent_without_actuator(
+    hass: HomeAssistant,
+) -> None:
+    """A Run button exists; no Stop button without a configured stop path."""
     hass.states.async_set("sensor.a", "20.0")
     await _setup(
         hass,
@@ -174,4 +176,5 @@ async def test_no_water_control_entities_created(hass: HomeAssistant) -> None:
     switches = [e for e in hass.states.async_entity_ids() if e.startswith("switch.")]
     buttons = [e for e in hass.states.async_entity_ids() if e.startswith("button.")]
     assert switches == []
-    assert buttons == []
+    assert "button.herb_bed_run" in buttons
+    assert "button.herb_bed_stop" not in buttons

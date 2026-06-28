@@ -1,9 +1,13 @@
 """Services for Amazing Irrigation.
 
-Exposes ``amazing_irrigation.evaluate_zone``: create a Run Request for one or
-more Irrigation Decision sensors, recompute the Decision, fire an event, and
-return the explained result. This slice is observe-only, so evaluating never
-actuates water.
+- ``amazing_irrigation.evaluate_zone``: create a Run Request for Irrigation
+  Decision sensors and return the explained Decision without watering.
+- ``amazing_irrigation.run_zone`` / ``stop_zone``: create a Run Request that
+  actually waters (or stop watering) for the targeted zones via their generic
+  Watering Actuator.
+
+Zones are targeted by any of their entities or by their device; the matching
+:class:`WateringController` is resolved through the entity/device registries.
 """
 
 from __future__ import annotations
@@ -13,18 +17,39 @@ from typing import Any
 import voluptuous as vol
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 
 from .const import (
+    DATA_CONTROLLERS,
     DATA_DECISION_ENTITIES,
     DOMAIN,
     EVENT_DECISION,
     SERVICE_EVALUATE_ZONE,
+    SERVICE_RUN_ZONE,
+    SERVICE_STOP_ZONE,
 )
+from .watering import WateringController
 
 _EVALUATE_SCHEMA = vol.Schema(
     {
         vol.Required("entity_id"): cv.entity_ids,
         vol.Optional("force", default=False): cv.boolean,
+    }
+)
+
+_RUN_SCHEMA = vol.Schema(
+    {
+        vol.Optional("entity_id"): cv.entity_ids,
+        vol.Optional("device_id"): vol.All(cv.ensure_list, [cv.string]),
+        vol.Optional("force", default=False): cv.boolean,
+    }
+)
+
+_STOP_SCHEMA = vol.Schema(
+    {
+        vol.Optional("entity_id"): cv.entity_ids,
+        vol.Optional("device_id"): vol.All(cv.ensure_list, [cv.string]),
     }
 )
 
@@ -36,6 +61,49 @@ def _all_decision_entities(hass: HomeAssistant) -> dict[str, Any]:
         if isinstance(entry_data, dict):
             entities.update(entry_data.get(DATA_DECISION_ENTITIES, {}))
     return entities
+
+
+def _controller_for_device_id(
+    hass: HomeAssistant, device_id: str
+) -> WateringController | None:
+    """Resolve a zone device to its WateringController."""
+    device = dr.async_get(hass).async_get(device_id)
+    if device is None:
+        return None
+    for domain, identifier in device.identifiers:
+        if domain != DOMAIN or "_" not in identifier:
+            continue
+        entry_id, _, zone_id = identifier.rpartition("_")
+        controllers = (
+            hass.data.get(DOMAIN, {}).get(entry_id, {}).get(DATA_CONTROLLERS, {})
+        )
+        controller = controllers.get(zone_id)
+        if controller is not None:
+            return controller
+    return None
+
+
+def _resolve_controllers(
+    hass: HomeAssistant, call: ServiceCall
+) -> dict[str, WateringController]:
+    """Resolve all controllers referenced by a call's entity/device targets."""
+    found: dict[str, WateringController] = {}
+
+    entity_reg = er.async_get(hass)
+    for entity_id in call.data.get("entity_id", []):
+        entry = entity_reg.async_get(entity_id)
+        if entry is None or entry.device_id is None:
+            continue
+        controller = _controller_for_device_id(hass, entry.device_id)
+        if controller is not None:
+            found[controller.zone.zone_id] = controller
+
+    for device_id in call.data.get("device_id", []):
+        controller = _controller_for_device_id(hass, device_id)
+        if controller is not None:
+            found[controller.zone.zone_id] = controller
+
+    return found
 
 
 async def _async_evaluate_zone(call: ServiceCall) -> dict[str, Any]:
@@ -66,6 +134,37 @@ async def _async_evaluate_zone(call: ServiceCall) -> dict[str, Any]:
     return {"results": results}
 
 
+async def _async_run_zone(call: ServiceCall) -> dict[str, Any]:
+    """Handle ``amazing_irrigation.run_zone``."""
+    hass = call.hass
+    force = call.data["force"]
+    results: list[dict[str, Any]] = []
+    for controller in _resolve_controllers(hass, call).values():
+        event = await controller.async_run(force=force)
+        results.append(
+            {
+                "zone_id": controller.zone.zone_id,
+                "status": event.status.value,
+                "requested_liters": round(event.requested_liters, 2),
+                "confirmed": event.confirmed,
+                "reason": event.reason,
+            }
+        )
+    return {"results": results}
+
+
+async def _async_stop_zone(call: ServiceCall) -> dict[str, Any]:
+    """Handle ``amazing_irrigation.stop_zone``."""
+    hass = call.hass
+    results: list[dict[str, Any]] = []
+    for controller in _resolve_controllers(hass, call).values():
+        event = await controller.async_stop()
+        results.append(
+            {"zone_id": controller.zone.zone_id, "status": event.status.value}
+        )
+    return {"results": results}
+
+
 def async_setup_services(hass: HomeAssistant) -> None:
     """Register integration services once."""
     if hass.services.has_service(DOMAIN, SERVICE_EVALUATE_ZONE):
@@ -77,8 +176,24 @@ def async_setup_services(hass: HomeAssistant) -> None:
         schema=_EVALUATE_SCHEMA,
         supports_response=SupportsResponse.OPTIONAL,
     )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_RUN_ZONE,
+        _async_run_zone,
+        schema=_RUN_SCHEMA,
+        supports_response=SupportsResponse.OPTIONAL,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_STOP_ZONE,
+        _async_stop_zone,
+        schema=_STOP_SCHEMA,
+        supports_response=SupportsResponse.OPTIONAL,
+    )
 
 
 def async_unload_services(hass: HomeAssistant) -> None:
     """Remove integration services."""
     hass.services.async_remove(DOMAIN, SERVICE_EVALUATE_ZONE)
+    hass.services.async_remove(DOMAIN, SERVICE_RUN_ZONE)
+    hass.services.async_remove(DOMAIN, SERVICE_STOP_ZONE)
