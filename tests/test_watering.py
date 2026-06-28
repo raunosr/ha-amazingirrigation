@@ -25,6 +25,7 @@ from custom_components.amazing_irrigation.const import (
     CONF_WATERING_SENSOR,
     CONF_ZONES,
     DATA_CONTROLLERS,
+    DATA_ZONE_STATE,
     DOMAIN,
     SERVICE_RUN_ZONE,
     SERVICE_STOP_ZONE,
@@ -63,6 +64,10 @@ async def _setup(hass: HomeAssistant, record: dict) -> MockConfigEntry:
 
 def _controller(hass: HomeAssistant, entry: MockConfigEntry):
     return hass.data[DOMAIN][entry.entry_id][DATA_CONTROLLERS]["abc123"]
+
+
+def _zone_state(hass: HomeAssistant, entry: MockConfigEntry):
+    return hass.data[DOMAIN][entry.entry_id][DATA_ZONE_STATE].get("abc123")
 
 
 _SWITCH_ZONE = {
@@ -163,6 +168,83 @@ async def test_stop_commands_switch_off(hass: HomeAssistant) -> None:
     assert event.status is WateringStatus.STOPPED
     assert any(c.service == "turn_off" for c in calls)
     assert controller.is_watering is False
+
+
+async def test_total_volume_accumulates_measured_on_confirmation(
+    hass: HomeAssistant,
+) -> None:
+    """A confirmed volume increase adds to the zone's Total Watering Volume."""
+    hass.states.async_set("sensor.a", "20.0")
+    hass.states.async_set("sensor.vol", "100")
+    _record_switch(hass)
+    entry = await _setup(hass, {**_SWITCH_ZONE, CONF_VOLUME_SENSOR: "sensor.vol"})
+
+    controller = _controller(hass, entry)
+    await controller.async_run()
+    hass.states.async_set("sensor.vol", "108")
+    await hass.async_block_till_done()
+
+    assert _zone_state(hass, entry).total_liters == pytest.approx(8.0)
+    sensor = hass.states.get("sensor.herb_bed_total_watering_volume")
+    assert sensor is not None
+    assert float(sensor.state) == pytest.approx(8.0)
+
+
+async def test_total_volume_uses_requested_when_no_measurement(
+    hass: HomeAssistant,
+) -> None:
+    """Confirmed flow without a volume sensor counts the requested liters once."""
+    hass.states.async_set("sensor.a", "20.0")
+    hass.states.async_set("binary_sensor.flow", "off")
+    _record_switch(hass)
+    entry = await _setup(
+        hass, {**_SWITCH_ZONE, CONF_WATERING_SENSOR: "binary_sensor.flow"}
+    )
+
+    controller = _controller(hass, entry)
+    await controller.async_run()
+    hass.states.async_set("binary_sensor.flow", "on")
+    await hass.async_block_till_done()
+
+    # max_liters with no gain bounds the request to 30 L.
+    assert _zone_state(hass, entry).total_liters == pytest.approx(30.0)
+
+
+async def test_total_volume_not_double_counted(hass: HomeAssistant) -> None:
+    """Repeated confirmation callbacks must not inflate the total."""
+    hass.states.async_set("sensor.a", "20.0")
+    hass.states.async_set("binary_sensor.flow", "off")
+    _record_switch(hass)
+    entry = await _setup(
+        hass, {**_SWITCH_ZONE, CONF_WATERING_SENSOR: "binary_sensor.flow"}
+    )
+
+    controller = _controller(hass, entry)
+    await controller.async_run()
+    hass.states.async_set("binary_sensor.flow", "on")
+    await hass.async_block_till_done()
+    # A second confirmation signal for the same event must not re-add volume.
+    controller._check_confirmation()
+    await hass.async_block_till_done()
+
+    assert _zone_state(hass, entry).total_liters == pytest.approx(30.0)
+
+
+async def test_system_total_volume_reflects_zone(hass: HomeAssistant) -> None:
+    """The integration-wide Total Watering Volume aggregates zone volume."""
+    hass.states.async_set("sensor.a", "20.0")
+    hass.states.async_set("sensor.vol", "100")
+    _record_switch(hass)
+    entry = await _setup(hass, {**_SWITCH_ZONE, CONF_VOLUME_SENSOR: "sensor.vol"})
+
+    controller = _controller(hass, entry)
+    await controller.async_run()
+    hass.states.async_set("sensor.vol", "108")
+    await hass.async_block_till_done()
+
+    system = hass.states.get("sensor.amazing_irrigation_total_watering_volume")
+    assert system is not None
+    assert float(system.state) == pytest.approx(8.0)
 
 
 async def test_run_and_stop_buttons(hass: HomeAssistant) -> None:

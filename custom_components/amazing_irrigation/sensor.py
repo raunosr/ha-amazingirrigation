@@ -19,7 +19,7 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import PERCENTAGE
+from homeassistant.const import PERCENTAGE, UnitOfVolume
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -31,11 +31,13 @@ from .const import (
     DATA_CONTROLLERS,
     DATA_DECISION_ENTITIES,
     DATA_HISTORY,
+    DATA_ZONE_STATE,
     DOMAIN,
 )
 from .decision import evaluate_zone
 from .engine import Decision, DecisionAction
 from .history import IrrigationHistory
+from .state import ZoneStateStore
 from .watering import WateringController, WateringStatus
 from .zone import ZoneConfig, aggregate_zone_moisture
 
@@ -52,6 +54,9 @@ async def async_setup_entry(
     histories: dict[str, IrrigationHistory] = hass.data[DOMAIN][entry.entry_id].get(
         DATA_HISTORY, {}
     )
+    zone_state: ZoneStateStore | None = hass.data[DOMAIN][entry.entry_id].get(
+        DATA_ZONE_STATE
+    )
     zones = entry.options.get(CONF_ZONES, {})
     entities: list[SensorEntity] = []
     for zone_id, record in zones.items():
@@ -61,9 +66,15 @@ async def async_setup_entry(
         controller = controllers.get(zone_id)
         if controller is not None:
             entities.append(WateringStatusSensor(entry, zone, controller))
+            if zone_state is not None:
+                entities.append(
+                    TotalVolumeSensor(entry, zone, controller, zone_state)
+                )
         history = histories.get(zone_id)
         if history is not None:
             entities.append(ZoneHistorySensor(entry, zone, history))
+    if zone_state is not None and controllers:
+        entities.append(SystemTotalVolumeSensor(entry, controllers, zone_state))
     async_add_entities(entities)
 
 
@@ -85,6 +96,17 @@ def _zone_device_info(entry: ConfigEntry, zone: ZoneConfig) -> DeviceInfo:
         name=zone.name,
         manufacturer="Amazing Irrigation",
         model="Irrigation Zone",
+        via_device=(DOMAIN, entry.entry_id),
+    )
+
+
+def _hub_device_info(entry: ConfigEntry) -> DeviceInfo:
+    """The integration-level device that owns system-wide entities."""
+    return DeviceInfo(
+        identifiers={(DOMAIN, entry.entry_id)},
+        name="Amazing Irrigation",
+        manufacturer="Amazing Irrigation",
+        model="Controller",
     )
 
 
@@ -314,6 +336,98 @@ class WateringStatusSensor(SensorEntity):
             "can_stop": self._controller.can_stop,
             "reason": event.reason,
         }
+
+
+class TotalVolumeSensor(SensorEntity):
+    """Cumulative Total Watering Volume applied to a zone, in liters.
+
+    Sums the measured (or, when no measurement is available, requested) volume of
+    every Confirmed Watering Event. Exposed as a ``total_increasing`` sensor so
+    Home Assistant's statistics can chart long-term water use per zone.
+    """
+
+    _attr_has_entity_name = True
+    _attr_name = "Total Watering Volume"
+    _attr_icon = "mdi:water-circle"
+    _attr_device_class = SensorDeviceClass.WATER
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_native_unit_of_measurement = UnitOfVolume.LITERS
+    _attr_suggested_display_precision = 1
+
+    def __init__(
+        self,
+        entry: ConfigEntry,
+        zone: ZoneConfig,
+        controller: WateringController,
+        zone_state: ZoneStateStore,
+    ) -> None:
+        """Initialise the cumulative volume sensor for a zone."""
+        self._zone = zone
+        self._controller = controller
+        self._zone_state = zone_state
+        self._attr_unique_id = f"{entry.entry_id}_{zone.zone_id}_total_volume"
+        self._attr_device_info = _zone_device_info(entry, zone)
+
+    async def async_added_to_hass(self) -> None:
+        """Refresh whenever the controller reports a Watering Event change."""
+        self.async_on_remove(self._controller.add_listener(self._on_update))
+        self._refresh()
+
+    @callback
+    def _on_update(self) -> None:
+        """Handle a controller update."""
+        self._refresh()
+        self.async_write_ha_state()
+
+    @callback
+    def _refresh(self) -> None:
+        """Read the cumulative total from the zone's persisted state."""
+        state = self._zone_state.get(self._zone.zone_id)
+        total = 0.0 if state is None else state.total_liters
+        self._attr_native_value = round(total, 3)
+        self._attr_extra_state_attributes = {"zone_id": self._zone.zone_id}
+
+
+class SystemTotalVolumeSensor(SensorEntity):
+    """Overall Total Watering Volume across every zone, in liters."""
+
+    _attr_has_entity_name = True
+    _attr_name = "Total Watering Volume"
+    _attr_icon = "mdi:water-pump"
+    _attr_device_class = SensorDeviceClass.WATER
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_native_unit_of_measurement = UnitOfVolume.LITERS
+    _attr_suggested_display_precision = 1
+
+    def __init__(
+        self,
+        entry: ConfigEntry,
+        controllers: dict[str, WateringController],
+        zone_state: ZoneStateStore,
+    ) -> None:
+        """Initialise the integration-wide cumulative volume sensor."""
+        self._controllers = controllers
+        self._zone_state = zone_state
+        self._attr_unique_id = f"{entry.entry_id}_total_volume"
+        self._attr_device_info = _hub_device_info(entry)
+
+    async def async_added_to_hass(self) -> None:
+        """Refresh whenever any zone's controller reports a change."""
+        for controller in self._controllers.values():
+            self.async_on_remove(controller.add_listener(self._on_update))
+        self._refresh()
+
+    @callback
+    def _on_update(self) -> None:
+        """Handle a controller update from any zone."""
+        self._refresh()
+        self.async_write_ha_state()
+
+    @callback
+    def _refresh(self) -> None:
+        """Sum every zone's persisted Total Watering Volume."""
+        total = sum(state.total_liters for state in self._zone_state.states.values())
+        self._attr_native_value = round(total, 3)
 
 
 class ZoneHistorySensor(SensorEntity):
