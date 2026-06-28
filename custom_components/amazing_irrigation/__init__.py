@@ -26,12 +26,14 @@ from .const import (
 )
 from .frontend_card import async_register_card
 from .history import build_histories
+from .history_ingest import async_bootstrap_zone
 from .learner import build_learners
 from .rain import build_rain_watchers
 from .scheduler import build_scheduler
 from .services import async_setup_services, async_unload_services
 from .state import ZoneStateStore
 from .watering import build_controllers
+from .zone import ZoneConfig
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -75,6 +77,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         watcher.async_start()
     for learner in learners.values():
         learner.async_start()
+    hass.async_create_task(_async_bootstrap_missing_models(hass, zones, zone_state))
 
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 
@@ -115,3 +118,24 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Reload the entry when its options change."""
     await hass.config_entries.async_reload(entry.entry_id)
+
+
+async def _async_bootstrap_missing_models(
+    hass: HomeAssistant, zones: dict[str, dict], zone_state: ZoneStateStore
+) -> None:
+    """Best-effort non-blocking history bootstrap for learning-enabled zones."""
+    for zone_id, record in zones.items():
+        state = zone_state.get(zone_id)
+        if (
+            state is None
+            or not state.learning_enabled
+            or state.model_params is not None
+            or state.bootstrapped_days is not None
+        ):
+            continue
+        try:
+            await async_bootstrap_zone(
+                hass, ZoneConfig.from_record(zone_id, record), zone_state
+            )
+        except Exception as err:  # noqa: BLE001 - setup must not fail on history
+            _LOGGER.debug("History bootstrap skipped for %s: %s", zone_id, err)
