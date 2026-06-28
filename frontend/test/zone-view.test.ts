@@ -5,6 +5,7 @@ import {
   buildZoneView,
   canRun,
   canStop,
+  decisionEntities,
   type HassState,
   type OverviewCardConfig,
   type ZoneCardConfig,
@@ -50,6 +51,25 @@ function states(
     ...overrides,
   };
 }
+
+describe("decisionEntities", () => {
+  it("returns sorted irrigation decision sensors only", () => {
+    const result = decisionEntities({
+      "sensor.zone_b_irrigation_decision": { state: "water", attributes: {} },
+      "sensor.zone_a_irrigation_decision": { state: "skip", attributes: {} },
+      "sensor.zone_a_status": { state: "idle", attributes: {} },
+      "binary_sensor.zone_a_irrigation_decision": { state: "on", attributes: {} },
+    });
+    expect(result).toEqual([
+      "sensor.zone_a_irrigation_decision",
+      "sensor.zone_b_irrigation_decision",
+    ]);
+  });
+
+  it("returns an empty list when states are missing", () => {
+    expect(decisionEntities(undefined)).toEqual([]);
+  });
+});
 
 describe("buildZoneView", () => {
   it("maps entity states into a single view model", () => {

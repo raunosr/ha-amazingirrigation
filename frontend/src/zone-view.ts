@@ -14,7 +14,7 @@ export interface HassState {
 }
 
 export interface ZoneCardConfig {
-  type: string;
+  type?: string;
   decision_entity: string;
   moisture_entity?: string;
   status_entity?: string;
@@ -137,4 +137,21 @@ export function buildOverview(
 ): ZoneView[] {
   const zones = Array.isArray(config.zones) ? config.zones : [];
   return zones.map((zone) => buildZoneView(zone, states));
+}
+
+/**
+ * Return the integration's per-zone decision sensors, used to pre-fill the
+ * visual editors and card stub configs so the picker preview renders.
+ */
+export function decisionEntities(
+  states: Record<string, HassState | undefined> | undefined,
+): string[] {
+  if (!states) {
+    return [];
+  }
+  return Object.keys(states)
+    .filter(
+      (id) => id.startsWith("sensor.") && id.endsWith("_irrigation_decision"),
+    )
+    .sort();
 }

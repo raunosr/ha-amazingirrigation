@@ -2,10 +2,12 @@ import { LitElement, html, css, nothing, type TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 
 import "./amazing-irrigation-overview-card";
+import "./editor";
 import {
   buildZoneView,
   canRun,
   canStop,
+  decisionEntities,
   type HassState,
   type ZoneCardConfig,
   type ZoneView,
@@ -33,8 +35,15 @@ export class AmazingIrrigationCard extends LitElement {
 
   @state() private _config?: ZoneCardConfig;
 
-  public static getStubConfig(): Partial<ZoneCardConfig> {
-    return { decision_entity: "" };
+  public static getStubConfig(hass?: {
+    states?: Record<string, HassState>;
+  }): Partial<ZoneCardConfig> {
+    const [decision] = decisionEntities(hass?.states);
+    return { decision_entity: decision ?? "" };
+  }
+
+  public static async getConfigElement(): Promise<HTMLElement> {
+    return document.createElement("amazing-irrigation-card-editor");
   }
 
   public setConfig(config: ZoneCardConfig): void {
