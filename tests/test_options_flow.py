@@ -16,17 +16,21 @@ from custom_components.amazing_irrigation.const import (
     CONF_ET_SOURCE,
     CONF_FORECAST_AIR_HUMIDITY,
     CONF_FORECAST_AIR_TEMPERATURE,
+    CONF_GREENHOUSE,
+    CONF_HUMIDITY_SENSOR,
     CONF_LINKTAP_DEVICE,
     CONF_LINKTAP_ID,
     CONF_MOISTURE_SENSORS,
     CONF_NAME,
     CONF_OBSERVED_AIR_HUMIDITY,
     CONF_OBSERVED_AIR_TEMPERATURE,
+    CONF_PROTECTED_RAIN,
     CONF_SCHEDULE_TIMES,
     CONF_SOIL_TYPE,
     CONF_SOLAR_RADIATION,
     CONF_TARGET_MOISTURE_HIGH,
     CONF_TARGET_MOISTURE_LOW,
+    CONF_TEMPERATURE_SENSOR,
     CONF_VOLUME_SENSOR,
     CONF_WATERING_SENSOR,
     CONF_WEATHER_FORECAST_ENTITY,
@@ -419,3 +423,176 @@ async def test_remove_zone(hass: HomeAssistant) -> None:
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert entry.options[CONF_ZONES] == {}
+
+
+async def test_add_zone_greenhouse_shows_greenhouse_step(
+    hass: HomeAssistant,
+) -> None:
+    """Marking a zone as a greenhouse routes to the greenhouse-only step."""
+    entry = await _setup_entry(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "add_zone"}
+    )
+    # Basics step: mark this zone as a greenhouse.
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {
+            CONF_NAME: "Tunnel",
+            CONF_MOISTURE_SENSORS: ["sensor.a"],
+            CONF_GREENHOUSE: True,
+        },
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "greenhouse"
+
+    # Greenhouse step: only greenhouse-only inputs are collected here.
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {
+            CONF_PROTECTED_RAIN: True,
+            CONF_TEMPERATURE_SENSOR: "sensor.gh_temp",
+            CONF_HUMIDITY_SENSOR: "sensor.gh_humidity",
+        },
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+
+    record = next(iter(entry.options[CONF_ZONES].values()))
+    assert record[CONF_GREENHOUSE] is True
+    assert record[CONF_PROTECTED_RAIN] is True
+    assert record[CONF_TEMPERATURE_SENSOR] == "sensor.gh_temp"
+    assert record[CONF_HUMIDITY_SENSOR] == "sensor.gh_humidity"
+
+
+async def test_add_zone_non_greenhouse_skips_greenhouse_step(
+    hass: HomeAssistant,
+) -> None:
+    """A non-greenhouse zone never sees greenhouse-only inputs."""
+    entry = await _setup_entry(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "add_zone"}
+    )
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {CONF_NAME: "Outdoor", CONF_MOISTURE_SENSORS: ["sensor.a"]},
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+
+    record = next(iter(entry.options[CONF_ZONES].values()))
+    assert CONF_PROTECTED_RAIN not in record
+    assert CONF_TEMPERATURE_SENSOR not in record
+    assert CONF_HUMIDITY_SENSOR not in record
+
+
+async def test_edit_zone_disabling_greenhouse_drops_greenhouse_fields(
+    hass: HomeAssistant,
+) -> None:
+    """Turning off greenhouse mode discards greenhouse-only inputs."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={},
+        options={
+            CONF_ZONES: {
+                "abc123": {
+                    CONF_NAME: "Tunnel",
+                    CONF_MOISTURE_SENSORS: ["sensor.a"],
+                    CONF_GREENHOUSE: True,
+                    CONF_PROTECTED_RAIN: True,
+                    CONF_TEMPERATURE_SENSOR: "sensor.gh_temp",
+                    CONF_HUMIDITY_SENSOR: "sensor.gh_humidity",
+                }
+            }
+        },
+        unique_id=DOMAIN,
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "edit_zone"}
+    )
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"zone": "abc123"}
+    )
+    assert result["step_id"] == "edit_zone"
+    # Submit basics with greenhouse turned off; no greenhouse step follows.
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {
+            CONF_NAME: "Tunnel",
+            CONF_MOISTURE_SENSORS: ["sensor.a"],
+            CONF_GREENHOUSE: False,
+        },
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+
+    record = entry.options[CONF_ZONES]["abc123"]
+    assert record.get(CONF_GREENHOUSE) is False
+    assert CONF_PROTECTED_RAIN not in record
+    assert CONF_TEMPERATURE_SENSOR not in record
+    assert CONF_HUMIDITY_SENSOR not in record
+
+
+async def test_edit_zone_greenhouse_prefills_existing_sensors(
+    hass: HomeAssistant,
+) -> None:
+    """Editing a greenhouse zone prefills its greenhouse-only inputs."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={},
+        options={
+            CONF_ZONES: {
+                "abc123": {
+                    CONF_NAME: "Tunnel",
+                    CONF_MOISTURE_SENSORS: ["sensor.a"],
+                    CONF_GREENHOUSE: True,
+                    CONF_PROTECTED_RAIN: True,
+                    CONF_TEMPERATURE_SENSOR: "sensor.gh_temp",
+                    CONF_HUMIDITY_SENSOR: "sensor.gh_humidity",
+                }
+            }
+        },
+        unique_id=DOMAIN,
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "edit_zone"}
+    )
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"zone": "abc123"}
+    )
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {
+            CONF_NAME: "Tunnel",
+            CONF_MOISTURE_SENSORS: ["sensor.a"],
+            CONF_GREENHOUSE: True,
+        },
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "greenhouse"
+
+    # Keep the prefilled sensors; only change protected_rain.
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {
+            CONF_PROTECTED_RAIN: False,
+            CONF_TEMPERATURE_SENSOR: "sensor.gh_temp",
+            CONF_HUMIDITY_SENSOR: "sensor.gh_humidity",
+        },
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+
+    record = entry.options[CONF_ZONES]["abc123"]
+    assert record[CONF_TEMPERATURE_SENSOR] == "sensor.gh_temp"
+    assert record[CONF_HUMIDITY_SENSOR] == "sensor.gh_humidity"
+    assert record.get(CONF_PROTECTED_RAIN) in (False, None)
