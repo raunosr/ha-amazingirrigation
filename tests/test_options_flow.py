@@ -17,6 +17,7 @@ from custom_components.amazing_irrigation.const import (
     CONF_LINKTAP_ID,
     CONF_MOISTURE_SENSORS,
     CONF_NAME,
+    CONF_SCHEDULE_TIMES,
     CONF_VOLUME_SENSOR,
     CONF_WATERING_SENSOR,
     CONF_ZONES,
@@ -59,6 +60,32 @@ async def test_add_zone_creates_record(hass: HomeAssistant) -> None:
     record = next(iter(zones.values()))
     assert record[CONF_NAME] == "Herb Bed"
     assert record[CONF_MOISTURE_SENSORS] == ["sensor.gw2000a_soil_moisture_5"]
+
+
+async def test_add_zone_time_pickers_map_to_schedule_times(
+    hass: HomeAssistant,
+) -> None:
+    """Time-picker slots are collapsed into the stored HH:MM schedule list."""
+    entry = await _setup_entry(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "add_zone"}
+    )
+
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {
+            CONF_NAME: "Herb Bed",
+            CONF_MOISTURE_SENSORS: ["sensor.gw2000a_soil_moisture_5"],
+            "schedule_time_1": "06:00:00",
+            "schedule_time_3": "20:30:00",
+        },
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+
+    record = next(iter(entry.options[CONF_ZONES].values()))
+    assert record[CONF_SCHEDULE_TIMES] == ["06:00", "20:30"]
 
 
 async def test_add_zone_requires_a_moisture_sensor(hass: HomeAssistant) -> None:

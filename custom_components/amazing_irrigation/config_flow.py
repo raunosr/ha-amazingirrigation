@@ -81,6 +81,38 @@ from .const import (
 )
 from .linktap import async_resolve_linktap_device
 
+# Up to three optional schedule start times are presented as individual time
+# pickers (HA's TimeSelector has no multi-value mode) and mapped to/from the
+# stored ``CONF_SCHEDULE_TIMES`` list of ``HH:MM`` strings.
+SCHEDULE_TIME_SLOTS = ("schedule_time_1", "schedule_time_2", "schedule_time_3")
+
+
+def _times_from_slots(user_input: dict[str, Any]) -> None:
+    """Collapse the time-picker slots into ``CONF_SCHEDULE_TIMES`` (in place)."""
+    times: list[str] = []
+    for key in SCHEDULE_TIME_SLOTS:
+        value = user_input.pop(key, None)
+        if not value:
+            continue
+        parts = str(value).split(":")
+        if len(parts) >= 2:
+            times.append(f"{parts[0]}:{parts[1]}")
+    if times:
+        user_input[CONF_SCHEDULE_TIMES] = times
+    else:
+        user_input.pop(CONF_SCHEDULE_TIMES, None)
+
+
+def _slots_from_times(record: dict[str, Any]) -> dict[str, str]:
+    """Return time-picker slot suggestions for a stored zone record."""
+    slots: dict[str, str] = {}
+    times = record.get(CONF_SCHEDULE_TIMES) or []
+    for slot_key, value in zip(SCHEDULE_TIME_SLOTS, times, strict=False):
+        parts = str(value).split(":")
+        if len(parts) >= 2:
+            slots[slot_key] = f"{parts[0]}:{parts[1]}:00"
+    return slots
+
 
 def _zone_basics_schema() -> vol.Schema:
     """Build the schema for a zone's non-actuator settings.
@@ -174,9 +206,9 @@ def _zone_basics_schema() -> vol.Schema:
                     translation_key="weekday",
                 )
             ),
-            vol.Optional(CONF_SCHEDULE_TIMES): selector.TextSelector(
-                selector.TextSelectorConfig(multiple=True)
-            ),
+            vol.Optional(SCHEDULE_TIME_SLOTS[0]): selector.TimeSelector(),
+            vol.Optional(SCHEDULE_TIME_SLOTS[1]): selector.TimeSelector(),
+            vol.Optional(SCHEDULE_TIME_SLOTS[2]): selector.TimeSelector(),
             vol.Optional(
                 CONF_ACTUATOR_TYPE, default=ACTUATOR_NONE
             ): selector.SelectSelector(
@@ -323,12 +355,21 @@ class AmazingIrrigationOptionsFlow(OptionsFlow):
         self._selected_zone_id = None
         errors: dict[str, str] = {}
         if user_input is not None:
+            _times_from_slots(user_input)
             errors = _validate_zone_basics(user_input)
             if not errors:
                 return await self._continue_to_actuator(user_input)
 
+        suggested = (
+            {**user_input, **_slots_from_times(user_input)}
+            if user_input is not None
+            else {}
+        )
+        schema = self.add_suggested_values_to_schema(
+            _zone_basics_schema(), suggested
+        )
         return self.async_show_form(
-            step_id="add_zone", data_schema=_zone_basics_schema(), errors=errors
+            step_id="add_zone", data_schema=schema, errors=errors
         )
 
     async def async_step_edit_zone(
@@ -347,6 +388,7 @@ class AmazingIrrigationOptionsFlow(OptionsFlow):
         record = zones.get(self._selected_zone_id, {})
         errors: dict[str, str] = {}
         if user_input is not None:
+            _times_from_slots(user_input)
             errors = _validate_zone_basics(user_input)
             if not errors:
                 return await self._continue_to_actuator(user_input, existing=record)
@@ -354,7 +396,8 @@ class AmazingIrrigationOptionsFlow(OptionsFlow):
         else:
             current = record
 
-        schema = self.add_suggested_values_to_schema(_zone_basics_schema(), current)
+        suggested = {**current, **_slots_from_times(current)}
+        schema = self.add_suggested_values_to_schema(_zone_basics_schema(), suggested)
         return self.async_show_form(
             step_id="edit_zone", data_schema=schema, errors=errors
         )

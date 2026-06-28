@@ -47,7 +47,9 @@
           "season_end": "Active season end (MM-DD, optional)",
           "enabled": "Automation enabled",
           "schedule_weekdays": "Scheduled weekdays (empty = every day)",
-          "schedule_times": "Scheduled start times (HH:MM)",
+          "schedule_time_1": "Scheduled start time 1 (optional)",
+          "schedule_time_2": "Scheduled start time 2 (optional)",
+          "schedule_time_3": "Scheduled start time 3 (optional)",
           "actuator_type": "Watering Actuator type"
         }
       },
@@ -78,7 +80,9 @@
           "season_end": "Active season end (MM-DD, optional)",
           "enabled": "Automation enabled",
           "schedule_weekdays": "Scheduled weekdays (empty = every day)",
-          "schedule_times": "Scheduled start times (HH:MM)",
+          "schedule_time_1": "Scheduled start time 1 (optional)",
+          "schedule_time_2": "Scheduled start time 2 (optional)",
+          "schedule_time_3": "Scheduled start time 3 (optional)",
           "actuator_type": "Watering Actuator type"
         }
       },
