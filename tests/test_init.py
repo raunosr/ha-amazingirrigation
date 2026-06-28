@@ -27,8 +27,12 @@ async def test_setup_and_unload_entry(hass: HomeAssistant) -> None:
     assert entry.entry_id not in hass.data.get(DOMAIN, {})
 
 
-async def test_shell_loads_no_platforms(hass: HomeAssistant) -> None:
-    """The shell must not control water: no platforms are forwarded."""
+async def test_shell_loads_only_observe_platforms(hass: HomeAssistant) -> None:
+    """Observe-only: sensor is the only platform; no control platforms."""
+    from homeassistant.const import Platform
+
     from custom_components.amazing_irrigation import PLATFORMS
 
-    assert PLATFORMS == []
+    assert PLATFORMS == [Platform.SENSOR]
+    assert Platform.SWITCH not in PLATFORMS
+    assert Platform.BUTTON not in PLATFORMS

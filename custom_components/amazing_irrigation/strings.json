@@ -9,5 +9,52 @@
     "abort": {
       "already_configured": "Amazing Irrigation is already configured."
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Irrigation Zones",
+        "description": "Add, edit or remove Irrigation Zones.",
+        "menu_options": {
+          "add_zone": "Add an Irrigation Zone",
+          "edit_zone": "Edit an Irrigation Zone",
+          "remove_zone": "Remove an Irrigation Zone"
+        }
+      },
+      "add_zone": {
+        "title": "Add an Irrigation Zone",
+        "description": "An Irrigation Zone observes one or more soil moisture sensors and typed environmental and safety inputs. This zone cannot water yet.",
+        "data": {
+          "name": "Zone name",
+          "moisture_sensors": "Soil moisture sensors",
+          "forecast_rain_amount": "Forecast Rain Amount (mm)",
+          "forecast_rain_probability": "Forecast Rain Probability (%)",
+          "observed_rain_amount": "Observed Rain Amount (mm)",
+          "safety_blockers": "Safety Blockers (block watering when on or unavailable)"
+        }
+      },
+      "edit_zone": {
+        "title": "Edit an Irrigation Zone",
+        "description": "Select a zone to edit, then adjust its inputs.",
+        "data": {
+          "zone": "Irrigation Zone",
+          "name": "Zone name",
+          "moisture_sensors": "Soil moisture sensors",
+          "forecast_rain_amount": "Forecast Rain Amount (mm)",
+          "forecast_rain_probability": "Forecast Rain Probability (%)",
+          "observed_rain_amount": "Observed Rain Amount (mm)",
+          "safety_blockers": "Safety Blockers (block watering when on or unavailable)"
+        }
+      },
+      "remove_zone": {
+        "title": "Remove an Irrigation Zone",
+        "data": {
+          "zone": "Irrigation Zone"
+        }
+      }
+    },
+    "error": {
+      "no_moisture_sensors": "Select at least one soil moisture sensor for the zone."
+    }
   }
 }

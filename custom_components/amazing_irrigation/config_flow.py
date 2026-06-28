@@ -1,17 +1,62 @@
-"""Config flow for the Amazing Irrigation integration.
+"""Config and options flow for the Amazing Irrigation integration.
 
-The shell creates a single integration instance (a hub). Irrigation Zones are
-added later through this entry's options/subentries; the shell only ensures the
-integration can be installed and loaded safely.
+The integration is a single hub instance. Irrigation Zones are created and
+edited through this entry's *options* flow using Home Assistant entity
+selectors, and stored as records under ``options[CONF_ZONES]`` keyed by a
+generated ``zone_id``. This slice is observe-only: zones select moisture and
+typed environmental/safety inputs but cannot actuate water.
 """
 
 from __future__ import annotations
 
+import uuid
 from typing import Any
 
-from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
+import voluptuous as vol
+from homeassistant.config_entries import (
+    ConfigEntry,
+    ConfigFlow,
+    ConfigFlowResult,
+    OptionsFlow,
+)
+from homeassistant.core import callback
+from homeassistant.helpers import selector
 
-from .const import DOMAIN, INTEGRATION_TITLE
+from .const import (
+    CONF_FORECAST_RAIN_AMOUNT,
+    CONF_FORECAST_RAIN_PROBABILITY,
+    CONF_MOISTURE_SENSORS,
+    CONF_NAME,
+    CONF_OBSERVED_RAIN_AMOUNT,
+    CONF_SAFETY_BLOCKERS,
+    CONF_ZONES,
+    DOMAIN,
+    INTEGRATION_TITLE,
+)
+
+
+def _zone_schema() -> vol.Schema:
+    """Build the schema for creating or editing an Irrigation Zone."""
+    return vol.Schema(
+        {
+            vol.Required(CONF_NAME): selector.TextSelector(),
+            vol.Required(CONF_MOISTURE_SENSORS): selector.EntitySelector(
+                selector.EntitySelectorConfig(domain="sensor", multiple=True)
+            ),
+            vol.Optional(CONF_FORECAST_RAIN_AMOUNT): selector.EntitySelector(
+                selector.EntitySelectorConfig(domain=["sensor", "input_number"])
+            ),
+            vol.Optional(CONF_FORECAST_RAIN_PROBABILITY): selector.EntitySelector(
+                selector.EntitySelectorConfig(domain=["sensor", "input_number"])
+            ),
+            vol.Optional(CONF_OBSERVED_RAIN_AMOUNT): selector.EntitySelector(
+                selector.EntitySelectorConfig(domain=["sensor", "input_number"])
+            ),
+            vol.Optional(CONF_SAFETY_BLOCKERS): selector.EntitySelector(
+                selector.EntitySelectorConfig(domain="binary_sensor", multiple=True)
+            ),
+        }
+    )
 
 
 class AmazingIrrigationConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -22,11 +67,7 @@ class AmazingIrrigationConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Handle the initial step.
-
-        Only a single Amazing Irrigation instance is supported; it acts as a
-        hub that owns all Irrigation Zones.
-        """
+        """Create the single Amazing Irrigation hub instance."""
         await self.async_set_unique_id(DOMAIN)
         self._abort_if_unique_id_configured()
 
@@ -34,3 +75,128 @@ class AmazingIrrigationConfigFlow(ConfigFlow, domain=DOMAIN):
             return self.async_create_entry(title=INTEGRATION_TITLE, data={})
 
         return self.async_show_form(step_id="user")
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(
+        config_entry: ConfigEntry,
+    ) -> AmazingIrrigationOptionsFlow:
+        """Return the options flow that manages Irrigation Zones."""
+        return AmazingIrrigationOptionsFlow()
+
+
+class AmazingIrrigationOptionsFlow(OptionsFlow):
+    """Manage Irrigation Zones stored in the entry options."""
+
+    def __init__(self) -> None:
+        """Initialise transient flow state."""
+        self._selected_zone_id: str | None = None
+
+    @property
+    def _zones(self) -> dict[str, dict[str, Any]]:
+        """Return a copy of the stored zone records."""
+        return dict(self.config_entry.options.get(CONF_ZONES, {}))
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Show the zone management menu."""
+        menu_options = ["add_zone"]
+        if self._zones:
+            menu_options += ["edit_zone", "remove_zone"]
+        return self.async_show_menu(step_id="init", menu_options=menu_options)
+
+    async def async_step_add_zone(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Create a new Irrigation Zone."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            errors = _validate_zone_input(user_input)
+            if not errors:
+                zone_id = uuid.uuid4().hex[:8]
+                zones = self._zones
+                zones[zone_id] = _clean_zone_input(user_input)
+                return self._save_zones(zones)
+
+        return self.async_show_form(
+            step_id="add_zone", data_schema=_zone_schema(), errors=errors
+        )
+
+    async def async_step_edit_zone(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Pick a zone to edit, then edit it."""
+        zones = self._zones
+        if self._selected_zone_id is None:
+            if user_input is not None:
+                self._selected_zone_id = user_input["zone"]
+                return await self.async_step_edit_zone()
+            return self.async_show_form(
+                step_id="edit_zone", data_schema=_zone_picker_schema(zones)
+            )
+
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            errors = _validate_zone_input(user_input)
+            if not errors:
+                zones[self._selected_zone_id] = _clean_zone_input(user_input)
+                return self._save_zones(zones)
+            current = user_input
+        else:
+            current = zones.get(self._selected_zone_id, {})
+
+        schema = self.add_suggested_values_to_schema(_zone_schema(), current)
+        return self.async_show_form(
+            step_id="edit_zone", data_schema=schema, errors=errors
+        )
+
+    async def async_step_remove_zone(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Remove an existing Irrigation Zone."""
+        zones = self._zones
+        if user_input is not None:
+            zones.pop(user_input["zone"], None)
+            return self._save_zones(zones)
+
+        return self.async_show_form(
+            step_id="remove_zone", data_schema=_zone_picker_schema(zones)
+        )
+
+    @callback
+    def _save_zones(self, zones: dict[str, dict[str, Any]]) -> ConfigFlowResult:
+        """Persist the updated zone records to the entry options."""
+        options = dict(self.config_entry.options)
+        options[CONF_ZONES] = zones
+        return self.async_create_entry(title="", data=options)
+
+
+def _zone_picker_schema(zones: dict[str, dict[str, Any]]) -> vol.Schema:
+    """Build a schema for selecting an existing zone."""
+    options = [
+        selector.SelectOptionDict(value=zone_id, label=record.get(CONF_NAME, zone_id))
+        for zone_id, record in zones.items()
+    ]
+    return vol.Schema(
+        {
+            vol.Required("zone"): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=options)
+            )
+        }
+    )
+
+
+def _validate_zone_input(user_input: dict[str, Any]) -> dict[str, str]:
+    """Validate zone input; require at least one moisture sensor."""
+    errors: dict[str, str] = {}
+    if not user_input.get(CONF_MOISTURE_SENSORS):
+        errors[CONF_MOISTURE_SENSORS] = "no_moisture_sensors"
+    return errors
+
+
+def _clean_zone_input(user_input: dict[str, Any]) -> dict[str, Any]:
+    """Drop empty optional values so stored records stay tidy."""
+    return {
+        key: value for key, value in user_input.items() if value not in (None, "", [])
+    }
