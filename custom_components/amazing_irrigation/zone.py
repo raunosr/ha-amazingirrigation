@@ -23,6 +23,7 @@ from .const import (
     CONF_FORECAST_RAIN_PROBABILITY,
     CONF_GAIN_PER_LITER,
     CONF_GREENHOUSE,
+    CONF_HISTORY_DAYS,
     CONF_HUMIDITY_SENSOR,
     CONF_LEARNING_ENABLED,
     CONF_MAX_LITERS,
@@ -125,6 +126,7 @@ class ZoneConfig:
     field_capacity: float | None = None
     wilting_point: float | None = None
     learning_enabled: bool = False
+    history_days: int = 60
     et_source: str = "auto"
     soil_type: str = "loam"
     greenhouse: bool = False
@@ -167,6 +169,7 @@ class ZoneConfig:
             field_capacity=_as_float(record.get(CONF_FIELD_CAPACITY), None),
             wilting_point=_as_float(record.get(CONF_WILTING_POINT), None),
             learning_enabled=bool(record.get(CONF_LEARNING_ENABLED, False)),
+            history_days=_as_history_days(record.get(CONF_HISTORY_DAYS)),
             et_source=_select(record.get(CONF_ET_SOURCE), {"auto", "weather", "greenhouse"}, "auto"),
             soil_type=_select(record.get(CONF_SOIL_TYPE), {"loam", "sand", "clay"}, "loam"),
             greenhouse=bool(record.get(CONF_GREENHOUSE, False)),
@@ -202,6 +205,15 @@ def _select(value: object, allowed: set[str], default: str) -> str:
         return default
     normalized = value.strip().lower()
     return normalized if normalized in allowed else default
+
+
+def _as_history_days(value: object, default: int = 60) -> int:
+    """Coerce a stored history-window value to a bounded positive day count."""
+    try:
+        days = int(float(value))  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return default
+    return min(365, max(1, days))
 
 
 def _parse_md(value: str | None) -> tuple[int, int] | None:

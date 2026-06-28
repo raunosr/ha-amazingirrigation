@@ -64,9 +64,8 @@ relearn_from_history:
   fields:
     days:
       name: History days
-      description: Number of recent recorder days to inspect.
+      description: Days of sensor history to learn from. Leave empty to use each zone's configured window. Reaching beyond ~10 days relies on Home Assistant long-term statistics.
       required: false
-      default: 30
       selector:
         number:
           min: 1

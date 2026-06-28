@@ -82,10 +82,12 @@ always override learned ones, and every value stays inside safe bounds.
   simulates the model forward to the next active schedule slot and applies only the
   liters needed to keep predicted moisture in range without exceeding Field Capacity.
   A zone with only a single Target Moisture keeps working unchanged.
-- **History Bootstrap.** New learning zones learn fast by replaying recorder history
-  at setup. Re-run it any time with the per-zone **Re-learn from History** button or
-  the `amazing_irrigation.relearn_from_history` service. It degrades gracefully when
-  no recorder history is available and reports how much it used.
+- **History Bootstrap.** Every new zone with moisture sensors learns fast by replaying
+  history at setup — over a selectable window (default 2 months), drawing on Home
+  Assistant long-term statistics beyond the recorder's ~10-day raw retention. Re-run it
+  any time with the per-zone **Re-learn from History** button or the
+  `amazing_irrigation.relearn_from_history` service. It degrades gracefully when no
+  history is available and reports how much it used and from which source.
 - **Model Insight.** A per-zone diagnostic sensor and the card section above make
   every learned parameter, its confidence, the bootstrap summary and the reasoning
   behind each decision reviewable on the device page.

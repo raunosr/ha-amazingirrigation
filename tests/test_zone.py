@@ -86,6 +86,15 @@ def test_zone_config_from_record_normalises_optionals() -> None:
     assert zone.forecast_air_humidity == "sensor.forecast_humidity"
     assert zone.wind_speed == "sensor.wind_speed"
     assert zone.solar_radiation == "sensor.solar_radiation"
+    assert zone.history_days == 60
+
+
+def test_zone_config_history_days_parsing() -> None:
+    """History window parses bounded ints and falls back to the default."""
+    assert ZoneConfig.from_record("z", {"history_days": "90"}).history_days == 90
+    assert ZoneConfig.from_record("z", {"history_days": 1000}).history_days == 365
+    assert ZoneConfig.from_record("z", {"history_days": "bad"}).history_days == 60
+    assert ZoneConfig.from_record("z", {}).history_days == 60
 
 
 def test_no_season_means_always_in_season() -> None:

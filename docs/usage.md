@@ -73,6 +73,7 @@ Rain inputs are typed rather than arbitrary entities:
 | ET source | Which climate inputs drive Evapotranspiration: `auto` (greenhouse sensors for greenhouse zones, otherwise weather), `weather`, or `greenhouse`. |
 | Soil type | Prior preset (`loam`, `sand`, `clay`) used to seed a new or freshly bootstrapped Learned Model. |
 | Learning enabled | Per-zone toggle. When on, Amazing Irrigation learns a physics-informed **Soil Water Balance** (Irrigation Efficiency, Rain Efficiency, an Evapotranspiration coefficient, a Drainage rate, and bounded Field Capacity / Wilting Point — each with a Model Confidence) and uses it for **Predictive Control**, always bounded by safety limits with any manual value winning. When off, observations are still collected but never change decisions. |
+| History to learn from | Lookback window for the **History Bootstrap** (`2 weeks` / `1 month` / `2 months` / `3 months`, default `2 months`). Beyond the recorder's ~10-day raw retention this draws on Home Assistant long-term statistics. |
 
 #### Climate inputs (evapotranspiration)
 
@@ -222,17 +223,23 @@ Balance** and uses it for **Predictive Control**:
   Moisture inside the **Target Range** without exceeding Field Capacity —
   minimizing overwatering, drainage and unnecessary runs. When the model or a
   forecast is unavailable it falls back to the rule-based decision.
-- **History Bootstrap.** New learning zones are initialised at setup by replaying
-  recorder history (moisture, rain, climate, and irrigation taken from recorded
-  Watering Events or inferred from unexplained moisture rises). Re-run it any time
-  with the per-zone **Re-learn from History** button
+- **History Bootstrap.** Every new zone with moisture sensors is bootstrapped at
+  setup (no need to enable live learning first) by replaying history (moisture,
+  rain, climate, and irrigation taken from recorded Watering Events or inferred
+  from unexplained moisture rises). The lookback window is selectable per zone
+  (**2 weeks / 1 month / 2 months / 3 months**, default **2 months**); reaching
+  beyond the recorder's ~10-day raw retention uses Home Assistant **long-term
+  statistics** (hourly means kept ~1 year for `state_class: measurement`
+  sensors). Re-run it any time with the per-zone **Re-learn from History** button
   (`button.<zone>_re_learn_from_history`) or the
-  `amazing_irrigation.relearn_from_history` service. It degrades gracefully when
-  recorder history is unavailable and reports how much it used.
+  `amazing_irrigation.relearn_from_history` service (its `days` defaults to the
+  zone's window). It degrades gracefully when history is unavailable and reports
+  how much it used and from which source.
 - **Model Insight.** The `sensor.<zone>_model_insight` diagnostic sensor and the
   card's **"Why this decision"** section make every conclusion reviewable: each
   learned parameter with its **Model Confidence**, the bootstrap summary
-  ("learned from N days"), and the water-balance term breakdown, predicted
+  ("bootstrapped from N of M requested days · K intervals · source"), and the
+  water-balance term breakdown, predicted
   soil-moisture trajectory and chosen liters behind the latest Irrigation
   Decision.
 

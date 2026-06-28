@@ -12,7 +12,7 @@ import bisect
 import logging
 import math
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -111,6 +111,8 @@ class BootstrapResult:
     summary: str
     success: bool = True
     reason: str | None = None
+    requested_days: int = 0
+    source: str = ""
 
 
 def assemble_observations(
@@ -286,18 +288,21 @@ async def async_bootstrap_zone(
     zone: ZoneConfig,
     store: ZoneStateStore,
     *,
-    days: int = DEFAULT_HISTORY_DAYS,
+    days: int | None = None,
 ) -> BootstrapResult | None:
     """Fetch recorder history for one zone, fit a model, and persist it."""
     state = store.get(zone.zone_id)
     if state is None or not zone.moisture_sensors:
         return None
 
+    effective_days = days if days is not None else zone.history_days
     end_time = _utcnow()
-    start_time = end_time - timedelta(days=max(1, int(days)))
+    start_time = end_time - timedelta(days=max(1, int(effective_days)))
     entity_ids = _history_entity_ids(zone)
     try:
-        history = await _async_fetch_zone_history(hass, entity_ids, start_time, end_time)
+        history, source = await _async_fetch_zone_history(
+            hass, entity_ids, start_time, end_time
+        )
     except Exception as err:  # noqa: BLE001 - recorder absence must never break setup
         _LOGGER.info(
             "Unable to bootstrap %s from recorder history: %s", zone.zone_id, err
@@ -323,11 +328,12 @@ async def async_bootstrap_zone(
     prior = params_from_state(state, soil_type=zone.soil_type) or default_params(
         zone.soil_type
     )
-    result = bootstrap_from_series(
-        prior,
-        observations,
-        overrides=_zone_overrides(zone),
+    result = replace(
+        bootstrap_from_series(prior, observations, overrides=_zone_overrides(zone)),
+        requested_days=int(effective_days),
+        source=source,
     )
+    result = replace(result, summary=_enriched_summary(result))
     if not result.success:
         return result
 
@@ -339,8 +345,23 @@ async def async_bootstrap_zone(
         updated=end_time.isoformat(),
     )
     state.bootstrapped_days = result.days_span
+    state.bootstrap_intervals = result.intervals_used
+    state.bootstrap_requested_days = result.requested_days or None
+    state.bootstrap_source = result.source or None
     await store.async_save()
     return result
+
+
+def _enriched_summary(result: BootstrapResult) -> str:
+    """Human-readable summary including window, intervals, and data source."""
+    if not result.success:
+        return result.summary
+    source = f" via {result.source}" if result.source else ""
+    requested = f" of {result.requested_days} requested" if result.requested_days else ""
+    return (
+        f"Learned from {result.intervals_used} intervals over "
+        f"{result.days_span:.1f}{requested} days{source}"
+    )
 
 
 async def _async_fetch_zone_history(
@@ -348,31 +369,177 @@ async def _async_fetch_zone_history(
     entity_ids: Sequence[str],
     start_time: datetime,
     end_time: datetime,
+) -> tuple[dict[str, TimeSeries], str]:
+    """Fetch numeric history for entity ids.
+
+    Long-term **statistics** (hourly means, retained for ~1 year) supply the
+    long window beyond the recorder's short raw-state retention, while raw
+    recorder states supply fine recent detail.  The two are merged per entity,
+    with raw winning on any overlapping window.  Returns the merged history and
+    a human-readable description of which backends supplied data.
+    """
+    if not entity_ids:
+        return {}, "none"
+
+    unique = list(dict.fromkeys(entity_ids))
+    statistics = await _async_fetch_statistics(hass, unique, start_time, end_time)
+    raw = await _async_fetch_recorder_states(hass, unique, start_time, end_time)
+
+    merged: dict[str, TimeSeries] = {}
+    for entity_id in unique:
+        series = _merge_series_prefer_raw(
+            statistics.get(entity_id), raw.get(entity_id)
+        )
+        if series:
+            merged[entity_id] = series
+    source = _history_source(bool(statistics), bool(raw))
+    return merged, source
+
+
+def _history_source(has_statistics: bool, has_raw: bool) -> str:
+    """Describe which recorder backends supplied data, for the UI summary."""
+    if has_statistics and has_raw:
+        return "statistics + recorder"
+    if has_statistics:
+        return "statistics"
+    if has_raw:
+        return "recorder"
+    return "none"
+
+
+async def _async_fetch_recorder_states(
+    hass: Any,
+    entity_ids: Sequence[str],
+    start_time: datetime,
+    end_time: datetime,
 ) -> dict[str, TimeSeries]:
-    """Fetch numeric recorder state history for entity ids."""
+    """Fetch raw recorder state history for entity ids (recent fine detail)."""
     if not entity_ids:
         return {}
 
-    from homeassistant.components.recorder import get_instance, history
+    try:
+        from homeassistant.components.recorder import get_instance, history
 
-    recorder = get_instance(hass)
-    raw = await recorder.async_add_executor_job(
-        history.get_significant_states,
-        hass,
-        start_time,
-        end_time,
-        list(dict.fromkeys(entity_ids)),
-        None,
-        True,
-        False,
-        False,
-        True,
-    )
+        recorder = get_instance(hass)
+        raw = await recorder.async_add_executor_job(
+            history.get_significant_states,
+            hass,
+            start_time,
+            end_time,
+            list(dict.fromkeys(entity_ids)),
+            None,
+            True,
+            False,
+            False,
+            True,
+        )
+    except Exception as err:  # noqa: BLE001 - recorder absence must never break setup
+        _LOGGER.debug("Recorder state history unavailable: %s", err)
+        return {}
     return {
         entity_id: _states_to_series(states)
         for entity_id, states in raw.items()
         if states
     }
+
+
+async def _async_fetch_statistics(
+    hass: Any,
+    entity_ids: Sequence[str],
+    start_time: datetime,
+    end_time: datetime,
+) -> dict[str, TimeSeries]:
+    """Fetch hourly long-term statistics for entity ids (long history window)."""
+    if not entity_ids:
+        return {}
+
+    try:
+        from homeassistant.components.recorder import get_instance
+        from homeassistant.components.recorder.statistics import (
+            statistics_during_period,
+        )
+
+        recorder = get_instance(hass)
+        rows = await recorder.async_add_executor_job(
+            statistics_during_period,
+            hass,
+            start_time,
+            end_time,
+            set(entity_ids),
+            "hour",
+            None,
+            {"mean", "state", "sum"},
+        )
+    except Exception as err:  # noqa: BLE001 - statistics absence must never break setup
+        _LOGGER.debug("Long-term statistics unavailable: %s", err)
+        return {}
+
+    series: dict[str, TimeSeries] = {}
+    for entity_id, entity_rows in (rows or {}).items():
+        converted = _statistics_to_series(entity_rows)
+        if converted:
+            series[entity_id] = converted
+    return series
+
+
+def _statistics_to_series(rows: Iterable[Any]) -> TimeSeries:
+    """Convert recorder statistic rows into a numeric series.
+
+    Each row carries a period ``start`` and one or more aggregate values.  For
+    measurement sensors (moisture, temperature, humidity, wind, solar) the
+    ``mean`` is used; for cumulative meters (rain) the ``state``/``sum`` reading
+    is used so :meth:`TimeSeries.delta` can recover per-interval amounts.
+    """
+    points: list[SeriesPoint] = []
+    for row in rows or ():
+        timestamp = _statistics_timestamp(row)
+        value = _statistics_value(row)
+        if timestamp is not None and value is not None:
+            points.append(SeriesPoint(timestamp, value))
+    return TimeSeries(points)
+
+
+def _statistics_value(row: Any) -> float | None:
+    if not isinstance(row, Mapping):
+        return None
+    for key in ("mean", "state", "sum"):
+        if key in row:
+            value = _finite_float(row.get(key))
+            if value is not None:
+                return value
+    return None
+
+
+def _statistics_timestamp(row: Any) -> datetime | None:
+    if not isinstance(row, Mapping):
+        return None
+    start = row.get("start")
+    if isinstance(start, datetime):
+        return start
+    if isinstance(start, (int, float)):
+        from datetime import UTC
+
+        return datetime.fromtimestamp(float(start), tz=UTC)
+    return None
+
+
+def _merge_series_prefer_raw(
+    statistics: TimeSeries | None, raw: TimeSeries | None
+) -> TimeSeries:
+    """Merge statistics with raw states; raw wins on any overlapping window.
+
+    Statistics points older than the earliest raw sample extend the history
+    backwards, while raw samples provide the recent, fine-grained detail.
+    """
+    stats_points = statistics.points if statistics else ()
+    raw_points = raw.points if raw else ()
+    if not raw_points:
+        return TimeSeries(stats_points)
+    if not stats_points:
+        return TimeSeries(raw_points)
+    cutoff = raw_points[0].timestamp
+    kept = [point for point in stats_points if point.timestamp < cutoff]
+    return TimeSeries((*kept, *raw_points))
 
 
 def _states_to_series(states: Iterable[Any]) -> TimeSeries:
