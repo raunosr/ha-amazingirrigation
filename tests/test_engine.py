@@ -89,6 +89,18 @@ def test_out_of_season_skips() -> None:
     assert decision.reason is DecisionReason.OUT_OF_SEASON
 
 
+def test_disabled_zone_skips() -> None:
+    decision = decide(_inputs(enabled=False))
+    assert decision.action is DecisionAction.SKIP
+    assert decision.reason is DecisionReason.DISABLED
+
+
+def test_force_water_bypasses_disabled_zone() -> None:
+    decision = decide(_inputs(enabled=False, force=True))
+    assert decision.action is DecisionAction.WATER
+    assert decision.reason is DecisionReason.FORCED
+
+
 def test_zone_locked_skips() -> None:
     decision = decide(_inputs(zone_locked=True))
     assert decision.action is DecisionAction.SKIP

@@ -34,6 +34,7 @@ from .const import (
     CONF_ACTUATOR_STOP_SERVICE,
     CONF_ACTUATOR_SWITCH,
     CONF_ACTUATOR_TYPE,
+    CONF_ENABLED,
     CONF_FORECAST_RAIN_AMOUNT,
     CONF_FORECAST_RAIN_PROBABILITY,
     CONF_GAIN_PER_LITER,
@@ -47,6 +48,8 @@ from .const import (
     CONF_RAIN_SKIP_MM,
     CONF_RAIN_SKIP_PROBABILITY,
     CONF_SAFETY_BLOCKERS,
+    CONF_SCHEDULE_TIMES,
+    CONF_SCHEDULE_WEEKDAYS,
     CONF_SEASON_END,
     CONF_SEASON_START,
     CONF_TARGET_MOISTURE,
@@ -63,6 +66,7 @@ from .const import (
     DEFAULT_VOLUME_FIELD,
     DOMAIN,
     INTEGRATION_TITLE,
+    WEEKDAYS,
 )
 
 
@@ -121,6 +125,17 @@ def _zone_schema() -> vol.Schema:
             ),
             vol.Optional(CONF_SEASON_START): selector.TextSelector(),
             vol.Optional(CONF_SEASON_END): selector.TextSelector(),
+            vol.Optional(CONF_ENABLED, default=True): selector.BooleanSelector(),
+            vol.Optional(CONF_SCHEDULE_WEEKDAYS): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=WEEKDAYS,
+                    multiple=True,
+                    translation_key="weekday",
+                )
+            ),
+            vol.Optional(CONF_SCHEDULE_TIMES): selector.TextSelector(
+                selector.TextSelectorConfig(multiple=True)
+            ),
             vol.Optional(
                 CONF_ACTUATOR_TYPE, default=ACTUATOR_NONE
             ): selector.SelectSelector(

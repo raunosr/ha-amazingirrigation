@@ -14,6 +14,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from .const import (
+    CONF_ENABLED,
     CONF_FORECAST_RAIN_AMOUNT,
     CONF_FORECAST_RAIN_PROBABILITY,
     CONF_GAIN_PER_LITER,
@@ -24,6 +25,8 @@ from .const import (
     CONF_RAIN_SKIP_MM,
     CONF_RAIN_SKIP_PROBABILITY,
     CONF_SAFETY_BLOCKERS,
+    CONF_SCHEDULE_TIMES,
+    CONF_SCHEDULE_WEEKDAYS,
     CONF_SEASON_END,
     CONF_SEASON_START,
     CONF_TARGET_MOISTURE,
@@ -95,6 +98,9 @@ class ZoneConfig:
     rain_skip_probability: float = DEFAULT_RAIN_SKIP_PROBABILITY
     season_start: str | None = None
     season_end: str | None = None
+    enabled: bool = True
+    schedule_weekdays: list[str] = field(default_factory=list)
+    schedule_times: list[str] = field(default_factory=list)
 
     @classmethod
     def from_record(cls, zone_id: str, record: dict) -> ZoneConfig:
@@ -116,6 +122,9 @@ class ZoneConfig:
             ),
             season_start=record.get(CONF_SEASON_START) or None,
             season_end=record.get(CONF_SEASON_END) or None,
+            enabled=bool(record.get(CONF_ENABLED, True)),
+            schedule_weekdays=list(record.get(CONF_SCHEDULE_WEEKDAYS, []) or []),
+            schedule_times=list(record.get(CONF_SCHEDULE_TIMES, []) or []),
         )
 
 

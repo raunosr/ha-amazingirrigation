@@ -38,6 +38,9 @@
           "safety_blockers": "Safety Blockers (block watering when on or unavailable)",
           "season_start": "Active season start (MM-DD, optional)",
           "season_end": "Active season end (MM-DD, optional)",
+          "enabled": "Automation enabled",
+          "schedule_weekdays": "Scheduled weekdays (empty = every day)",
+          "schedule_times": "Scheduled start times (HH:MM)",
           "actuator_type": "Watering Actuator type",
           "actuator_switch": "Actuator switch (start/stop)",
           "actuator_start_service": "Start service (domain.service)",
@@ -72,6 +75,9 @@
           "safety_blockers": "Safety Blockers (block watering when on or unavailable)",
           "season_start": "Active season start (MM-DD, optional)",
           "season_end": "Active season end (MM-DD, optional)",
+          "enabled": "Automation enabled",
+          "schedule_weekdays": "Scheduled weekdays (empty = every day)",
+          "schedule_times": "Scheduled start times (HH:MM)",
           "actuator_type": "Watering Actuator type",
           "actuator_switch": "Actuator switch (start/stop)",
           "actuator_start_service": "Start service (domain.service)",
@@ -108,6 +114,17 @@
         "service": "Service call",
         "script": "Script",
         "linktap": "LinkTap (MQTT)"
+      }
+    },
+    "weekday": {
+      "options": {
+        "mon": "Monday",
+        "tue": "Tuesday",
+        "wed": "Wednesday",
+        "thu": "Thursday",
+        "fri": "Friday",
+        "sat": "Saturday",
+        "sun": "Sunday"
       }
     }
   },
