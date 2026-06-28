@@ -42,6 +42,9 @@ DATA_HISTORY = "history"
 # hass.data[DOMAIN][entry_id] sub-key holding the RainWatcher list.
 DATA_RAIN_WATCHERS = "rain_watchers"
 
+# hass.data[DOMAIN] flag marking the Lovelace card frontend resource registered.
+DATA_CARD_REGISTERED = "card_registered"
+
 # Per-zone enablement and built-in scheduling keys.
 CONF_ENABLED = "enabled"
 CONF_SCHEDULE_WEEKDAYS = "schedule_weekdays"

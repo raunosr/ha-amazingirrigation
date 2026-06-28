@@ -22,6 +22,7 @@ from .const import (
     DATA_SCHEDULER,
     DOMAIN,
 )
+from .frontend_card import async_register_card
 from .history import build_histories
 from .rain import build_rain_watchers
 from .scheduler import build_scheduler
@@ -53,6 +54,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     async_setup_services(hass)
+    await async_register_card(hass)
     scheduler.async_start()
     for watcher in rain_watchers:
         watcher.async_start()
@@ -83,7 +85,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 watcher.async_stop()
             for controller in entry_data.get(DATA_CONTROLLERS, {}).values():
                 controller.teardown()
-        if not domain_data:
+        # Only entry data is stored as a dict; ignore the card-registered flag
+        # when deciding whether any config entries remain.
+        if not any(isinstance(value, dict) for value in domain_data.values()):
             async_unload_services(hass)
 
     return unload_ok

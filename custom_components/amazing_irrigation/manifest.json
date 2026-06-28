@@ -4,7 +4,7 @@
   "codeowners": ["@raunosr"],
   "config_flow": true,
   "dependencies": [],
-  "after_dependencies": ["mqtt"],
+  "after_dependencies": ["mqtt", "frontend", "http"],
   "documentation": "https://github.com/raunosr/ha-amazingirrigation",
   "integration_type": "hub",
   "iot_class": "local_polling",
