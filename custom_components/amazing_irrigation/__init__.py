@@ -35,8 +35,14 @@ from .watering import build_controllers
 
 _LOGGER = logging.getLogger(__name__)
 
-# Sensors observe; buttons run/stop watering through the generic actuator.
-PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.BUTTON]
+# Sensors observe; buttons run/stop; number/switch/time edit live tunables.
+PLATFORMS: list[Platform] = [
+    Platform.SENSOR,
+    Platform.BUTTON,
+    Platform.NUMBER,
+    Platform.SWITCH,
+    Platform.TIME,
+]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -47,7 +53,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await zone_state.async_load(zones)
     histories = build_histories(zones)
     controllers = build_controllers(hass, zones, histories, zone_state)
-    scheduler = build_scheduler(hass, controllers, entry.options)
+    scheduler = build_scheduler(hass, controllers, entry.options, zone_state)
     rain_watchers = build_rain_watchers(hass, zones, histories)
     learners = build_learners(hass, zones, zone_state)
     domain_data[entry.entry_id] = {

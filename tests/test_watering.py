@@ -44,8 +44,15 @@ def _record_switch(hass: HomeAssistant, *, raise_on_start: bool = False) -> list
     async def _off(call: ServiceCall) -> None:
         calls.append(call)
 
-    hass.services.async_register("switch", "turn_on", _on)
-    hass.services.async_register("switch", "turn_off", _off)
+    def _register() -> None:
+        hass.services.async_register("switch", "turn_on", _on)
+        hass.services.async_register("switch", "turn_off", _off)
+
+    _register()
+    # Setting up the integration forwards the ``switch`` platform, which makes
+    # Home Assistant register the core switch.turn_on/turn_off services and clobber
+    # this recorder. Stash the re-register hook so ``_setup`` can reinstate it.
+    hass.data["_switch_recorder"] = _register
     return calls
 
 
@@ -59,6 +66,10 @@ async def _setup(hass: HomeAssistant, record: dict) -> MockConfigEntry:
     entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
+    # Reinstate any test switch recorder clobbered by the switch platform setup.
+    reregister = hass.data.get("_switch_recorder")
+    if reregister is not None:
+        reregister()
     return entry
 
 
