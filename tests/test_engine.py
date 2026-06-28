@@ -2,12 +2,18 @@
 
 from __future__ import annotations
 
+from dataclasses import asdict
+
+import pytest
+
+from custom_components.amazing_irrigation.controller import ForecastInterval, TargetBand
 from custom_components.amazing_irrigation.engine import (
     DecisionAction,
     DecisionInputs,
     DecisionReason,
     decide,
 )
+from custom_components.amazing_irrigation.waterbalance import WaterBalanceParams
 from custom_components.amazing_irrigation.zone import ZoneMoisture
 
 
@@ -178,3 +184,71 @@ def test_degraded_flag_propagates() -> None:
     )
     assert decision.degraded is True
     assert decision.action is DecisionAction.WATER
+
+
+def test_predictive_branch_waters_with_explanation() -> None:
+    decision = decide(
+        _inputs(
+            moisture=_moisture(39.0),
+            target_moisture=40.0,
+            predictive=True,
+            params=WaterBalanceParams(2.0, 1.0, 1.0, 0.0, 50.0, 10.0),
+            horizon=[ForecastInterval(dt=24.0)],
+            target_band=TargetBand(low=40.0, high=45.0),
+        )
+    )
+
+    assert decision.action is DecisionAction.WATER
+    assert decision.reason is DecisionReason.PREDICTIVE_WATER
+    assert decision.recommended_liters == pytest.approx(0.98)
+    assert decision.details["predictive"] is True
+    assert "explanation" in decision.details
+    assert decision.details["predicted_trajectory"] == [40.0]
+
+
+def test_predictive_branch_holds_when_future_stays_in_band() -> None:
+    decision = decide(
+        _inputs(
+            moisture=_moisture(39.5),
+            target_moisture=40.0,
+            predictive=True,
+            params=WaterBalanceParams(2.0, 2.0, 1.0, 0.0, 50.0, 10.0),
+            horizon=[ForecastInterval(dt=24.0, rain_mm=1.0)],
+            target_band=TargetBand(low=40.0, high=45.0),
+        )
+    )
+
+    assert decision.action is DecisionAction.SKIP
+    assert decision.reason is DecisionReason.PREDICTIVE_HOLD
+    assert decision.recommended_liters == 0.0
+    assert decision.details["explanation"]["terms"]["rain"] == 2.0
+
+
+def test_predictive_does_not_override_force_or_safety() -> None:
+    kwargs = dict(
+        predictive=True,
+        params=WaterBalanceParams(2.0, 1.0, 1.0, 0.0, 50.0, 10.0),
+        horizon=[ForecastInterval(dt=24.0)],
+        target_band=TargetBand(low=40.0, high=45.0),
+    )
+
+    forced = decide(_inputs(moisture=_moisture(80.0), force=True, **kwargs))
+    blocked = decide(_inputs(force=True, safety_blocked=True, **kwargs))
+
+    assert forced.reason is DecisionReason.FORCED
+    assert blocked.reason is DecisionReason.SAFETY_BLOCKER
+
+
+def test_predictive_false_preserves_rule_based_output() -> None:
+    base = _inputs(observed_rain_mm=1.5, forecast_rain_mm=None, rain_skip_mm=3.0)
+    with_unused_predictive_fields = _inputs(
+        observed_rain_mm=1.5,
+        forecast_rain_mm=None,
+        rain_skip_mm=3.0,
+        predictive=False,
+        params=WaterBalanceParams(2.0, 1.0, 1.0, 0.0, 50.0, 10.0),
+        horizon=[ForecastInterval(dt=24.0)],
+        target_band=TargetBand(low=40.0, high=45.0),
+    )
+
+    assert asdict(decide(with_unused_predictive_fields)) == asdict(decide(base))

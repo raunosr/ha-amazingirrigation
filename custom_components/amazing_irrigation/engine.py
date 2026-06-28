@@ -26,6 +26,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import StrEnum
 
+from .controller import ForecastInterval, TargetBand, band_from_target, plan_irrigation
+from .waterbalance import BalanceInterval, WaterBalanceParams
 from .zone import ZoneMoisture
 
 # Smallest watering volume worth running; anything below is treated as a skip.
@@ -54,6 +56,8 @@ class DecisionReason(StrEnum):
     RAIN_SUFFICIENT = "rain_sufficient"
     RAIN_REDUCE = "rain_reduce"
     BELOW_TARGET = "below_target"
+    PREDICTIVE_WATER = "predictive_water"
+    PREDICTIVE_HOLD = "predictive_hold"
 
 
 @dataclass(frozen=True)
@@ -75,6 +79,11 @@ class DecisionInputs:
     zone_locked: bool = False
     force: bool = False
     protected_rain: bool = False
+    predictive: bool = False
+    params: WaterBalanceParams | None = None
+    horizon: list[BalanceInterval | ForecastInterval | dict] | None = None
+    target_band: TargetBand | None = None
+    target_high: float | None = None
 
 
 @dataclass(frozen=True)
@@ -175,6 +184,43 @@ def decide(inp: DecisionInputs) -> Decision:
     if deficit <= 0:
         return Decision(
             DecisionAction.SKIP, DecisionReason.ABOVE_TARGET, 0.0, degraded
+        )
+
+    if inp.predictive and inp.params is not None and inp.horizon:
+        band = inp.target_band or band_from_target(
+            inp.target_moisture,
+            field_capacity=inp.params.field_capacity,
+        )
+        if inp.target_high is not None:
+            band = TargetBand(low=band.low, high=inp.target_high)
+        control = plan_irrigation(
+            inp.params,
+            inp.moisture.value,
+            inp.horizon,
+            band,
+            max_liters=inp.max_liters,
+            min_effective_liters=MIN_EFFECTIVE_LITERS,
+        )
+        details = {
+            "predictive": True,
+            "explanation": control.explanation,
+            "predicted_trajectory": control.predicted_trajectory,
+            "horizon_hours": control.horizon_hours,
+        }
+        if control.should_water:
+            return Decision(
+                DecisionAction.WATER,
+                DecisionReason.PREDICTIVE_WATER,
+                control.liters,
+                degraded,
+                details,
+            )
+        return Decision(
+            DecisionAction.SKIP,
+            DecisionReason.PREDICTIVE_HOLD,
+            0.0,
+            degraded,
+            details,
         )
 
     liters_needed = _liters_for_deficit(inp, deficit)

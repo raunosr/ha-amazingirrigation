@@ -257,12 +257,17 @@ class IrrigationDecisionSensor(SensorEntity):
 
     def _zone_state(self):
         """Return the persisted live ZoneState for this decision, if available."""
-        store: ZoneStateStore | None = self.hass.data[DOMAIN][self._entry.entry_id].get(
-            DATA_ZONE_STATE
-        )
+        store = self._zone_state_store()
         if store is None:
             return None
         return store.get(self._zone.zone_id)
+
+    def _zone_state_store(self) -> ZoneStateStore | None:
+        """Return the ZoneStateStore for this entry, if available."""
+        store: ZoneStateStore | None = self.hass.data[DOMAIN][self._entry.entry_id].get(
+            DATA_ZONE_STATE
+        )
+        return store
 
     @callback
     def _current_moisture(self) -> float | None:
@@ -277,6 +282,7 @@ class IrrigationDecisionSensor(SensorEntity):
     def _store(self, decision: Decision) -> None:
         """Reflect a Decision on this entity's attributes (no state write)."""
         self._attr_native_value = decision.action.value
+        self._persist_decision_explanation(decision.details.get("explanation"))
         current = self._current_moisture()
         available = available_water_fraction(
             current, self._zone.wilting_point, self._zone.field_capacity
@@ -305,6 +311,18 @@ class IrrigationDecisionSensor(SensorEntity):
             "references": self._references(),
             **decision.details,
         }
+
+    @callback
+    def _persist_decision_explanation(self, explanation: dict | None) -> None:
+        """Persist the latest structured decision explanation on ZoneState."""
+        store = self._zone_state_store()
+        if store is None:
+            return
+        state = store.get(self._zone.zone_id)
+        if state is None:
+            return
+        state.decision_explanation = explanation
+        self.hass.async_create_task(store.async_save())
 
     @callback
     def _references(self) -> dict[str, object]:
