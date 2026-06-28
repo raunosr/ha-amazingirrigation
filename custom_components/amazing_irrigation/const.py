@@ -28,6 +28,17 @@ CONF_RAIN_SKIP_PROBABILITY = "rain_skip_probability"
 CONF_SEASON_START = "season_start"
 CONF_SEASON_END = "season_end"
 
+# Per-zone enablement and built-in scheduling keys.
+CONF_ENABLED = "enabled"
+CONF_SCHEDULE_WEEKDAYS = "schedule_weekdays"
+CONF_SCHEDULE_TIMES = "schedule_times"
+
+# Weekday tokens used by zone schedules (Monday = index 0).
+WEEKDAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+
+# hass.data[DOMAIN][entry_id] sub-key holding the IrrigationScheduler.
+DATA_SCHEDULER = "scheduler"
+
 # Defaults for decision-tuning values.
 DEFAULT_TARGET_MOISTURE = 40.0
 DEFAULT_MAX_LITERS = 30.0

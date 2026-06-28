@@ -61,6 +61,7 @@ def build_inputs(
         rain_skip_mm=zone.rain_skip_mm,
         rain_skip_probability=zone.rain_skip_probability,
         safety_blocked=_safety_blocked(hass, zone.safety_blockers),
+        enabled=zone.enabled,
         in_season=in_season,
         zone_locked=zone_locked,
         force=force,

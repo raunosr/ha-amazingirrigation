@@ -14,7 +14,8 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 
-from .const import CONF_ZONES, DATA_CONTROLLERS, DOMAIN
+from .const import CONF_ZONES, DATA_CONTROLLERS, DATA_SCHEDULER, DOMAIN
+from .scheduler import build_scheduler
 from .services import async_setup_services, async_unload_services
 from .watering import build_controllers
 
@@ -28,12 +29,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Amazing Irrigation from a config entry."""
     domain_data = hass.data.setdefault(DOMAIN, {})
     controllers = build_controllers(hass, entry.options.get(CONF_ZONES, {}))
-    domain_data[entry.entry_id] = {DATA_CONTROLLERS: controllers}
+    scheduler = build_scheduler(hass, controllers, entry.options)
+    domain_data[entry.entry_id] = {
+        DATA_CONTROLLERS: controllers,
+        DATA_SCHEDULER: scheduler,
+    }
 
     if PLATFORMS:
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     async_setup_services(hass)
+    scheduler.async_start()
 
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 
@@ -54,6 +60,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         domain_data = hass.data.get(DOMAIN, {})
         entry_data = domain_data.pop(entry.entry_id, None)
         if entry_data:
+            scheduler = entry_data.get(DATA_SCHEDULER)
+            if scheduler is not None:
+                scheduler.async_stop()
             for controller in entry_data.get(DATA_CONTROLLERS, {}).values():
                 controller.teardown()
         if not domain_data:

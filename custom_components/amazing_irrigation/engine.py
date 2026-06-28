@@ -10,14 +10,15 @@ Decision precedence (hard safety first, then soft checks):
 
 1. Safety Blocker active/unavailable -> SKIP (hard; even Force Water respects it).
 2. Force Water -> WATER (bypasses every soft check below).
-3. Out of active season -> SKIP.
-4. Zone Moisture unavailable -> SKIP (fail closed).
-5. Another zone watering under the global lock -> SKIP.
-6. No Target Moisture configured -> SKIP (cannot decide).
-7. Zone Moisture at/above Target Moisture -> SKIP.
-8. Enough rain (observed + likely forecast) to cover the deficit -> SKIP.
-9. Some rain expected -> REDUCE the recommended liters.
-10. Otherwise -> WATER the full recommended liters.
+3. Zone automation disabled -> SKIP.
+4. Out of active season -> SKIP.
+5. Zone Moisture unavailable -> SKIP (fail closed).
+6. Another zone watering under the global lock -> SKIP.
+7. No Target Moisture configured -> SKIP (cannot decide).
+8. Zone Moisture at/above Target Moisture -> SKIP.
+9. Enough rain (observed + likely forecast) to cover the deficit -> SKIP.
+10. Some rain expected -> REDUCE the recommended liters.
+11. Otherwise -> WATER the full recommended liters.
 """
 
 from __future__ import annotations
@@ -44,6 +45,7 @@ class DecisionReason(StrEnum):
 
     SAFETY_BLOCKER = "safety_blocker"
     FORCED = "forced"
+    DISABLED = "disabled"
     OUT_OF_SEASON = "out_of_season"
     MOISTURE_UNAVAILABLE = "moisture_unavailable"
     ZONE_LOCKED = "zone_locked"
@@ -68,6 +70,7 @@ class DecisionInputs:
     rain_skip_mm: float = 3.0
     rain_skip_probability: float = 60.0
     safety_blocked: bool = False
+    enabled: bool = True
     in_season: bool = True
     zone_locked: bool = False
     force: bool = False
@@ -130,31 +133,37 @@ def decide(inp: DecisionInputs) -> Decision:
             DecisionAction.WATER, DecisionReason.FORCED, liters, degraded
         )
 
-    # 3. Season window.
+    # 3. Zone automation disabled (manual Force Water still bypasses this).
+    if not inp.enabled:
+        return Decision(
+            DecisionAction.SKIP, DecisionReason.DISABLED, 0.0, degraded
+        )
+
+    # 4. Season window.
     if not inp.in_season:
         return Decision(
             DecisionAction.SKIP, DecisionReason.OUT_OF_SEASON, 0.0, degraded
         )
 
-    # 4. Fail closed without a valid Zone Moisture.
+    # 5. Fail closed without a valid Zone Moisture.
     if not inp.moisture.available:
         return Decision(
             DecisionAction.SKIP, DecisionReason.MOISTURE_UNAVAILABLE, 0.0, degraded
         )
 
-    # 5. Global watering lock.
+    # 6. Global watering lock.
     if inp.zone_locked:
         return Decision(
             DecisionAction.SKIP, DecisionReason.ZONE_LOCKED, 0.0, degraded
         )
 
-    # 6. Need a target to decide.
+    # 7. Need a target to decide.
     if inp.target_moisture is None:
         return Decision(
             DecisionAction.SKIP, DecisionReason.NO_TARGET, 0.0, degraded
         )
 
-    # 7. Already wet enough.
+    # 8. Already wet enough.
     deficit = inp.target_moisture - inp.moisture.value
     if deficit <= 0:
         return Decision(
@@ -164,7 +173,7 @@ def decide(inp: DecisionInputs) -> Decision:
     liters_needed = _liters_for_deficit(inp, deficit)
     rain = _effective_rain_mm(inp)
 
-    # 8/9. Rain reduces or cancels the run.
+    # 9/10. Rain reduces or cancels the run.
     if rain > 0 and inp.rain_skip_mm > 0:
         if rain >= inp.rain_skip_mm:
             return Decision(
@@ -192,7 +201,7 @@ def decide(inp: DecisionInputs) -> Decision:
             {"effective_rain_mm": rain, "unreduced_liters": liters_needed},
         )
 
-    # 10. Water the full recommended volume.
+    # 11. Water the full recommended volume.
     return Decision(
         DecisionAction.WATER, DecisionReason.BELOW_TARGET, liters_needed, degraded
     )
