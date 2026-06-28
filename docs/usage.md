@@ -135,6 +135,12 @@ standalone script for manual testing is in
 | Watering sensor | Binary sensor that is `on` while watering; confirms Watering Events. |
 | Volume sensor | Cumulative/last volume sensor for reporting. |
 
+> **Auto-detection.** Leave both feedback sensors blank — for *any* actuator
+> type — and the integration derives them from the device of the chosen
+> actuator switch: the `_is_watering` binary sensor and the cumulative
+> `_volume` sensor (never `_volume_limit`). This works whenever the switch is a
+> LinkTap MQTT entity. Anything you select manually overrides auto-detection.
+
 > Actuator command success is treated as a *request* only. When feedback is
 > configured, Watering Events are confirmed from the watering-state/volume
 > sensors.
