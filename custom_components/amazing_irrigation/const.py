@@ -92,6 +92,7 @@ DEFAULT_RAIN_SKIP_PROBABILITY = 60.0
 SERVICE_EVALUATE_ZONE = "evaluate_zone"
 SERVICE_RUN_ZONE = "run_zone"
 SERVICE_STOP_ZONE = "stop_zone"
+SERVICE_RELEARN_FROM_HISTORY = "relearn_from_history"
 
 # Event fired when a Run Request is evaluated into an Irrigation Decision.
 EVENT_DECISION = "amazing_irrigation_decision"

@@ -21,15 +21,20 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 
 from .const import (
+    CONF_ZONES,
     DATA_CONTROLLERS,
     DATA_DECISION_ENTITIES,
+    DATA_ZONE_STATE,
     DOMAIN,
     EVENT_DECISION,
     SERVICE_EVALUATE_ZONE,
+    SERVICE_RELEARN_FROM_HISTORY,
     SERVICE_RUN_ZONE,
     SERVICE_STOP_ZONE,
 )
+from .history_ingest import DEFAULT_HISTORY_DAYS, async_bootstrap_zone
 from .watering import WateringController
+from .zone import ZoneConfig
 
 _EVALUATE_SCHEMA = vol.Schema(
     {
@@ -50,6 +55,16 @@ _STOP_SCHEMA = vol.Schema(
     {
         vol.Optional("entity_id"): cv.entity_ids,
         vol.Optional("device_id"): vol.All(cv.ensure_list, [cv.string]),
+    }
+)
+
+_RELEARN_SCHEMA = vol.Schema(
+    {
+        vol.Optional("entity_id"): cv.entity_ids,
+        vol.Optional("device_id"): vol.All(cv.ensure_list, [cv.string]),
+        vol.Optional("days", default=DEFAULT_HISTORY_DAYS): vol.All(
+            vol.Coerce(int), vol.Range(min=1, max=365)
+        ),
     }
 )
 
@@ -103,6 +118,50 @@ def _resolve_controllers(
         if controller is not None:
             found[controller.zone.zone_id] = controller
 
+    return found
+
+
+def _zone_target_for_device_id(
+    hass: HomeAssistant, device_id: str
+) -> tuple[str, str] | None:
+    """Resolve a zone device id to ``(entry_id, zone_id)``."""
+    device = dr.async_get(hass).async_get(device_id)
+    if device is None:
+        return None
+    for domain, identifier in device.identifiers:
+        if domain != DOMAIN or "_" not in identifier:
+            continue
+        entry_id, _, zone_id = identifier.rpartition("_")
+        entry_data = hass.data.get(DOMAIN, {}).get(entry_id)
+        if isinstance(entry_data, dict):
+            return (entry_id, zone_id)
+    return None
+
+
+def _resolve_zone_targets(
+    hass: HomeAssistant, call: ServiceCall
+) -> dict[tuple[str, str], ZoneConfig]:
+    """Resolve service entity/device targets to configured zones."""
+    found: dict[tuple[str, str], ZoneConfig] = {}
+    entity_reg = er.async_get(hass)
+    device_ids: list[str] = list(call.data.get("device_id", []))
+    for entity_id in call.data.get("entity_id", []):
+        entry = entity_reg.async_get(entity_id)
+        if entry is not None and entry.device_id is not None:
+            device_ids.append(entry.device_id)
+
+    for device_id in device_ids:
+        target = _zone_target_for_device_id(hass, device_id)
+        if target is None:
+            continue
+        entry_id, zone_id = target
+        config_entry = hass.config_entries.async_get_entry(entry_id)
+        if config_entry is None:
+            continue
+        record = config_entry.options.get(CONF_ZONES, {}).get(zone_id)
+        if record is None:
+            continue
+        found[(entry_id, zone_id)] = ZoneConfig.from_record(zone_id, record)
     return found
 
 
@@ -165,6 +224,45 @@ async def _async_stop_zone(call: ServiceCall) -> dict[str, Any]:
     return {"results": results}
 
 
+async def _async_relearn_from_history(call: ServiceCall) -> dict[str, Any]:
+    """Handle ``amazing_irrigation.relearn_from_history``."""
+    hass = call.hass
+    days = call.data["days"]
+    results: list[dict[str, Any]] = []
+    for (entry_id, zone_id), zone in _resolve_zone_targets(hass, call).items():
+        store = hass.data.get(DOMAIN, {}).get(entry_id, {}).get(DATA_ZONE_STATE)
+        if store is None:
+            results.append(
+                {
+                    "zone_id": zone_id,
+                    "intervals_used": 0,
+                    "days_span": 0.0,
+                    "summary": "No zone state store available",
+                }
+            )
+            continue
+        result = await async_bootstrap_zone(hass, zone, store, days=days)
+        if result is None:
+            results.append(
+                {
+                    "zone_id": zone_id,
+                    "intervals_used": 0,
+                    "days_span": 0.0,
+                    "summary": "No recorder history available",
+                }
+            )
+            continue
+        results.append(
+            {
+                "zone_id": zone_id,
+                "intervals_used": result.intervals_used,
+                "days_span": round(result.days_span, 2),
+                "summary": result.summary,
+            }
+        )
+    return {"results": results}
+
+
 def async_setup_services(hass: HomeAssistant) -> None:
     """Register integration services once."""
     if hass.services.has_service(DOMAIN, SERVICE_EVALUATE_ZONE):
@@ -190,6 +288,13 @@ def async_setup_services(hass: HomeAssistant) -> None:
         schema=_STOP_SCHEMA,
         supports_response=SupportsResponse.OPTIONAL,
     )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_RELEARN_FROM_HISTORY,
+        _async_relearn_from_history,
+        schema=_RELEARN_SCHEMA,
+        supports_response=SupportsResponse.OPTIONAL,
+    )
 
 
 def async_unload_services(hass: HomeAssistant) -> None:
@@ -197,3 +302,4 @@ def async_unload_services(hass: HomeAssistant) -> None:
     hass.services.async_remove(DOMAIN, SERVICE_EVALUATE_ZONE)
     hass.services.async_remove(DOMAIN, SERVICE_RUN_ZONE)
     hass.services.async_remove(DOMAIN, SERVICE_STOP_ZONE)
+    hass.services.async_remove(DOMAIN, SERVICE_RELEARN_FROM_HISTORY)
