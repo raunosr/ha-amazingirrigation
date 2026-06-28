@@ -153,8 +153,8 @@ async def test_decision_sensor_exposes_calibration(hass: HomeAssistant) -> None:
     assert state.attributes["learning_enabled"] is False
 
 
-async def test_history_sensor_reflects_count(hass: HomeAssistant) -> None:
-    """The history sensor reports the entry count and most recent kind."""
+async def test_history_sensor_reports_readable_summary(hass: HomeAssistant) -> None:
+    """The history sensor reports a readable summary and most recent kind."""
     hass.states.async_set("sensor.a", "20.0")
     hass.states.async_set("sensor.rain", "0.0")
     _register_switch(hass)
@@ -166,6 +166,8 @@ async def test_history_sensor_reflects_count(hass: HomeAssistant) -> None:
 
     state = hass.states.get("sensor.herb_bed_irrigation_history")
     assert state is not None
-    assert int(state.state) >= 3
+    assert isinstance(state.state, str) and state.state != ""
+    assert state.attributes["observation_count"] >= 3
     assert state.attributes["last_kind"] == ObservationKind.WATERING_EVENT.value
     assert len(state.attributes["entries"]) >= 3
+    assert "summary" in state.attributes["entries"][0]
