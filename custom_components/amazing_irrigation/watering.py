@@ -27,6 +27,7 @@ from .const import EVENT_WATERING
 from .decision import evaluate_zone, read_number
 from .engine import Decision
 from .history import IrrigationHistory, ObservationKind
+from .state import ZoneStateStore
 from .zone import ZoneConfig
 
 
@@ -72,18 +73,30 @@ class WateringController:
         zone: ZoneConfig,
         actuator: ActuatorConfig,
         history: IrrigationHistory | None = None,
+        zone_state_store: ZoneStateStore | None = None,
     ) -> None:
         """Initialise the controller for one zone."""
         self.hass = hass
         self.zone = zone
         self.actuator = actuator
         self.history = history
+        self._zone_state_store = zone_state_store
         self.last_event = WateringEvent(WateringStatus.IDLE)
         self._listeners: list[Callable[[], None]] = []
         self._active = False
         self._confirmed_once = False
         self._unsub: Callable[[], None] | None = None
         self._volume_baseline: float | None = None
+        # Liters already added to the zone's Total Watering Volume for the
+        # current Watering Event, so a single event is never counted twice.
+        self._accounted_liters = 0.0
+
+    @property
+    def zone_state(self):  # noqa: ANN201 - ZoneState | None, avoid import cycle in hint
+        """The zone's live ZoneState, or None when no store is wired."""
+        if self._zone_state_store is None:
+            return None
+        return self._zone_state_store.get(self.zone.zone_id)
 
     @property
     def is_watering(self) -> bool:
@@ -159,6 +172,38 @@ class WateringController:
             },
         )
 
+    @callback
+    def _account_volume(self, event_total: float) -> None:
+        """Add this event's water to the zone's cumulative Total Watering Volume.
+
+        ``event_total`` is the best-known total liters applied for the *current*
+        Watering Event. Only the delta beyond what has already been counted for
+        this event is added, so repeated confirmation/finalisation callbacks
+        never double-count, while a volume sensor revealing a larger final delta
+        still tops the total up.
+        """
+        state = self.zone_state
+        if state is None:
+            return
+        delta = event_total - self._accounted_liters
+        if delta <= 0:
+            return
+        self._accounted_liters = event_total
+        state.total_liters = round(state.total_liters + delta, 3)
+        # Notify listeners so the Total Watering Volume sensors pick up the new
+        # cumulative value (accounting runs after the event is set).
+        for listener in list(self._listeners):
+            listener()
+        if self._zone_state_store is not None:
+            self.hass.async_create_task(self._zone_state_store.async_save())
+
+    @callback
+    def _event_volume(self) -> float:
+        """Best-known liters applied for the current event (measured or requested)."""
+        if self.last_event.measured_liters is not None:
+            return self.last_event.measured_liters
+        return self.last_event.requested_liters
+
     async def async_run(
         self, *, force: bool = False, zone_locked: bool = False
     ) -> WateringEvent:
@@ -174,7 +219,11 @@ class WateringController:
             )
 
         decision: Decision = evaluate_zone(
-            self.hass, self.zone, force=force, zone_locked=zone_locked
+            self.hass,
+            self.zone,
+            force=force,
+            zone_locked=zone_locked,
+            state=self.zone_state,
         )
         self._record_decision(decision, force=force, zone_locked=zone_locked)
 
@@ -210,6 +259,7 @@ class WateringController:
 
         self._active = True
         self._confirmed_once = False
+        self._accounted_liters = 0.0
         # Command succeeded: COMMANDED, not yet confirmed. Subscribe to feedback.
         event = WateringEvent(WateringStatus.COMMANDED, requested_liters=volume)
         self._set_event(event)
@@ -279,6 +329,7 @@ class WateringController:
                     measured_liters=measured,
                 )
             )
+            self._account_volume(self._event_volume())
 
     @callback
     def _finalize(self) -> None:
@@ -288,6 +339,7 @@ class WateringController:
             current = read_number(self.hass, self.actuator.volume_sensor)
             if current is not None:
                 measured = max(0.0, current - self._volume_baseline)
+        was_confirmed = self._confirmed_once
         self._teardown()
         self._set_event(
             WateringEvent(
@@ -296,6 +348,10 @@ class WateringController:
                 measured_liters=measured,
             )
         )
+        # Top up the cumulative total with any volume the sensor revealed after
+        # the initial confirmation. Only confirmed flow contributes.
+        if was_confirmed:
+            self._account_volume(self._event_volume())
 
     def _teardown(self) -> None:
         """Stop tracking feedback."""
@@ -319,6 +375,7 @@ class WateringController:
             current = read_number(self.hass, self.actuator.volume_sensor)
             if current is not None:
                 measured = max(0.0, current - self._volume_baseline)
+        was_confirmed = self._confirmed_once
 
         try:
             await async_execute_all(self.hass, stop_call)
@@ -338,6 +395,8 @@ class WateringController:
             measured_liters=measured,
         )
         self._set_event(event)
+        if was_confirmed:
+            self._account_volume(self._event_volume())
         return event
 
 
@@ -345,6 +404,7 @@ def build_controllers(
     hass: HomeAssistant,
     zones: dict[str, dict],
     histories: dict[str, IrrigationHistory] | None = None,
+    zone_state_store: ZoneStateStore | None = None,
 ) -> dict[str, WateringController]:
     """Create a WateringController for each configured zone."""
     histories = histories or {}
@@ -353,7 +413,7 @@ def build_controllers(
         zone = ZoneConfig.from_record(zone_id, record)
         actuator = ActuatorConfig.from_record(record)
         controllers[zone_id] = WateringController(
-            hass, zone, actuator, histories.get(zone_id)
+            hass, zone, actuator, histories.get(zone_id), zone_state_store
         )
     return controllers
 

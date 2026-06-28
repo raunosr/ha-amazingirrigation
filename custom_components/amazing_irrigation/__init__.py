@@ -44,7 +44,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     zone_state = ZoneStateStore(hass, entry.entry_id)
     await zone_state.async_load(zones)
     histories = build_histories(zones)
-    controllers = build_controllers(hass, zones, histories)
+    controllers = build_controllers(hass, zones, histories, zone_state)
     scheduler = build_scheduler(hass, controllers, entry.options)
     rain_watchers = build_rain_watchers(hass, zones, histories)
     domain_data[entry.entry_id] = {
