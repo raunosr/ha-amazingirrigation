@@ -135,19 +135,25 @@ async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> Non
 async def _async_bootstrap_missing_models(
     hass: HomeAssistant, zones: dict[str, dict], zone_state: ZoneStateStore
 ) -> None:
-    """Best-effort non-blocking history bootstrap for learning-enabled zones."""
+    """Best-effort non-blocking history bootstrap for newly configured zones.
+
+    Runs once per zone that has moisture sensors but no model or bootstrap yet,
+    independent of whether live learning is enabled, so a useful prior exists
+    right after first configuration. The ``bootstrapped_days`` marker prevents
+    re-running on every reload.
+    """
     for zone_id, record in zones.items():
         state = zone_state.get(zone_id)
         if (
             state is None
-            or not state.learning_enabled
             or state.model_params is not None
             or state.bootstrapped_days is not None
         ):
             continue
+        zone = ZoneConfig.from_record(zone_id, record)
+        if not zone.moisture_sensors:
+            continue
         try:
-            await async_bootstrap_zone(
-                hass, ZoneConfig.from_record(zone_id, record), zone_state
-            )
+            await async_bootstrap_zone(hass, zone, zone_state)
         except Exception as err:  # noqa: BLE001 - setup must not fail on history
             _LOGGER.debug("History bootstrap skipped for %s: %s", zone_id, err)

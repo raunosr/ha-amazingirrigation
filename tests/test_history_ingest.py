@@ -213,6 +213,74 @@ def test_bootstrap_reports_insufficient_history_without_fitting() -> None:
     assert "Insufficient history" in result.summary
 
 
+def test_statistics_to_series_uses_mean_then_state() -> None:
+    """Measurement rows use mean; cumulative rows fall back to state, both timed."""
+    rows = [
+        {"start": _t(0).timestamp(), "mean": 40.0},
+        {"start": _t(1), "mean": None, "state": 41.5},
+        {"start": _t(2).timestamp(), "sum": 3.0},
+    ]
+
+    series = history_ingest._statistics_to_series(rows)
+
+    assert [point.value for point in series.points] == [40.0, 41.5, 3.0]
+    assert series.points[0].timestamp == _t(0)
+    assert series.points[1].timestamp == _t(1)
+
+
+def test_merge_series_prefers_raw_on_overlap() -> None:
+    """Statistics extend history backwards; raw wins from its first sample on."""
+    statistics = TimeSeries(
+        [SeriesPoint(_t(h), 10.0 + h) for h in range(0, 6)]
+    )
+    raw = TimeSeries([SeriesPoint(_t(4), 99.0), SeriesPoint(_t(5), 98.0)])
+
+    merged = history_ingest._merge_series_prefer_raw(statistics, raw)
+
+    assert [(p.timestamp, p.value) for p in merged.points] == [
+        (_t(0), 10.0),
+        (_t(1), 11.0),
+        (_t(2), 12.0),
+        (_t(3), 13.0),
+        (_t(4), 99.0),
+        (_t(5), 98.0),
+    ]
+
+
+def test_merge_series_handles_missing_sources() -> None:
+    """Either source alone passes through unchanged."""
+    raw = TimeSeries([SeriesPoint(_t(0), 5.0)])
+    stats = TimeSeries([SeriesPoint(_t(0), 7.0)])
+
+    assert history_ingest._merge_series_prefer_raw(None, raw).points == raw.points
+    assert history_ingest._merge_series_prefer_raw(stats, None).points == stats.points
+    assert history_ingest._merge_series_prefer_raw(None, None).points == ()
+
+
+async def test_async_fetch_zone_history_merges_statistics_and_raw(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Per-entity history merges the statistics and recorder fetchers."""
+    async def _stats(_hass, _ids, _start, _end) -> dict[str, TimeSeries]:
+        return {"sensor.moisture": TimeSeries([SeriesPoint(_t(0), 30.0)])}
+
+    async def _raw(_hass, _ids, _start, _end) -> dict[str, TimeSeries]:
+        return {"sensor.moisture": TimeSeries([SeriesPoint(_t(10), 35.0)])}
+
+    monkeypatch.setattr(history_ingest, "_async_fetch_statistics", _stats)
+    monkeypatch.setattr(history_ingest, "_async_fetch_recorder_states", _raw)
+
+    history, source = await history_ingest._async_fetch_zone_history(
+        hass, ["sensor.moisture"], _t(-100), _t(20)
+    )
+
+    assert source == "statistics + recorder"
+    assert [(p.timestamp, p.value) for p in history["sensor.moisture"].points] == [
+        (_t(0), 30.0),
+        (_t(10), 35.0),
+    ]
+
+
 class _FakeStore:
     def __init__(self, state: ZoneState) -> None:
         self.state = state
@@ -223,6 +291,29 @@ class _FakeStore:
 
     async def async_save(self) -> None:
         self.saved = True
+
+
+async def test_async_bootstrap_zone_uses_configured_history_window(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The lookback span defaults to the zone's configured history_days."""
+    captured: dict[str, datetime] = {}
+
+    async def _history(_hass, _ids, start, end) -> tuple[dict, str]:
+        captured["start"] = start
+        captured["end"] = end
+        return {}, "none"
+
+    monkeypatch.setattr(history_ingest, "_async_fetch_zone_history", _history)
+    store = _FakeStore(ZoneState("zone1"))
+    zone = ZoneConfig(
+        "zone1", "Zone 1", moisture_sensors=["sensor.moisture"], history_days=90
+    )
+
+    await history_ingest.async_bootstrap_zone(hass, zone, store)
+
+    span_days = (captured["end"] - captured["start"]).days
+    assert span_days == 90
 
 
 async def test_async_bootstrap_zone_returns_none_when_history_unavailable(
@@ -248,13 +339,13 @@ async def test_async_bootstrap_zone_writes_successful_model(
     """The HA glue persists params, confidence, covariance, and days used."""
     moisture, rain, temp, humidity, events, true = _synthetic_history()
 
-    async def _history(*args) -> dict[str, TimeSeries]:
+    async def _history(*args) -> tuple[dict[str, TimeSeries], str]:
         return {
             "sensor.moisture": moisture,
             "sensor.rain": rain,
             "sensor.temp": temp,
             "sensor.humidity": humidity,
-        }
+        }, "statistics + recorder"
 
     def _events(*args, **kwargs) -> list[IrrigationEvent]:
         return events
@@ -283,6 +374,34 @@ async def test_async_bootstrap_zone_writes_successful_model(
     assert state.model_covariance is not None
     assert state.model_confidence is not None
     assert state.bootstrapped_days == pytest.approx(result.days_span)
+    assert state.bootstrap_requested_days == 60
+    assert state.bootstrap_source == "statistics + recorder"
+    assert state.bootstrap_intervals == result.intervals_used
+    assert "statistics + recorder" in result.summary
+
+
+async def test_bootstrap_missing_models_runs_without_learning_enabled(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A new zone with moisture sensors is bootstrapped even if learning is off."""
+    from custom_components.amazing_irrigation import (
+        _async_bootstrap_missing_models,
+    )
+
+    bootstrapped: list[str] = []
+
+    async def _bootstrap(_hass, zone, _store) -> None:
+        bootstrapped.append(zone.zone_id)
+
+    monkeypatch.setattr(
+        "custom_components.amazing_irrigation.async_bootstrap_zone", _bootstrap
+    )
+    store = _FakeStore(ZoneState("zone1", learning_enabled=False))
+    zones = {"zone1": {"name": "Z1", "moisture_sensors": ["sensor.m"]}}
+
+    await _async_bootstrap_missing_models(hass, zones, store)
+
+    assert bootstrapped == ["zone1"]
 
 
 async def test_relearn_service_targets_zone_device(

@@ -124,7 +124,7 @@ async def test_model_insight_sensor_exposes_explainability(
     assert attrs["parameters"]["eta_irr"]["confidence"] == 0.8
     assert attrs["overall_confidence"] == 0.65
     assert attrs["bootstrapped_days"] == 7.5
-    assert attrs["bootstrap_summary"] == "Learned from 7.5 days of history"
+    assert attrs["bootstrap_summary"] == "Bootstrapped from 7.5 days"
     assert attrs["decision_explanation"]["chosen_liters"] == 1.0
     assert attrs["water_balance_terms"]["irrigation"] == 2.0
     assert attrs["predicted_trajectory"] == [38.0, 39.5]

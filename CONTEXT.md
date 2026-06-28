@@ -145,7 +145,7 @@ A per-parameter and overall measure, derived from the estimator's covariance, of
 _Avoid_: Accuracy, certainty score
 
 **History Bootstrap**:
-Initialising a zone's Learned Model quickly by replaying recorder history (moisture, rain, climate and irrigation events) through the Soil Water Balance estimator, run at setup and on demand. It degrades gracefully and reports how much history it used.
+Initialising a zone's Learned Model quickly by replaying history (moisture, rain, climate and irrigation events) through the Soil Water Balance estimator, run once at setup for any zone with moisture sensors and on demand. The lookback window is selectable per zone (default 2 months) and draws on Home Assistant long-term statistics beyond the recorder's short raw retention. It degrades gracefully and reports how much history it used and from which source.
 _Avoid_: Backfill, training run
 
 **Model Insight**:

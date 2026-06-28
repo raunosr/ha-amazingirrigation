@@ -466,6 +466,21 @@ class ModelInsightSensor(SensorEntity):
         parameter_rows = self._parameter_rows(params, confidence)
         overall = _overall_confidence(confidence)
         days = _finite_float(state.bootstrapped_days) if state is not None else None
+        intervals = (
+            int(state.bootstrap_intervals)
+            if state is not None and state.bootstrap_intervals is not None
+            else None
+        )
+        requested = (
+            int(state.bootstrap_requested_days)
+            if state is not None and state.bootstrap_requested_days is not None
+            else None
+        )
+        source = (
+            state.bootstrap_source
+            if state is not None and isinstance(state.bootstrap_source, str)
+            else None
+        )
         explanation = (
             state.decision_explanation
             if state is not None and isinstance(state.decision_explanation, dict)
@@ -481,7 +496,10 @@ class ModelInsightSensor(SensorEntity):
             },
             "overall_confidence": overall,
             "bootstrapped_days": days,
-            "bootstrap_summary": _bootstrap_summary(days),
+            "bootstrap_intervals": intervals,
+            "bootstrap_requested_days": requested,
+            "bootstrap_source": source,
+            "bootstrap_summary": _bootstrap_summary(days, intervals, requested, source),
             "decision_explanation": explanation,
             "water_balance_terms": _dict_attr(explanation, "terms"),
             "predicted_trajectory": _list_attr(explanation, "predicted_trajectory"),
@@ -868,11 +886,22 @@ def _overall_confidence(confidence: dict[str, object]) -> float | None:
     return round(sum(values) / len(values), 6)
 
 
-def _bootstrap_summary(days: float | None) -> str | None:
-    """Human-readable bootstrap summary."""
+def _bootstrap_summary(
+    days: float | None,
+    intervals: int | None = None,
+    requested: int | None = None,
+    source: str | None = None,
+) -> str | None:
+    """Human-readable bootstrap summary for the UI."""
     if days is None:
         return None
-    return f"Learned from {days:g} days of history"
+    span = f"{days:g} of {requested} requested" if requested else f"{days:g}"
+    summary = f"Bootstrapped from {span} days"
+    if intervals:
+        summary += f" \u00b7 {intervals} intervals"
+    if source:
+        summary += f" \u00b7 {source}"
+    return summary
 
 
 def _dict_attr(source: dict | None, key: str) -> dict | None:

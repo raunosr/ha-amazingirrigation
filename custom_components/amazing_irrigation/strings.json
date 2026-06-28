@@ -58,7 +58,8 @@
           "schedule_time_1": "Scheduled start time 1 (optional)",
           "schedule_time_2": "Scheduled start time 2 (optional)",
           "schedule_time_3": "Scheduled start time 3 (optional)",
-          "actuator_type": "Watering Actuator type"
+          "actuator_type": "Watering Actuator type",
+          "history_days": "History to learn from"
         },
         "data_description": {
           "target_moisture_low": "Optional lower bound for the desired moisture range. Leave blank to derive the range from Target Moisture.",
@@ -71,7 +72,8 @@
           "forecast_air_temperature": "Optional ET/model input. Use the zone's relevant weather forecast sensor.",
           "forecast_air_humidity": "Optional ET/model input. Use the zone's relevant weather forecast sensor.",
           "wind_speed": "Optional ET/model input. Outdoor zones usually use the weather station; greenhouse zones can leave this blank unless local airflow is measured.",
-          "solar_radiation": "Optional ET/model input. Select irradiance or illuminance from the local greenhouse or outdoor weather station."
+          "solar_radiation": "Optional ET/model input. Select irradiance or illuminance from the local greenhouse or outdoor weather station.",
+          "history_days": "How much sensor history the model learns from at setup and on 'Re-learn from History'. 2 months is recommended; reaching beyond ~10 days relies on Home Assistant long-term statistics."
         }
       },
       "edit_zone": {
@@ -112,7 +114,8 @@
           "schedule_time_1": "Scheduled start time 1 (optional)",
           "schedule_time_2": "Scheduled start time 2 (optional)",
           "schedule_time_3": "Scheduled start time 3 (optional)",
-          "actuator_type": "Watering Actuator type"
+          "actuator_type": "Watering Actuator type",
+          "history_days": "History to learn from"
         },
         "data_description": {
           "target_moisture_low": "Optional lower bound for the desired moisture range. Leave blank to derive the range from Target Moisture.",
@@ -125,7 +128,8 @@
           "forecast_air_temperature": "Optional ET/model input. Use the zone's relevant weather forecast sensor.",
           "forecast_air_humidity": "Optional ET/model input. Use the zone's relevant weather forecast sensor.",
           "wind_speed": "Optional ET/model input. Outdoor zones usually use the weather station; greenhouse zones can leave this blank unless local airflow is measured.",
-          "solar_radiation": "Optional ET/model input. Select irradiance or illuminance from the local greenhouse or outdoor weather station."
+          "solar_radiation": "Optional ET/model input. Select irradiance or illuminance from the local greenhouse or outdoor weather station.",
+          "history_days": "How much sensor history the model learns from at setup and on 'Re-learn from History'. 2 months is recommended; reaching beyond ~10 days relies on Home Assistant long-term statistics."
         }
       },
       "greenhouse": {
@@ -207,6 +211,14 @@
         "fri": "Friday",
         "sat": "Saturday",
         "sun": "Sunday"
+      }
+    },
+    "history_days": {
+      "options": {
+        "14": "2 weeks",
+        "30": "1 month",
+        "60": "2 months",
+        "90": "3 months"
       }
     }
   },

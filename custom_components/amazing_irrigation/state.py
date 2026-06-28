@@ -97,6 +97,9 @@ class ZoneState:
     model_covariance: list[list[float]] | None = None
     model_confidence: dict[str, float] | None = None
     bootstrapped_days: float | None = None
+    bootstrap_intervals: int | None = None
+    bootstrap_requested_days: int | None = None
+    bootstrap_source: str | None = None
     model_updated: str | None = None
     # Latest predictive decision explanation for UI/model insight surfaces.
     decision_explanation: dict[str, Any] | None = None

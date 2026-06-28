@@ -46,6 +46,7 @@ from .const import (
     CONF_FORECAST_RAIN_PROBABILITY,
     CONF_GAIN_PER_LITER,
     CONF_GREENHOUSE,
+    CONF_HISTORY_DAYS,
     CONF_HUMIDITY_SENSOR,
     CONF_LEARNING_ENABLED,
     CONF_LINKTAP_DEVICE,
@@ -79,6 +80,7 @@ from .const import (
     CONF_WILTING_POINT,
     CONF_WIND_SPEED,
     CONF_ZONES,
+    DEFAULT_HISTORY_DAYS_OPTION,
     DEFAULT_LINKTAP_FAILSAFE,
     DEFAULT_LINKTAP_TOPIC,
     DEFAULT_MAX_LITERS,
@@ -87,6 +89,7 @@ from .const import (
     DEFAULT_TARGET_MOISTURE,
     DEFAULT_VOLUME_FIELD,
     DOMAIN,
+    HISTORY_DAYS_OPTIONS,
     INTEGRATION_TITLE,
     WEEKDAYS,
 )
@@ -231,6 +234,14 @@ def _zone_basics_schema() -> vol.Schema:
             vol.Optional(
                 CONF_LEARNING_ENABLED, default=False
             ): selector.BooleanSelector(),
+            vol.Optional(
+                CONF_HISTORY_DAYS, default=DEFAULT_HISTORY_DAYS_OPTION
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=list(HISTORY_DAYS_OPTIONS),
+                    translation_key="history_days",
+                )
+            ),
             vol.Optional(CONF_ET_SOURCE, default="auto"): selector.SelectSelector(
                 selector.SelectSelectorConfig(
                     options=list(ET_SOURCE_OPTIONS), translation_key="et_source"

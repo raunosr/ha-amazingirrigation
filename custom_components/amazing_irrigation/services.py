@@ -32,7 +32,7 @@ from .const import (
     SERVICE_RUN_ZONE,
     SERVICE_STOP_ZONE,
 )
-from .history_ingest import DEFAULT_HISTORY_DAYS, async_bootstrap_zone
+from .history_ingest import async_bootstrap_zone
 from .watering import WateringController
 from .zone import ZoneConfig
 
@@ -62,7 +62,7 @@ _RELEARN_SCHEMA = vol.Schema(
     {
         vol.Optional("entity_id"): cv.entity_ids,
         vol.Optional("device_id"): vol.All(cv.ensure_list, [cv.string]),
-        vol.Optional("days", default=DEFAULT_HISTORY_DAYS): vol.All(
+        vol.Optional("days"): vol.All(
             vol.Coerce(int), vol.Range(min=1, max=365)
         ),
     }
@@ -227,7 +227,7 @@ async def _async_stop_zone(call: ServiceCall) -> dict[str, Any]:
 async def _async_relearn_from_history(call: ServiceCall) -> dict[str, Any]:
     """Handle ``amazing_irrigation.relearn_from_history``."""
     hass = call.hass
-    days = call.data["days"]
+    days = call.data.get("days")
     results: list[dict[str, Any]] = []
     for (entry_id, zone_id), zone in _resolve_zone_targets(hass, call).items():
         store = hass.data.get(DOMAIN, {}).get(entry_id, {}).get(DATA_ZONE_STATE)
