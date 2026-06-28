@@ -1,0 +1,22 @@
+evaluate_zone:
+  name: Evaluate zone
+  description: >-
+    Create a Run Request for one or more Irrigation Zones and return the
+    Irrigation Decision without watering.
+  fields:
+    entity_id:
+      name: Irrigation Decision sensor(s)
+      description: The Irrigation Decision sensor entities to evaluate.
+      required: true
+      selector:
+        entity:
+          integration: amazing_irrigation
+          domain: sensor
+          multiple: true
+    force:
+      name: Force water
+      description: Bypass soft checks (still respects Safety Blockers).
+      required: false
+      default: false
+      selector:
+        boolean:
