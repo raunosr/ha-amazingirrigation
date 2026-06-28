@@ -45,6 +45,7 @@ from .const import (
     CONF_GREENHOUSE,
     CONF_HUMIDITY_SENSOR,
     CONF_LEARNING_ENABLED,
+    CONF_LINKTAP_DEVICE,
     CONF_LINKTAP_FAILSAFE,
     CONF_LINKTAP_ID,
     CONF_LINKTAP_TOPIC,
@@ -78,6 +79,7 @@ from .const import (
     INTEGRATION_TITLE,
     WEEKDAYS,
 )
+from .linktap import async_resolve_linktap_device
 
 
 def _zone_basics_schema() -> vol.Schema:
@@ -210,6 +212,9 @@ def _actuator_schema(actuator_type: str) -> vol.Schema:
             selector.EntitySelectorConfig(domain="script")
         )
     elif actuator_type == ACTUATOR_LINKTAP:
+        fields[vol.Optional(CONF_LINKTAP_DEVICE)] = selector.DeviceSelector(
+            selector.DeviceSelectorConfig(manufacturer="LinkTap")
+        )
         fields[vol.Optional(CONF_LINKTAP_ID)] = selector.TextSelector()
         fields[vol.Optional(CONF_ACTUATOR_SWITCH)] = selector.EntitySelector(
             selector.EntitySelectorConfig(domain="switch")
@@ -254,6 +259,7 @@ _ACTUATOR_DETAIL_KEYS = (
     CONF_VOLUME_FIELD,
     CONF_WATERING_SENSOR,
     CONF_VOLUME_SENSOR,
+    CONF_LINKTAP_DEVICE,
     CONF_LINKTAP_ID,
     CONF_LINKTAP_TOPIC,
     CONF_LINKTAP_FAILSAFE,
@@ -359,11 +365,12 @@ class AmazingIrrigationOptionsFlow(OptionsFlow):
         """Collect the fields for the chosen Watering Actuator type only."""
         errors: dict[str, str] = {}
         if user_input is not None:
-            errors = _validate_actuator_input(self._actuator_type, user_input)
+            resolved = self._resolve_actuator_input(user_input)
+            errors = _validate_actuator_input(self._actuator_type, resolved)
             if not errors:
                 record = {
                     **self._zone_draft,
-                    **_clean_zone_input(user_input),
+                    **_clean_zone_input(resolved),
                     CONF_ACTUATOR_TYPE: self._actuator_type,
                 }
                 return self._persist(record)
@@ -380,6 +387,30 @@ class AmazingIrrigationOptionsFlow(OptionsFlow):
             errors=errors,
             description_placeholders={"actuator_type": self._actuator_type},
         )
+
+    def _resolve_actuator_input(self, user_input: dict[str, Any]) -> dict[str, Any]:
+        """For a LinkTap device selection, fill in the derived entities/id.
+
+        Any explicitly entered field overrides the device-derived value.
+        """
+        if self._actuator_type != ACTUATOR_LINKTAP:
+            return user_input
+        device_id = user_input.get(CONF_LINKTAP_DEVICE)
+        if not device_id:
+            return user_input
+
+        resolution = async_resolve_linktap_device(self.hass, device_id)
+        derived = {
+            CONF_LINKTAP_ID: resolution.linktap_id,
+            CONF_ACTUATOR_SWITCH: resolution.switch,
+            CONF_WATERING_SENSOR: resolution.watering_sensor,
+            CONF_VOLUME_SENSOR: resolution.volume_sensor,
+        }
+        merged = dict(user_input)
+        for key, value in derived.items():
+            if value and not merged.get(key):
+                merged[key] = value
+        return merged
 
     async def _continue_to_actuator(
         self, basics: dict[str, Any], existing: dict[str, Any] | None = None
