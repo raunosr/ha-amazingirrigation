@@ -16,6 +16,10 @@ many setups (LinkTap over MQTT today, other hardware later).
 - **Fail safe.** Watering fails closed when moisture or actuator safety is unknown.
 - **One source of truth.** Zone configuration lives in the integration; the Lovelace
   card only displays and controls.
+- **Physics-informed and predictive.** A learned **Soil Water Balance** model and
+  **Predictive Control** apply only the liters needed to keep a zone inside its
+  **Target Range** over the forecast horizon, and a **History Bootstrap** learns it
+  fast from recorder history. Every conclusion is reviewable on the device page.
 
 See [`CONTEXT.md`](./CONTEXT.md) for the domain glossary and
 [`docs/adr/`](./docs/adr) for architecture decisions.
@@ -52,11 +56,43 @@ Only `decision_entity` is required; the other entities enrich the display. The
 card shows Zone Moisture, target, recommended Watering Volume, cumulative Total
 Watering Volume, the latest Irrigation Decision and recent Irrigation History,
 and surfaces the zone's settings, both schedule slots, its Learned Model
-(Moisture Gain per Liter, Daily Drying Rate, Rain Efficiency, Field Capacity,
-Wilting Point) and every referenced sensor — all discovered from the decision
-sensor, no extra config. It exposes Run, Force Water, and Stop controls; Stop
-appears only when the backend reports a stoppable run. The card never stores
-zone configuration — the integration remains the source of truth.
+(Irrigation Efficiency, Evapotranspiration coefficient, Rain Efficiency, Drainage
+rate, Field Capacity, Wilting Point) and every referenced sensor — all discovered
+from the decision sensor, no extra config. A **Model Insight / "Why this decision"**
+section explains the latest Irrigation Decision: the water-balance breakdown, the
+predicted soil-moisture trajectory, each learned parameter with its Model
+Confidence, and "learned from N days" when a History Bootstrap has run. It exposes
+Run, Force Water, and Stop controls; Stop appears only when the backend reports a
+stoppable run. The card never stores zone configuration — the integration remains
+the source of truth.
+
+## Learning and predictive control
+
+When Learning is enabled, each zone learns a physics-informed **Soil Water Balance**
+— Irrigation Efficiency, Rain Efficiency, an Evapotranspiration coefficient and a
+Drainage rate, plus bounded Field Capacity / Wilting Point — using a recursive
+estimator that also reports a **Model Confidence** per parameter. Manual values
+always override learned ones, and every value stays inside safe bounds.
+
+- **Climate inputs.** For accurate Evapotranspiration, configure the optional
+  observed/forecast air temperature and humidity (and optional wind and solar)
+  inputs on each zone. Greenhouse zones can use their local temperature/humidity
+  sensors instead via the **ET source** setting.
+- **Target Range.** Set an optional low/high moisture band; **Predictive Control**
+  simulates the model forward to the next active schedule slot and applies only the
+  liters needed to keep predicted moisture in range without exceeding Field Capacity.
+  A zone with only a single Target Moisture keeps working unchanged.
+- **History Bootstrap.** New learning zones learn fast by replaying recorder history
+  at setup. Re-run it any time with the per-zone **Re-learn from History** button or
+  the `amazing_irrigation.relearn_from_history` service. It degrades gracefully when
+  no recorder history is available and reports how much it used.
+- **Model Insight.** A per-zone diagnostic sensor and the card section above make
+  every learned parameter, its confidence, the bootstrap summary and the reasoning
+  behind each decision reviewable on the device page.
+
+See [`docs/usage.md`](./docs/usage.md) for the full field reference and
+[`docs/adr/0003-physics-informed-water-balance-learning.md`](./docs/adr/0003-physics-informed-water-balance-learning.md)
+for the design rationale.
 
 ## Development
 

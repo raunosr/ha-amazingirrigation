@@ -69,12 +69,34 @@ Rain inputs are typed rather than arbitrary entities:
 | Safety blockers | Binary sensors that block watering when `on`. **Unavailable blockers block by default** (fail closed). The skip reason is recorded. |
 | Season start / end | Optional active watering season; out-of-season zones never run. |
 | Field capacity / wilting point | Advanced per-zone calibration that explains Target Available Water and learning. |
-| Learning enabled | Per-zone toggle. When on, Amazing Irrigation builds a Learned Model from observations (Moisture Gain per Liter, Daily Drying Rate, Rain Efficiency, bounded Field Capacity / Wilting Point) and feeds the learned gain into decisions, always bounded by safety limits with any manual value winning. When off, observations are still collected but never change decisions. |
+| Target moisture low / high | Optional **Target Range** for Predictive Control. When set, the controller keeps predicted moisture within `[low, high]`; when unset, a band is derived from the single Target Moisture (unchanged behaviour). |
+| ET source | Which climate inputs drive Evapotranspiration: `auto` (greenhouse sensors for greenhouse zones, otherwise weather), `weather`, or `greenhouse`. |
+| Soil type | Prior preset (`loam`, `sand`, `clay`) used to seed a new or freshly bootstrapped Learned Model. |
+| Learning enabled | Per-zone toggle. When on, Amazing Irrigation learns a physics-informed **Soil Water Balance** (Irrigation Efficiency, Rain Efficiency, an Evapotranspiration coefficient, a Drainage rate, and bounded Field Capacity / Wilting Point — each with a Model Confidence) and uses it for **Predictive Control**, always bounded by safety limits with any manual value winning. When off, observations are still collected but never change decisions. |
 
-The Learned Model is exposed as five read-only **Learned …** sensors per zone
-(`sensor.<zone>_learned_moisture_gain_per_liter`, `…_learned_daily_drying_rate`,
-`…_learned_rain_efficiency`, `…_learned_field_capacity`, `…_learned_wilting_point`),
-and surfaced on the zone card. Each shows `learning…` until enough evidence is
+#### Climate inputs (evapotranspiration)
+
+For accurate Evapotranspiration, configure the optional climate inputs. All are
+optional — absent inputs degrade gracefully and the model falls back to a
+conservative default loss.
+
+| Field | Purpose |
+| --- | --- |
+| Observed air temperature / humidity | Local measured climate driving ET (e.g. weather station, greenhouse sensor). |
+| Forecast air temperature / humidity | Predicted climate used by Predictive Control over the horizon. |
+| Wind speed | Optional; increases modelled ET. |
+| Solar radiation | Optional; increases modelled ET. |
+
+The Learned Model is exposed as read-only **Learned …** sensors per zone
+(`sensor.<zone>_learned_moisture_gain_per_liter` — Irrigation Efficiency,
+`…_learned_daily_drying_rate`, `…_learned_rain_efficiency`,
+`…_learned_et_coefficient`, `…_learned_drainage_rate`,
+`…_learned_field_capacity`, `…_learned_wilting_point`, and
+`…_model_confidence`), plus a **Model Insight** diagnostic sensor
+(`sensor.<zone>_model_insight`) whose attributes carry every parameter with its
+confidence, the History Bootstrap summary, and the water-balance breakdown,
+predicted trajectory and chosen liters behind the latest decision. All are
+surfaced on the zone card. Each shows `learning…` until enough evidence is
 gathered.
 
 ### Greenhouse zones
@@ -183,10 +205,41 @@ service call); the integration owns the skip/reduce/water decision.
 | `amazing_irrigation.evaluate_zone` | Create a Run Request and return the Irrigation Decision **without** watering. Optional `force` bypasses soft checks (still respects Safety Blockers). |
 | `amazing_irrigation.run_zone` | Create a Run Request that waters through the actuator when the decision allows. Optional `force`. |
 | `amazing_irrigation.stop_zone` | Stop an in-progress Watering Event (only zones with a configured stop path). |
+| `amazing_irrigation.relearn_from_history` | Re-run the **History Bootstrap** for the targeted zones: replay recorder history through the Soil Water Balance estimator to (re)initialise the Learned Model. Returns how many intervals/days were used, or notes when history was insufficient. |
 
 Normal manual UI runs use the same decision engine. **Force Water** bypasses soft
 checks (moisture above target, rain, etc.) but never bypasses hard Safety
 Blockers.
+
+## Learning, prediction and explainability
+
+When Learning is enabled, each zone learns a physics-informed **Soil Water
+Balance** and uses it for **Predictive Control**:
+
+- **Predictive Control.** Instead of only covering the current deficit, the
+  controller simulates the model forward over a forecast horizon to the next
+  active schedule slot and applies only the liters needed to keep predicted Zone
+  Moisture inside the **Target Range** without exceeding Field Capacity —
+  minimizing overwatering, drainage and unnecessary runs. When the model or a
+  forecast is unavailable it falls back to the rule-based decision.
+- **History Bootstrap.** New learning zones are initialised at setup by replaying
+  recorder history (moisture, rain, climate, and irrigation taken from recorded
+  Watering Events or inferred from unexplained moisture rises). Re-run it any time
+  with the per-zone **Re-learn from History** button
+  (`button.<zone>_re_learn_from_history`) or the
+  `amazing_irrigation.relearn_from_history` service. It degrades gracefully when
+  recorder history is unavailable and reports how much it used.
+- **Model Insight.** The `sensor.<zone>_model_insight` diagnostic sensor and the
+  card's **"Why this decision"** section make every conclusion reviewable: each
+  learned parameter with its **Model Confidence**, the bootstrap summary
+  ("learned from N days"), and the water-balance term breakdown, predicted
+  soil-moisture trajectory and chosen liters behind the latest Irrigation
+  Decision.
+
+Manual values always override learned ones, and every learned value stays inside
+safe bounds. See
+[`docs/adr/0003-physics-informed-water-balance-learning.md`](./adr/0003-physics-informed-water-balance-learning.md)
+for the design rationale.
 
 ## Lovelace cards
 
