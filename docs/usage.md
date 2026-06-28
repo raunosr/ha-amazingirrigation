@@ -83,8 +83,10 @@ A Greenhouse Zone is a subtype of Irrigation Zone:
 
 ## Watering actuator setup
 
-The **Watering Actuator** is the only place hardware specifics live. Pick an
-`actuator_type`:
+The **Watering Actuator** is the only place hardware specifics live. After
+choosing an `actuator_type` on the zone basics step, a dedicated **Watering
+Actuator** step shows only the fields for that type (so you never see switch,
+service, script and LinkTap fields all at once):
 
 ### `switch`
 

@@ -7,6 +7,11 @@ from homeassistant.data_entry_flow import FlowResultType
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.amazing_irrigation.const import (
+    ACTUATOR_LINKTAP,
+    ACTUATOR_SWITCH,
+    CONF_ACTUATOR_SWITCH,
+    CONF_ACTUATOR_TYPE,
+    CONF_LINKTAP_ID,
     CONF_MOISTURE_SENSORS,
     CONF_NAME,
     CONF_ZONES,
@@ -105,6 +110,77 @@ async def test_edit_zone_updates_record(hass: HomeAssistant) -> None:
     record = entry.options[CONF_ZONES]["abc123"]
     assert record[CONF_NAME] == "New Name"
     assert record[CONF_MOISTURE_SENSORS] == ["sensor.a", "sensor.b"]
+
+
+async def test_add_zone_with_switch_actuator_uses_actuator_step(
+    hass: HomeAssistant,
+) -> None:
+    """Choosing an actuator routes to a second step with only its fields."""
+    entry = await _setup_entry(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "add_zone"}
+    )
+    # Basics step: pick the switch actuator type.
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {
+            CONF_NAME: "Bed",
+            CONF_MOISTURE_SENSORS: ["sensor.a"],
+            CONF_ACTUATOR_TYPE: ACTUATOR_SWITCH,
+        },
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "actuator"
+
+    # Actuator step: only the switch field is relevant.
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {CONF_ACTUATOR_SWITCH: "switch.valve"}
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+
+    record = next(iter(entry.options[CONF_ZONES].values()))
+    assert record[CONF_ACTUATOR_TYPE] == ACTUATOR_SWITCH
+    assert record[CONF_ACTUATOR_SWITCH] == "switch.valve"
+
+
+async def test_add_zone_linktap_actuator_step_validates(hass: HomeAssistant) -> None:
+    """The LinkTap actuator step requires both a LinkTap id and a switch."""
+    entry = await _setup_entry(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "add_zone"}
+    )
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {
+            CONF_NAME: "Herbs",
+            CONF_MOISTURE_SENSORS: ["sensor.a"],
+            CONF_ACTUATOR_TYPE: ACTUATOR_LINKTAP,
+        },
+    )
+    assert result["step_id"] == "actuator"
+
+    # Missing id/switch is rejected on the actuator step.
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {CONF_LINKTAP_ID: "ID1"}
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {CONF_ACTUATOR_SWITCH: "linktap_requires_id_and_switch"}
+
+    # Providing both completes the flow.
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {CONF_LINKTAP_ID: "ID1", CONF_ACTUATOR_SWITCH: "switch.linktap"},
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+
+    record = next(iter(entry.options[CONF_ZONES].values()))
+    assert record[CONF_ACTUATOR_TYPE] == ACTUATOR_LINKTAP
+    assert record[CONF_LINKTAP_ID] == "ID1"
+    assert record[CONF_ACTUATOR_SWITCH] == "switch.linktap"
 
 
 async def test_remove_zone(hass: HomeAssistant) -> None:

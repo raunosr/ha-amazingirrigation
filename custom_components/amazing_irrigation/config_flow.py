@@ -25,6 +25,9 @@ from homeassistant.helpers import selector
 from .const import (
     ACTUATOR_LINKTAP,
     ACTUATOR_NONE,
+    ACTUATOR_SCRIPT,
+    ACTUATOR_SERVICE,
+    ACTUATOR_SWITCH,
     ACTUATOR_TYPES,
     CONF_ACTUATOR_START_DATA,
     CONF_ACTUATOR_START_SCRIPT,
@@ -77,8 +80,12 @@ from .const import (
 )
 
 
-def _zone_schema() -> vol.Schema:
-    """Build the schema for creating or editing an Irrigation Zone."""
+def _zone_basics_schema() -> vol.Schema:
+    """Build the schema for a zone's non-actuator settings.
+
+    The Watering Actuator is configured in a dedicated follow-up step so each
+    actuator type only shows its own fields.
+    """
     return vol.Schema(
         {
             vol.Required(CONF_NAME): selector.TextSelector(),
@@ -175,45 +182,82 @@ def _zone_schema() -> vol.Schema:
                     options=ACTUATOR_TYPES, translation_key="actuator_type"
                 )
             ),
-            vol.Optional(CONF_ACTUATOR_SWITCH): selector.EntitySelector(
-                selector.EntitySelectorConfig(domain="switch")
-            ),
-            vol.Optional(CONF_ACTUATOR_START_SERVICE): selector.TextSelector(),
-            vol.Optional(CONF_ACTUATOR_START_DATA): selector.ObjectSelector(),
-            vol.Optional(CONF_ACTUATOR_STOP_SERVICE): selector.TextSelector(),
-            vol.Optional(CONF_ACTUATOR_STOP_DATA): selector.ObjectSelector(),
-            vol.Optional(CONF_ACTUATOR_START_SCRIPT): selector.EntitySelector(
-                selector.EntitySelectorConfig(domain="script")
-            ),
-            vol.Optional(CONF_ACTUATOR_STOP_SCRIPT): selector.EntitySelector(
-                selector.EntitySelectorConfig(domain="script")
-            ),
-            vol.Optional(
-                CONF_VOLUME_FIELD, default=DEFAULT_VOLUME_FIELD
-            ): selector.TextSelector(),
-            vol.Optional(CONF_WATERING_SENSOR): selector.EntitySelector(
-                selector.EntitySelectorConfig(domain="binary_sensor")
-            ),
-            vol.Optional(CONF_VOLUME_SENSOR): selector.EntitySelector(
-                selector.EntitySelectorConfig(domain="sensor")
-            ),
-            vol.Optional(
-                CONF_LINKTAP_TOPIC, default=DEFAULT_LINKTAP_TOPIC
-            ): selector.TextSelector(),
-            vol.Optional(CONF_LINKTAP_ID): selector.TextSelector(),
-            vol.Optional(
-                CONF_LINKTAP_FAILSAFE, default=DEFAULT_LINKTAP_FAILSAFE
-            ): selector.NumberSelector(
-                selector.NumberSelectorConfig(
-                    min=900,
-                    max=21600,
-                    step=900,
-                    mode=selector.NumberSelectorMode.BOX,
-                    unit_of_measurement="s",
-                )
-            ),
         }
     )
+
+
+def _actuator_schema(actuator_type: str) -> vol.Schema:
+    """Build the schema for the selected Watering Actuator type only."""
+    fields: dict[Any, Any] = {}
+
+    if actuator_type == ACTUATOR_SWITCH:
+        fields[vol.Optional(CONF_ACTUATOR_SWITCH)] = selector.EntitySelector(
+            selector.EntitySelectorConfig(domain="switch")
+        )
+    elif actuator_type == ACTUATOR_SERVICE:
+        fields[vol.Optional(CONF_ACTUATOR_START_SERVICE)] = selector.TextSelector()
+        fields[vol.Optional(CONF_ACTUATOR_START_DATA)] = selector.ObjectSelector()
+        fields[vol.Optional(CONF_ACTUATOR_STOP_SERVICE)] = selector.TextSelector()
+        fields[vol.Optional(CONF_ACTUATOR_STOP_DATA)] = selector.ObjectSelector()
+        fields[
+            vol.Optional(CONF_VOLUME_FIELD, default=DEFAULT_VOLUME_FIELD)
+        ] = selector.TextSelector()
+    elif actuator_type == ACTUATOR_SCRIPT:
+        fields[vol.Optional(CONF_ACTUATOR_START_SCRIPT)] = selector.EntitySelector(
+            selector.EntitySelectorConfig(domain="script")
+        )
+        fields[vol.Optional(CONF_ACTUATOR_STOP_SCRIPT)] = selector.EntitySelector(
+            selector.EntitySelectorConfig(domain="script")
+        )
+    elif actuator_type == ACTUATOR_LINKTAP:
+        fields[vol.Optional(CONF_LINKTAP_ID)] = selector.TextSelector()
+        fields[vol.Optional(CONF_ACTUATOR_SWITCH)] = selector.EntitySelector(
+            selector.EntitySelectorConfig(domain="switch")
+        )
+        fields[
+            vol.Optional(CONF_LINKTAP_TOPIC, default=DEFAULT_LINKTAP_TOPIC)
+        ] = selector.TextSelector()
+        fields[
+            vol.Optional(CONF_LINKTAP_FAILSAFE, default=DEFAULT_LINKTAP_FAILSAFE)
+        ] = selector.NumberSelector(
+            selector.NumberSelectorConfig(
+                min=900,
+                max=21600,
+                step=900,
+                mode=selector.NumberSelectorMode.BOX,
+                unit_of_measurement="s",
+            )
+        )
+        fields[
+            vol.Optional(CONF_VOLUME_FIELD, default=DEFAULT_VOLUME_FIELD)
+        ] = selector.TextSelector()
+
+    # Feedback sensors apply to any actuating type.
+    fields[vol.Optional(CONF_WATERING_SENSOR)] = selector.EntitySelector(
+        selector.EntitySelectorConfig(domain="binary_sensor")
+    )
+    fields[vol.Optional(CONF_VOLUME_SENSOR)] = selector.EntitySelector(
+        selector.EntitySelectorConfig(domain="sensor")
+    )
+    return vol.Schema(fields)
+
+
+# Actuator-detail fields cleared when a zone changes to a different actuator type.
+_ACTUATOR_DETAIL_KEYS = (
+    CONF_ACTUATOR_SWITCH,
+    CONF_ACTUATOR_START_SERVICE,
+    CONF_ACTUATOR_START_DATA,
+    CONF_ACTUATOR_STOP_SERVICE,
+    CONF_ACTUATOR_STOP_DATA,
+    CONF_ACTUATOR_START_SCRIPT,
+    CONF_ACTUATOR_STOP_SCRIPT,
+    CONF_VOLUME_FIELD,
+    CONF_WATERING_SENSOR,
+    CONF_VOLUME_SENSOR,
+    CONF_LINKTAP_ID,
+    CONF_LINKTAP_TOPIC,
+    CONF_LINKTAP_FAILSAFE,
+)
 
 
 class AmazingIrrigationConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -248,6 +292,9 @@ class AmazingIrrigationOptionsFlow(OptionsFlow):
     def __init__(self) -> None:
         """Initialise transient flow state."""
         self._selected_zone_id: str | None = None
+        self._zone_draft: dict[str, Any] = {}
+        self._actuator_type: str = ACTUATOR_NONE
+        self._actuator_suggested: dict[str, Any] = {}
 
     @property
     def _zones(self) -> dict[str, dict[str, Any]]:
@@ -266,24 +313,22 @@ class AmazingIrrigationOptionsFlow(OptionsFlow):
     async def async_step_add_zone(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Create a new Irrigation Zone."""
+        """Collect a new zone's basics, then branch to the actuator step."""
+        self._selected_zone_id = None
         errors: dict[str, str] = {}
         if user_input is not None:
-            errors = _validate_zone_input(user_input)
+            errors = _validate_zone_basics(user_input)
             if not errors:
-                zone_id = uuid.uuid4().hex[:8]
-                zones = self._zones
-                zones[zone_id] = _clean_zone_input(user_input)
-                return self._save_zones(zones)
+                return await self._continue_to_actuator(user_input)
 
         return self.async_show_form(
-            step_id="add_zone", data_schema=_zone_schema(), errors=errors
+            step_id="add_zone", data_schema=_zone_basics_schema(), errors=errors
         )
 
     async def async_step_edit_zone(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Pick a zone to edit, then edit it."""
+        """Pick a zone to edit, then edit its basics and actuator."""
         zones = self._zones
         if self._selected_zone_id is None:
             if user_input is not None:
@@ -293,20 +338,64 @@ class AmazingIrrigationOptionsFlow(OptionsFlow):
                 step_id="edit_zone", data_schema=_zone_picker_schema(zones)
             )
 
+        record = zones.get(self._selected_zone_id, {})
         errors: dict[str, str] = {}
         if user_input is not None:
-            errors = _validate_zone_input(user_input)
+            errors = _validate_zone_basics(user_input)
             if not errors:
-                zones[self._selected_zone_id] = _clean_zone_input(user_input)
-                return self._save_zones(zones)
+                return await self._continue_to_actuator(user_input, existing=record)
             current = user_input
         else:
-            current = zones.get(self._selected_zone_id, {})
+            current = record
 
-        schema = self.add_suggested_values_to_schema(_zone_schema(), current)
+        schema = self.add_suggested_values_to_schema(_zone_basics_schema(), current)
         return self.async_show_form(
             step_id="edit_zone", data_schema=schema, errors=errors
         )
+
+    async def async_step_actuator(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Collect the fields for the chosen Watering Actuator type only."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            errors = _validate_actuator_input(self._actuator_type, user_input)
+            if not errors:
+                record = {
+                    **self._zone_draft,
+                    **_clean_zone_input(user_input),
+                    CONF_ACTUATOR_TYPE: self._actuator_type,
+                }
+                return self._persist(record)
+            suggested = user_input
+        else:
+            suggested = self._actuator_suggested
+
+        schema = self.add_suggested_values_to_schema(
+            _actuator_schema(self._actuator_type), suggested
+        )
+        return self.async_show_form(
+            step_id="actuator",
+            data_schema=schema,
+            errors=errors,
+            description_placeholders={"actuator_type": self._actuator_type},
+        )
+
+    async def _continue_to_actuator(
+        self, basics: dict[str, Any], existing: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Store the basics and either finish (None) or open the actuator step."""
+        self._zone_draft = _clean_zone_input(basics)
+        self._actuator_type = basics.get(CONF_ACTUATOR_TYPE, ACTUATOR_NONE)
+        if self._actuator_type == ACTUATOR_NONE:
+            # No actuator: drop any previously stored actuator detail fields.
+            return self._persist(dict(self._zone_draft))
+        self._actuator_suggested = {
+            key: value
+            for key, value in (existing or {}).items()
+            if key in _ACTUATOR_DETAIL_KEYS
+        }
+        return await self.async_step_actuator()
 
     async def async_step_remove_zone(
         self, user_input: dict[str, Any] | None = None
@@ -320,6 +409,14 @@ class AmazingIrrigationOptionsFlow(OptionsFlow):
         return self.async_show_form(
             step_id="remove_zone", data_schema=_zone_picker_schema(zones)
         )
+
+    @callback
+    def _persist(self, record: dict[str, Any]) -> ConfigFlowResult:
+        """Insert or update the drafted zone record and persist it."""
+        zones = self._zones
+        zone_id = self._selected_zone_id or uuid.uuid4().hex[:8]
+        zones[zone_id] = record
+        return self._save_zones(zones)
 
     @callback
     def _save_zones(self, zones: dict[str, dict[str, Any]]) -> ConfigFlowResult:
@@ -344,16 +441,35 @@ def _zone_picker_schema(zones: dict[str, dict[str, Any]]) -> vol.Schema:
     )
 
 
-def _validate_zone_input(user_input: dict[str, Any]) -> dict[str, str]:
-    """Validate zone input; require moisture sensors and complete actuators."""
+def _validate_zone_basics(user_input: dict[str, Any]) -> dict[str, str]:
+    """Validate the zone basics step; require at least one moisture sensor."""
     errors: dict[str, str] = {}
     if not user_input.get(CONF_MOISTURE_SENSORS):
         errors[CONF_MOISTURE_SENSORS] = "no_moisture_sensors"
-    if user_input.get(CONF_ACTUATOR_TYPE) == ACTUATOR_LINKTAP:
+    return errors
+
+
+def _validate_actuator_input(
+    actuator_type: str, user_input: dict[str, Any]
+) -> dict[str, str]:
+    """Validate the actuator step for the selected actuator type."""
+    errors: dict[str, str] = {}
+    if actuator_type == ACTUATOR_LINKTAP:
         if not user_input.get(CONF_LINKTAP_ID):
             errors[CONF_LINKTAP_ID] = "linktap_requires_id_and_switch"
         if not user_input.get(CONF_ACTUATOR_SWITCH):
             errors[CONF_ACTUATOR_SWITCH] = "linktap_requires_id_and_switch"
+    return errors
+
+
+def _validate_zone_input(user_input: dict[str, Any]) -> dict[str, str]:
+    """Validate a complete zone record (basics + actuator) in one pass."""
+    errors = _validate_zone_basics(user_input)
+    errors.update(
+        _validate_actuator_input(
+            user_input.get(CONF_ACTUATOR_TYPE, ACTUATOR_NONE), user_input
+        )
+    )
     return errors
 
 
