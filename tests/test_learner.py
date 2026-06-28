@@ -22,6 +22,7 @@ from custom_components.amazing_irrigation.const import (
     CONF_MOISTURE_SENSORS,
     CONF_NAME,
     CONF_OBSERVED_RAIN_AMOUNT,
+    CONF_SOIL_TYPE,
     CONF_SOLAR_RADIATION,
     CONF_TARGET_MOISTURE,
     CONF_TEMPERATURE_SENSOR,
@@ -34,7 +35,10 @@ from custom_components.amazing_irrigation.const import (
     EVENT_WATERING,
 )
 from custom_components.amazing_irrigation.state import apply_model_to_state
-from custom_components.amazing_irrigation.waterbalance import WaterBalanceParams
+from custom_components.amazing_irrigation.waterbalance import (
+    WaterBalanceParams,
+    default_params,
+)
 
 _ZONE = {
     CONF_NAME: "Herb Bed",
@@ -155,6 +159,21 @@ async def test_learners_present_in_domain_data(hass: HomeAssistant) -> None:
     entry = await _setup(hass, _ZONE)
     learners = hass.data[DOMAIN][entry.entry_id][DATA_LEARNERS]
     assert "abc123" in learners
+
+
+async def test_learner_seeds_estimator_from_soil_type(hass: HomeAssistant) -> None:
+    """New estimators use the configured soil-type prior."""
+    record = {**_ZONE, CONF_SOIL_TYPE: "sand"}
+    hass.states.async_set("sensor.a", "20.0")
+    hass.states.async_set("sensor.rain", "0.0")
+    entry = await _setup(hass, record)
+    state = _state(hass, entry)
+    learner = hass.data[DOMAIN][entry.entry_id][DATA_LEARNERS]["abc123"]
+
+    estimator = learner._ensure_estimator(state)  # noqa: SLF001
+
+    assert estimator.params.field_capacity == default_params("sand").field_capacity
+    assert estimator.params.wilting_point == default_params("sand").wilting_point
 
 
 async def test_learner_jointly_assembles_water_rain_drying_and_greenhouse_climate(

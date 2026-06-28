@@ -13,6 +13,7 @@ from custom_components.amazing_irrigation.const import (
     ACTUATOR_SWITCH,
     CONF_ACTUATOR_SWITCH,
     CONF_ACTUATOR_TYPE,
+    CONF_ET_SOURCE,
     CONF_FORECAST_AIR_HUMIDITY,
     CONF_FORECAST_AIR_TEMPERATURE,
     CONF_LINKTAP_DEVICE,
@@ -22,7 +23,10 @@ from custom_components.amazing_irrigation.const import (
     CONF_OBSERVED_AIR_HUMIDITY,
     CONF_OBSERVED_AIR_TEMPERATURE,
     CONF_SCHEDULE_TIMES,
+    CONF_SOIL_TYPE,
     CONF_SOLAR_RADIATION,
+    CONF_TARGET_MOISTURE_HIGH,
+    CONF_TARGET_MOISTURE_LOW,
     CONF_VOLUME_SENSOR,
     CONF_WATERING_SENSOR,
     CONF_WIND_SPEED,
@@ -63,6 +67,10 @@ async def test_add_zone_creates_record(hass: HomeAssistant) -> None:
             CONF_FORECAST_AIR_HUMIDITY: "sensor.forecast_humidity",
             CONF_WIND_SPEED: "sensor.wind_speed",
             CONF_SOLAR_RADIATION: "sensor.solar_radiation",
+            CONF_TARGET_MOISTURE_LOW: 35,
+            CONF_TARGET_MOISTURE_HIGH: 45,
+            CONF_ET_SOURCE: "weather",
+            CONF_SOIL_TYPE: "sand",
         },
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
@@ -78,6 +86,10 @@ async def test_add_zone_creates_record(hass: HomeAssistant) -> None:
     assert record[CONF_FORECAST_AIR_HUMIDITY] == "sensor.forecast_humidity"
     assert record[CONF_WIND_SPEED] == "sensor.wind_speed"
     assert record[CONF_SOLAR_RADIATION] == "sensor.solar_radiation"
+    assert record[CONF_TARGET_MOISTURE_LOW] == 35
+    assert record[CONF_TARGET_MOISTURE_HIGH] == 45
+    assert record[CONF_ET_SOURCE] == "weather"
+    assert record[CONF_SOIL_TYPE] == "sand"
 
 
 async def test_add_zone_time_pickers_map_to_schedule_times(
@@ -122,6 +134,29 @@ async def test_add_zone_requires_a_moisture_sensor(hass: HomeAssistant) -> None:
     assert CONF_ZONES not in entry.options
 
 
+async def test_add_zone_validates_target_range(hass: HomeAssistant) -> None:
+    """The optional target moisture range must be ordered."""
+    entry = await _setup_entry(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "add_zone"}
+    )
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {
+            CONF_NAME: "Herb Bed",
+            CONF_MOISTURE_SENSORS: ["sensor.a"],
+            CONF_TARGET_MOISTURE_LOW: 55,
+            CONF_TARGET_MOISTURE_HIGH: 45,
+        },
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {CONF_TARGET_MOISTURE_HIGH: "target_range_invalid"}
+    assert CONF_ZONES not in entry.options
+
+
 async def test_edit_zone_updates_record(hass: HomeAssistant) -> None:
     """A user can edit an existing Irrigation Zone."""
     entry = MockConfigEntry(
@@ -153,13 +188,24 @@ async def test_edit_zone_updates_record(hass: HomeAssistant) -> None:
     # Submit the edited values.
     result = await hass.config_entries.options.async_configure(
         result["flow_id"],
-        {CONF_NAME: "New Name", CONF_MOISTURE_SENSORS: ["sensor.a", "sensor.b"]},
+        {
+            CONF_NAME: "New Name",
+            CONF_MOISTURE_SENSORS: ["sensor.a", "sensor.b"],
+            CONF_TARGET_MOISTURE_LOW: 32,
+            CONF_TARGET_MOISTURE_HIGH: 44,
+            CONF_ET_SOURCE: "greenhouse",
+            CONF_SOIL_TYPE: "clay",
+        },
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
 
     record = entry.options[CONF_ZONES]["abc123"]
     assert record[CONF_NAME] == "New Name"
     assert record[CONF_MOISTURE_SENSORS] == ["sensor.a", "sensor.b"]
+    assert record[CONF_TARGET_MOISTURE_LOW] == 32
+    assert record[CONF_TARGET_MOISTURE_HIGH] == 44
+    assert record[CONF_ET_SOURCE] == "greenhouse"
+    assert record[CONF_SOIL_TYPE] == "clay"
 
 
 async def test_add_zone_with_switch_actuator_uses_actuator_step(

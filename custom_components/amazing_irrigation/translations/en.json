@@ -28,6 +28,8 @@
           "name": "Zone name",
           "moisture_sensors": "Soil moisture sensors",
           "target_moisture": "Target Moisture (%)",
+          "target_moisture_low": "Target moisture low (%)",
+          "target_moisture_high": "Target moisture high (%)",
           "max_liters": "Maximum liters per run",
           "gain_per_liter": "Moisture gain per liter (%/L, optional)",
           "rain_skip_mm": "Rain skip threshold (mm)",
@@ -39,6 +41,8 @@
           "field_capacity": "Field Capacity (%, optional)",
           "wilting_point": "Wilting Point (%, optional)",
           "learning_enabled": "Collect learning observations",
+          "et_source": "ET climate source preference",
+          "soil_type": "Soil type preset",
           "greenhouse": "Greenhouse Zone",
           "protected_rain": "Protected from rain (ignore rain in decisions)",
           "temperature_sensor": "Greenhouse temperature sensor (optional)",
@@ -59,6 +63,10 @@
           "actuator_type": "Watering Actuator type"
         },
         "data_description": {
+          "target_moisture_low": "Optional lower bound for the desired moisture range. Leave blank to derive the range from Target Moisture.",
+          "target_moisture_high": "Optional upper bound for the desired moisture range. Leave blank to derive the range from Target Moisture.",
+          "et_source": "Auto uses greenhouse sensors for greenhouse zones and weather sensors otherwise. Choose a source to prefer one climate input set.",
+          "soil_type": "Seeds the water-balance model before enough learning history exists.",
           "observed_air_temperature": "Optional ET/model input. Use a local greenhouse sensor for greenhouse zones, or an outdoor weather-station sensor for outdoor zones.",
           "observed_air_humidity": "Optional ET/model input. Use a local greenhouse sensor for greenhouse zones, or an outdoor weather-station sensor for outdoor zones.",
           "forecast_air_temperature": "Optional ET/model input. Use the zone's relevant weather forecast sensor.",
@@ -75,6 +83,8 @@
           "name": "Zone name",
           "moisture_sensors": "Soil moisture sensors",
           "target_moisture": "Target Moisture (%)",
+          "target_moisture_low": "Target moisture low (%)",
+          "target_moisture_high": "Target moisture high (%)",
           "max_liters": "Maximum liters per run",
           "gain_per_liter": "Moisture gain per liter (%/L, optional)",
           "rain_skip_mm": "Rain skip threshold (mm)",
@@ -86,6 +96,8 @@
           "field_capacity": "Field Capacity (%, optional)",
           "wilting_point": "Wilting Point (%, optional)",
           "learning_enabled": "Collect learning observations",
+          "et_source": "ET climate source preference",
+          "soil_type": "Soil type preset",
           "greenhouse": "Greenhouse Zone",
           "protected_rain": "Protected from rain (ignore rain in decisions)",
           "temperature_sensor": "Greenhouse temperature sensor (optional)",
@@ -106,6 +118,10 @@
           "actuator_type": "Watering Actuator type"
         },
         "data_description": {
+          "target_moisture_low": "Optional lower bound for the desired moisture range. Leave blank to derive the range from Target Moisture.",
+          "target_moisture_high": "Optional upper bound for the desired moisture range. Leave blank to derive the range from Target Moisture.",
+          "et_source": "Auto uses greenhouse sensors for greenhouse zones and weather sensors otherwise. Choose a source to prefer one climate input set.",
+          "soil_type": "Seeds the water-balance model before enough learning history exists.",
           "observed_air_temperature": "Optional ET/model input. Use a local greenhouse sensor for greenhouse zones, or an outdoor weather-station sensor for outdoor zones.",
           "observed_air_humidity": "Optional ET/model input. Use a local greenhouse sensor for greenhouse zones, or an outdoor weather-station sensor for outdoor zones.",
           "forecast_air_temperature": "Optional ET/model input. Use the zone's relevant weather forecast sensor.",
@@ -147,10 +163,25 @@
     },
     "error": {
       "no_moisture_sensors": "Select at least one soil moisture sensor for the zone.",
+      "target_range_invalid": "Target moisture low must be less than or equal to target moisture high.",
       "linktap_requires_id_and_switch": "Select a LinkTap device, or enter both a LinkTap id and a switch entity."
     }
   },
   "selector": {
+    "et_source": {
+      "options": {
+        "auto": "Auto",
+        "weather": "Weather / outdoor forecast",
+        "greenhouse": "Greenhouse local sensors"
+      }
+    },
+    "soil_type": {
+      "options": {
+        "loam": "Loam",
+        "sand": "Sand",
+        "clay": "Clay"
+      }
+    },
     "actuator_type": {
       "options": {
         "none": "None (observe only)",

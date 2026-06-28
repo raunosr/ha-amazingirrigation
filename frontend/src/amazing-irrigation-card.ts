@@ -11,8 +11,11 @@ import {
   type ControlEntity,
   type HassState,
   type LearnedValue,
+  type ModelInsight,
+  type ModelParameter,
   type RelatedEntity,
   type ScheduleSlot,
+  type WaterBalanceTerm,
   type ZoneCardConfig,
   type ZoneView,
 } from "./zone-view";
@@ -154,6 +157,7 @@ export class AmazingIrrigationCard extends LitElement {
         ${this._renderControls(view)}
         ${this._renderSchedule(view)}
         ${this._renderLearned(view)}
+        ${this._renderModelInsight(view)}
         ${this._renderReferences(view)}
         ${this._renderHistory(view)}
 
@@ -327,6 +331,114 @@ export class AmazingIrrigationCard extends LitElement {
     `;
   }
 
+  private _renderModelInsight(view: ZoneView): TemplateResult | typeof nothing {
+    const insight = view.modelInsight;
+    if (!insight) {
+      return nothing;
+    }
+    const explanation = insight.decisionExplanation;
+    return html`
+      <details class="section model-insight">
+        <summary>
+          <span>Why this decision</span>
+          ${insight.status ? html`<span>${insight.status}</span>` : nothing}
+        </summary>
+        ${insight.bootstrapSummary
+          ? html`<div class="model-note">${insight.bootstrapSummary}</div>`
+          : nothing}
+        ${explanation ? this._renderDecisionExplanation(explanation) : nothing}
+        ${insight.parameters.length
+          ? html`
+              <div class="section-head">Model parameters</div>
+              ${insight.parameters.map((param) =>
+                this._renderModelParameter(param),
+              )}
+            `
+          : nothing}
+        ${insight.modelUpdated
+          ? html`<div class="model-note">
+              Updated ${new Date(insight.modelUpdated).toLocaleString()}
+            </div>`
+          : nothing}
+      </details>
+    `;
+  }
+
+  private _renderDecisionExplanation(
+    explanation: NonNullable<ModelInsight["decisionExplanation"]>,
+  ): TemplateResult {
+    return html`
+      <div class="model-note">
+        ${explanation.predictiveReason
+          ? `Reason: ${explanation.predictiveReason.replace(/_/g, " ")}`
+          : "Predictive water-balance decision"}
+        ${explanation.horizonHours === null
+          ? ""
+          : ` over ${explanation.horizonHours} h`}
+        ${explanation.chosenLiters === null
+          ? ""
+          : ` · chosen ${explanation.chosenLiters} L`}
+      </div>
+      ${explanation.predictedTrajectory.length
+        ? html`
+            <div class="section-head">Predicted moisture trajectory</div>
+            <div class="trajectory">
+              ${explanation.predictedTrajectory.map(
+                (value, index) =>
+                  html`<span>Step ${index + 1}: ${value}%</span>`,
+              )}
+            </div>
+          `
+        : nothing}
+      ${explanation.predictedCriticalTheta !== null ||
+      explanation.predictedPeakTheta !== null
+        ? html`<div class="model-note">
+            ${explanation.predictedCriticalTheta === null
+              ? ""
+              : `Lowest predicted moisture: ${explanation.predictedCriticalTheta}%`}
+            ${explanation.predictedPeakTheta === null
+              ? ""
+              : ` Peak: ${explanation.predictedPeakTheta}%`}
+          </div>`
+        : nothing}
+      ${explanation.terms.length
+        ? html`
+            <div class="section-head">Water-balance terms</div>
+            ${explanation.terms.map((term) => this._renderTerm(term))}
+          `
+        : nothing}
+    `;
+  }
+
+  private _renderTerm(term: WaterBalanceTerm): TemplateResult {
+    const sign = term.value > 0 ? "+" : "";
+    return html`
+      <div class="row">
+        <span class="row-label">${term.label}</span>
+        <span class="row-value">${sign}${term.value} ${term.unit}</span>
+      </div>
+    `;
+  }
+
+  private _renderModelParameter(param: ModelParameter): TemplateResult {
+    return html`
+      <div class="row model-param">
+        <span class="row-label">${param.label}</span>
+        <span class="row-value">
+          ${param.value === null ? "learning…" : `${param.value} ${param.unit ?? ""}`}
+          ${param.confidence === null
+            ? nothing
+            : html`<span class="confidence">
+                <span
+                  style="width: ${Math.round(param.confidence * 100)}%"
+                ></span>
+              </span>
+              ${Math.round(param.confidence * 100)}%`}
+        </span>
+      </div>
+    `;
+  }
+
   private _renderHistory(view: ZoneView): TemplateResult | typeof nothing {
     if (!view.historyEntries.length) {
       return nothing;
@@ -463,6 +575,51 @@ export class AmazingIrrigationCard extends LitElement {
       font-weight: 600;
       color: var(--secondary-text-color);
       margin-bottom: 4px;
+    }
+    details.model-insight {
+      border: 1px solid var(--divider-color);
+      border-radius: 8px;
+      padding: 8px;
+    }
+    details.model-insight summary {
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--secondary-text-color);
+    }
+    .model-note {
+      color: var(--secondary-text-color);
+      font-size: 0.8rem;
+      margin: 6px 0;
+    }
+    .trajectory {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin: 4px 0 8px;
+    }
+    .trajectory span {
+      background: var(--secondary-background-color);
+      border-radius: 10px;
+      font-size: 0.75rem;
+      padding: 2px 6px;
+    }
+    .confidence {
+      display: inline-block;
+      width: 40px;
+      height: 6px;
+      background: var(--divider-color);
+      border-radius: 6px;
+      margin-left: 6px;
+      overflow: hidden;
+      vertical-align: middle;
+    }
+    .confidence span {
+      display: block;
+      height: 100%;
+      background: var(--primary-color);
     }
     .row {
       display: flex;

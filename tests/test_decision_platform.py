@@ -325,6 +325,49 @@ def test_build_inputs_enables_predictive_with_model_and_horizon(
     assert inputs.horizon[0].climate.air_temp_c == 25.0
 
 
+def test_build_inputs_uses_explicit_target_range_and_et_source(
+    hass: HomeAssistant,
+) -> None:
+    """Explicit target bands and ET source preferences reach predictive inputs."""
+    hass.states.async_set("sensor.soil", "34.0")
+    hass.states.async_set("sensor.forecast_temp", "21.0")
+    hass.states.async_set("sensor.greenhouse_temp", "29.0")
+    zone = ZoneConfig(
+        zone_id="abc123",
+        name="Bed",
+        moisture_sensors=["sensor.soil"],
+        forecast_air_temperature="sensor.forecast_temp",
+        temperature_sensor="sensor.greenhouse_temp",
+        target_moisture=40.0,
+        target_moisture_low=35.0,
+        target_moisture_high=38.0,
+        max_liters=10.0,
+        learning_enabled=True,
+        greenhouse=True,
+        et_source="weather",
+    )
+    state = ZoneState(
+        zone_id="abc123",
+        target_moisture=40.0,
+        max_liters=10.0,
+        learning_enabled=True,
+    )
+    apply_model_to_state(
+        state,
+        WaterBalanceParams(2.0, 1.0, 1.0, 0.0, 50.0, 10.0),
+        {"eta_irr": 1.0},
+    )
+
+    inputs = build_inputs(hass, zone, state=state)
+
+    assert inputs.target_moisture == 35.0
+    assert inputs.target_band is not None
+    assert inputs.target_band.low == 35.0
+    assert inputs.target_band.high == 38.0
+    assert inputs.horizon is not None
+    assert inputs.horizon[0].climate.air_temp_c == 21.0
+
+
 def test_build_inputs_missing_model_uses_rule_based_fallback(
     hass: HomeAssistant,
 ) -> None:

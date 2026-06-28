@@ -38,6 +38,7 @@ from .const import (
     CONF_ACTUATOR_SWITCH,
     CONF_ACTUATOR_TYPE,
     CONF_ENABLED,
+    CONF_ET_SOURCE,
     CONF_FIELD_CAPACITY,
     CONF_FORECAST_AIR_HUMIDITY,
     CONF_FORECAST_AIR_TEMPERATURE,
@@ -65,8 +66,11 @@ from .const import (
     CONF_SCHEDULE_WEEKDAYS,
     CONF_SEASON_END,
     CONF_SEASON_START,
+    CONF_SOIL_TYPE,
     CONF_SOLAR_RADIATION,
     CONF_TARGET_MOISTURE,
+    CONF_TARGET_MOISTURE_HIGH,
+    CONF_TARGET_MOISTURE_LOW,
     CONF_TEMPERATURE_SENSOR,
     CONF_VOLUME_FIELD,
     CONF_VOLUME_SENSOR,
@@ -94,6 +98,8 @@ from .linktap import (
 # pickers (HA's TimeSelector has no multi-value mode) and mapped to/from the
 # stored ``CONF_SCHEDULE_TIMES`` list of ``HH:MM`` strings.
 SCHEDULE_TIME_SLOTS = ("schedule_time_1", "schedule_time_2", "schedule_time_3")
+ET_SOURCE_OPTIONS = ("auto", "weather", "greenhouse")
+SOIL_TYPE_OPTIONS = ("loam", "sand", "clay")
 
 
 def _times_from_slots(user_input: dict[str, Any]) -> None:
@@ -138,6 +144,16 @@ def _zone_basics_schema() -> vol.Schema:
             vol.Optional(
                 CONF_TARGET_MOISTURE, default=DEFAULT_TARGET_MOISTURE
             ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=0, max=100, step=1, unit_of_measurement="%", mode="box"
+                )
+            ),
+            vol.Optional(CONF_TARGET_MOISTURE_LOW): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=0, max=100, step=1, unit_of_measurement="%", mode="box"
+                )
+            ),
+            vol.Optional(CONF_TARGET_MOISTURE_HIGH): selector.NumberSelector(
                 selector.NumberSelectorConfig(
                     min=0, max=100, step=1, unit_of_measurement="%", mode="box"
                 )
@@ -211,6 +227,16 @@ def _zone_basics_schema() -> vol.Schema:
             vol.Optional(
                 CONF_LEARNING_ENABLED, default=False
             ): selector.BooleanSelector(),
+            vol.Optional(CONF_ET_SOURCE, default="auto"): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=list(ET_SOURCE_OPTIONS), translation_key="et_source"
+                )
+            ),
+            vol.Optional(CONF_SOIL_TYPE, default="loam"): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=list(SOIL_TYPE_OPTIONS), translation_key="soil_type"
+                )
+            ),
             vol.Optional(
                 CONF_GREENHOUSE, default=False
             ): selector.BooleanSelector(),
@@ -572,6 +598,10 @@ def _validate_zone_basics(user_input: dict[str, Any]) -> dict[str, str]:
     errors: dict[str, str] = {}
     if not user_input.get(CONF_MOISTURE_SENSORS):
         errors[CONF_MOISTURE_SENSORS] = "no_moisture_sensors"
+    low = user_input.get(CONF_TARGET_MOISTURE_LOW)
+    high = user_input.get(CONF_TARGET_MOISTURE_HIGH)
+    if low not in (None, "") and high not in (None, "") and float(low) > float(high):
+        errors[CONF_TARGET_MOISTURE_HIGH] = "target_range_invalid"
     return errors
 
 

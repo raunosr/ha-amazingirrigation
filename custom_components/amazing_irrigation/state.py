@@ -251,9 +251,11 @@ def apply_model_to_state(
     return state
 
 
-def params_from_state(state: ZoneState) -> WaterBalanceParams | None:
+def params_from_state(
+    state: ZoneState, *, soil_type: str = "loam"
+) -> WaterBalanceParams | None:
     """Reconstruct water-balance params from persisted model or legacy mirrors."""
-    prior = default_params("loam")
+    prior = default_params(soil_type)
     source = state.model_params if isinstance(state.model_params, Mapping) else {}
 
     eta_irr = _finite(source.get("eta_irr"))

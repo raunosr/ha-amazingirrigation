@@ -102,6 +102,7 @@ describe("buildZoneView", () => {
     expect(view.isWatering).toBe(false);
     expect(view.canStop).toBe(false);
     expect(view.historyEntries).toEqual([]);
+    expect(view.modelInsight).toBeNull();
   });
 
   it("treats unavailable decision state as no decision", () => {
@@ -299,6 +300,65 @@ describe("surfaced zone entities", () => {
         state: "unknown",
         attributes: {},
       },
+      [`sensor.${slug}_model_insight`]: {
+        state: "65% confidence",
+        attributes: {
+          parameters: {
+            eta_irr: {
+              name: "Irrigation Efficiency",
+              value: 1.5,
+              unit: "%/L",
+              confidence: 0.8,
+            },
+            eta_rain: {
+              name: "Rain Efficiency",
+              value: 0.9,
+              unit: "%/mm",
+              confidence: 0.6,
+            },
+            k_et: {
+              name: "ET Coefficient",
+              value: 0.65,
+              unit: null,
+              confidence: 0.7,
+            },
+            drain_rate: {
+              name: "Drainage Rate",
+              value: 0.14,
+              unit: "1/h",
+              confidence: 0.5,
+            },
+          },
+          confidence: {
+            eta_irr: 0.8,
+            eta_rain: 0.6,
+            k_et: 0.7,
+            drain_rate: 0.5,
+          },
+          overall_confidence: 0.65,
+          bootstrapped_days: 12,
+          bootstrap_summary: "Learned from 12 days of history",
+          water_balance_terms: {
+            irrigation: 3,
+            rain: 1.2,
+            et: -0.8,
+            drainage: -0.1,
+          },
+          predicted_trajectory: [39.2, 40.1, 40.4],
+          horizon_hours: 3,
+          chosen_liters: 2,
+          predicted_critical_theta: 39.2,
+          predicted_peak_theta: 40.4,
+          decision_explanation: {
+            terms: { irrigation: 3, rain: 1.2, et: -0.8, drainage: -0.1 },
+            predicted_trajectory: [39.2, 40.1, 40.4],
+            horizon_hours: 3,
+            chosen_liters: 2,
+          },
+          model_updated: "2026-06-28T12:00:00+00:00",
+          total_liters: 123.4,
+        },
+      },
       [`time.${slug}_schedule_1_time`]: {
         state: "21:00:00",
         attributes: {},
@@ -390,6 +450,37 @@ describe("surfaced zone entities", () => {
     expect(view.learningControl?.isOn).toBe(false);
   });
 
+  it("builds model insight from the diagnostic sensor", () => {
+    const view = buildZoneView(cfg, fullStates());
+    expect(view.modelInsight?.status).toBe("65% confidence");
+    expect(view.modelInsight?.overallConfidence).toBe(0.65);
+    expect(view.modelInsight?.bootstrappedDays).toBe(12);
+    expect(view.modelInsight?.bootstrapSummary).toBe(
+      "Learned from 12 days of history",
+    );
+    expect(view.modelInsight?.parameters[0]).toMatchObject({
+      key: "eta_irr",
+      label: "Irrigation Efficiency",
+      value: 1.5,
+      unit: "%/L",
+      confidence: 0.8,
+    });
+    expect(view.modelInsight?.decisionExplanation?.predictedTrajectory).toEqual([
+      39.2, 40.1, 40.4,
+    ]);
+    expect(view.modelInsight?.decisionExplanation?.horizonHours).toBe(3);
+    expect(view.modelInsight?.decisionExplanation?.chosenLiters).toBe(2);
+    expect(view.modelInsight?.decisionExplanation?.terms).toContainEqual({
+      key: "irrigation",
+      label: "Irrigation added",
+      value: 3,
+      unit: "%",
+    });
+    expect(view.modelInsight?.decisionExplanation?.predictedCriticalTheta).toBe(
+      39.2,
+    );
+  });
+
   it("degrades to empty surfaces when no sibling entities exist", () => {
     const view = buildZoneView(cfg, {
       [decisionEntity]: { state: "skip", attributes: {} },
@@ -397,6 +488,7 @@ describe("surfaced zone entities", () => {
     expect(view.references).toEqual([]);
     expect(view.schedule).toEqual([]);
     expect(view.learned).toEqual([]);
+    expect(view.modelInsight).toBeNull();
     expect(view.totalVolume).toBeNull();
     expect(view.targetControl).toBeNull();
   });
