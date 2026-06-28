@@ -9,11 +9,13 @@ directly; :func:`async_execute` performs the resulting call.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 
 from homeassistant.core import HomeAssistant
 
 from .const import (
+    ACTUATOR_LINKTAP,
     ACTUATOR_NONE,
     ACTUATOR_SCRIPT,
     ACTUATOR_SERVICE,
@@ -26,9 +28,14 @@ from .const import (
     CONF_ACTUATOR_STOP_SERVICE,
     CONF_ACTUATOR_SWITCH,
     CONF_ACTUATOR_TYPE,
+    CONF_LINKTAP_FAILSAFE,
+    CONF_LINKTAP_ID,
+    CONF_LINKTAP_TOPIC,
     CONF_VOLUME_FIELD,
     CONF_VOLUME_SENSOR,
     CONF_WATERING_SENSOR,
+    DEFAULT_LINKTAP_FAILSAFE,
+    DEFAULT_LINKTAP_TOPIC,
     DEFAULT_VOLUME_FIELD,
 )
 
@@ -57,6 +64,9 @@ class ActuatorConfig:
     volume_field: str = DEFAULT_VOLUME_FIELD
     watering_sensor: str | None = None
     volume_sensor: str | None = None
+    linktap_topic: str = DEFAULT_LINKTAP_TOPIC
+    linktap_id: str | None = None
+    linktap_failsafe: int = DEFAULT_LINKTAP_FAILSAFE
 
     @classmethod
     def from_record(cls, record: dict) -> ActuatorConfig:
@@ -73,17 +83,22 @@ class ActuatorConfig:
             volume_field=record.get(CONF_VOLUME_FIELD) or DEFAULT_VOLUME_FIELD,
             watering_sensor=record.get(CONF_WATERING_SENSOR) or None,
             volume_sensor=record.get(CONF_VOLUME_SENSOR) or None,
+            linktap_topic=record.get(CONF_LINKTAP_TOPIC) or DEFAULT_LINKTAP_TOPIC,
+            linktap_id=record.get(CONF_LINKTAP_ID) or None,
+            linktap_failsafe=int(
+                record.get(CONF_LINKTAP_FAILSAFE) or DEFAULT_LINKTAP_FAILSAFE
+            ),
         )
 
     @property
     def can_water(self) -> bool:
         """Whether a usable start path is configured."""
-        return build_start_call(self, 0.0) is not None
+        return bool(build_start_calls(self, 0.0))
 
     @property
     def can_stop(self) -> bool:
         """Whether an explicit stop path is configured."""
-        return build_stop_call(self) is not None
+        return bool(build_stop_calls(self))
 
     @property
     def has_feedback(self) -> bool:
@@ -101,10 +116,36 @@ def _parse_service(value: str | None) -> tuple[str, str] | None:
     return domain, service
 
 
+def build_linktap_start_calls(
+    actuator: ActuatorConfig, volume_liters: float
+) -> list[CallSpec]:
+    """Build the LinkTap-over-MQTT start sequence.
+
+    Mirrors the current LinkTap script: publish a volume limit payload, publish
+    a failsafe duration payload, then turn the LinkTap water switch on. Returns
+    an empty list when the LinkTap id or switch entity is missing.
+    """
+    if not actuator.linktap_id or not actuator.switch:
+        return []
+    topic = actuator.linktap_topic or DEFAULT_LINKTAP_TOPIC
+    volume_payload = json.dumps(
+        {"tag": "volume_limit", "id": actuator.linktap_id, "value": volume_liters}
+    )
+    duration_payload = json.dumps(
+        {"id": actuator.linktap_id, "duration": actuator.linktap_failsafe}
+    )
+    return [
+        CallSpec("mqtt", "publish", {"topic": topic, "payload": volume_payload}),
+        CallSpec("mqtt", "publish", {"topic": topic, "payload": duration_payload}),
+        CallSpec("switch", "turn_on", {"entity_id": actuator.switch}),
+    ]
+
+
 def build_start_call(actuator: ActuatorConfig, volume_liters: float) -> CallSpec | None:
     """Build the call that starts watering, injecting the bounded volume.
 
-    Returns ``None`` when the actuator has no usable start path configured.
+    Returns ``None`` when the actuator has no single usable start call. LinkTap
+    requires a multi-call sequence; use :func:`build_start_calls` for it.
     """
     if actuator.actuator_type == ACTUATOR_SWITCH and actuator.switch:
         return CallSpec("switch", "turn_on", {"entity_id": actuator.switch})
@@ -146,8 +187,37 @@ def build_stop_call(actuator: ActuatorConfig) -> CallSpec | None:
     return None
 
 
+def build_start_calls(
+    actuator: ActuatorConfig, volume_liters: float
+) -> list[CallSpec]:
+    """Build the ordered start sequence for any actuator mode.
+
+    Returns an empty list when no usable start path is configured.
+    """
+    if actuator.actuator_type == ACTUATOR_LINKTAP:
+        return build_linktap_start_calls(actuator, volume_liters)
+    single = build_start_call(actuator, volume_liters)
+    return [single] if single is not None else []
+
+
+def build_stop_calls(actuator: ActuatorConfig) -> list[CallSpec]:
+    """Build the ordered stop sequence, or an empty list when unsupported."""
+    if actuator.actuator_type == ACTUATOR_LINKTAP:
+        if not actuator.switch:
+            return []
+        return [CallSpec("switch", "turn_off", {"entity_id": actuator.switch})]
+    single = build_stop_call(actuator)
+    return [single] if single is not None else []
+
+
 async def async_execute(hass: HomeAssistant, spec: CallSpec) -> None:
     """Execute a resolved call spec."""
     await hass.services.async_call(
         spec.domain, spec.service, dict(spec.data), blocking=True
     )
+
+
+async def async_execute_all(hass: HomeAssistant, specs: list[CallSpec]) -> None:
+    """Execute an ordered list of resolved call specs."""
+    for spec in specs:
+        await async_execute(hass, spec)

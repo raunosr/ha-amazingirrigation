@@ -48,7 +48,10 @@
           "actuator_stop_script": "Stop script",
           "volume_field": "Volume field/variable name",
           "watering_sensor": "Watering feedback sensor (confirms flow)",
-          "volume_sensor": "Cumulative volume sensor (confirms flow)"
+          "volume_sensor": "Cumulative volume sensor (confirms flow)",
+          "linktap_topic": "LinkTap MQTT topic",
+          "linktap_id": "LinkTap id (taplinker entity id)",
+          "linktap_failsafe": "LinkTap failsafe duration (s)"
         }
       },
       "edit_zone": {
@@ -79,7 +82,10 @@
           "actuator_stop_script": "Stop script",
           "volume_field": "Volume field/variable name",
           "watering_sensor": "Watering feedback sensor (confirms flow)",
-          "volume_sensor": "Cumulative volume sensor (confirms flow)"
+          "volume_sensor": "Cumulative volume sensor (confirms flow)",
+          "linktap_topic": "LinkTap MQTT topic",
+          "linktap_id": "LinkTap id (taplinker entity id)",
+          "linktap_failsafe": "LinkTap failsafe duration (s)"
         }
       },
       "remove_zone": {
@@ -90,7 +96,8 @@
       }
     },
     "error": {
-      "no_moisture_sensors": "Select at least one soil moisture sensor for the zone."
+      "no_moisture_sensors": "Select at least one soil moisture sensor for the zone.",
+      "linktap_requires_id_and_switch": "A LinkTap actuator needs both a LinkTap id and a switch entity."
     }
   },
   "selector": {
@@ -99,7 +106,8 @@
         "none": "None (observe only)",
         "switch": "Switch (on/off)",
         "service": "Service call",
-        "script": "Script"
+        "script": "Script",
+        "linktap": "LinkTap (MQTT)"
       }
     }
   },

@@ -23,6 +23,7 @@ from homeassistant.core import callback
 from homeassistant.helpers import selector
 
 from .const import (
+    ACTUATOR_LINKTAP,
     ACTUATOR_NONE,
     ACTUATOR_TYPES,
     CONF_ACTUATOR_START_DATA,
@@ -36,6 +37,9 @@ from .const import (
     CONF_FORECAST_RAIN_AMOUNT,
     CONF_FORECAST_RAIN_PROBABILITY,
     CONF_GAIN_PER_LITER,
+    CONF_LINKTAP_FAILSAFE,
+    CONF_LINKTAP_ID,
+    CONF_LINKTAP_TOPIC,
     CONF_MAX_LITERS,
     CONF_MOISTURE_SENSORS,
     CONF_NAME,
@@ -50,6 +54,8 @@ from .const import (
     CONF_VOLUME_SENSOR,
     CONF_WATERING_SENSOR,
     CONF_ZONES,
+    DEFAULT_LINKTAP_FAILSAFE,
+    DEFAULT_LINKTAP_TOPIC,
     DEFAULT_MAX_LITERS,
     DEFAULT_RAIN_SKIP_MM,
     DEFAULT_RAIN_SKIP_PROBABILITY,
@@ -143,6 +149,21 @@ def _zone_schema() -> vol.Schema:
             ),
             vol.Optional(CONF_VOLUME_SENSOR): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain="sensor")
+            ),
+            vol.Optional(
+                CONF_LINKTAP_TOPIC, default=DEFAULT_LINKTAP_TOPIC
+            ): selector.TextSelector(),
+            vol.Optional(CONF_LINKTAP_ID): selector.TextSelector(),
+            vol.Optional(
+                CONF_LINKTAP_FAILSAFE, default=DEFAULT_LINKTAP_FAILSAFE
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=900,
+                    max=21600,
+                    step=900,
+                    mode=selector.NumberSelectorMode.BOX,
+                    unit_of_measurement="s",
+                )
             ),
         }
     )
@@ -277,10 +298,15 @@ def _zone_picker_schema(zones: dict[str, dict[str, Any]]) -> vol.Schema:
 
 
 def _validate_zone_input(user_input: dict[str, Any]) -> dict[str, str]:
-    """Validate zone input; require at least one moisture sensor."""
+    """Validate zone input; require moisture sensors and complete actuators."""
     errors: dict[str, str] = {}
     if not user_input.get(CONF_MOISTURE_SENSORS):
         errors[CONF_MOISTURE_SENSORS] = "no_moisture_sensors"
+    if user_input.get(CONF_ACTUATOR_TYPE) == ACTUATOR_LINKTAP:
+        if not user_input.get(CONF_LINKTAP_ID):
+            errors[CONF_LINKTAP_ID] = "linktap_requires_id_and_switch"
+        if not user_input.get(CONF_ACTUATOR_SWITCH):
+            errors[CONF_ACTUATOR_SWITCH] = "linktap_requires_id_and_switch"
     return errors
 
 

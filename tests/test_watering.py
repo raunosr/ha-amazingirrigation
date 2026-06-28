@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError
@@ -9,9 +11,12 @@ from homeassistant.helpers import device_registry as dr
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.amazing_irrigation.const import (
+    ACTUATOR_LINKTAP,
     ACTUATOR_SWITCH,
     CONF_ACTUATOR_SWITCH,
     CONF_ACTUATOR_TYPE,
+    CONF_LINKTAP_FAILSAFE,
+    CONF_LINKTAP_ID,
     CONF_MAX_LITERS,
     CONF_MOISTURE_SENSORS,
     CONF_NAME,
@@ -252,6 +257,74 @@ async def test_unload_releases_feedback_subscription(hass: HomeAssistant) -> Non
 
     assert controller.is_watering is False
 
+
+async def test_linktap_missing_id_or_switch_is_rejected(hass: HomeAssistant) -> None:
+    """The options flow rejects a LinkTap zone missing its id or switch."""
+    from custom_components.amazing_irrigation.config_flow import _validate_zone_input
+
+    base = {
+        CONF_NAME: "Z",
+        CONF_MOISTURE_SENSORS: ["sensor.a"],
+        CONF_ACTUATOR_TYPE: ACTUATOR_LINKTAP,
+    }
+    errors = _validate_zone_input(base)
+    assert CONF_LINKTAP_ID in errors
+    assert CONF_ACTUATOR_SWITCH in errors
+
+    ok = _validate_zone_input(
+        {**base, CONF_LINKTAP_ID: "ID1", CONF_ACTUATOR_SWITCH: "switch.v"}
+    )
+    assert ok == {}
+
+
+async def test_linktap_run_publishes_mqtt_and_confirms(hass: HomeAssistant) -> None:
+    """A LinkTap zone publishes volume+failsafe, turns on the switch, confirms."""
+    hass.states.async_set("sensor.a", "20.0")
+    hass.states.async_set("binary_sensor.tap_watering", "off")
+    mqtt_calls: list[ServiceCall] = []
+
+    async def _publish(call: ServiceCall) -> None:
+        mqtt_calls.append(call)
+
+    hass.services.async_register("mqtt", "publish", _publish)
+    switch_calls = _record_switch(hass)
+
+    entry = await _setup(
+        hass,
+        {
+            CONF_NAME: "Taka Altaat",
+            CONF_MOISTURE_SENSORS: ["sensor.a"],
+            CONF_TARGET_MOISTURE: 40,
+            CONF_MAX_LITERS: 30,
+            CONF_ACTUATOR_TYPE: ACTUATOR_LINKTAP,
+            CONF_ACTUATOR_SWITCH: "switch.tap",
+            CONF_LINKTAP_ID: "1F43B22F004B1200_3",
+            CONF_LINKTAP_FAILSAFE: 3600,
+            CONF_WATERING_SENSOR: "binary_sensor.tap_watering",
+        },
+    )
+
+    controller = _controller(hass, entry)
+    event = await controller.async_run()
+    await hass.async_block_till_done()
+
+    assert event.status is WateringStatus.COMMANDED
+    assert len(mqtt_calls) == 2
+    payloads = [json.loads(c.data["payload"]) for c in mqtt_calls]
+    assert payloads[0]["tag"] == "volume_limit"
+    assert payloads[0]["id"] == "1F43B22F004B1200_3"
+    assert payloads[1]["duration"] == 3600
+    assert any(c.service == "turn_on" for c in switch_calls)
+
+    hass.states.async_set("binary_sensor.tap_watering", "on")
+    await hass.async_block_till_done()
+    assert controller.last_event.status is WateringStatus.CONFIRMED
+
+    await controller.async_stop()
+    assert any(c.service == "turn_off" for c in switch_calls)
+
+
+async def test_run_zone_service_via_device(hass: HomeAssistant) -> None:
     hass.states.async_set("sensor.a", "20.0")
     calls = _record_switch(hass)
     entry = await _setup(hass, _SWITCH_ZONE)
