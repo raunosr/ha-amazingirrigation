@@ -21,6 +21,7 @@ from custom_components.amazing_irrigation.const import (
     CONF_ZONES,
     DATA_CONTROLLERS,
     DATA_SCHEDULER,
+    DATA_ZONE_STATE,
     DOMAIN,
 )
 from custom_components.amazing_irrigation.scheduler import (
@@ -101,8 +102,12 @@ def _record_switch(hass: HomeAssistant) -> list[ServiceCall]:
     async def _on(call: ServiceCall) -> None:
         calls.append(call)
 
-    hass.services.async_register("switch", "turn_on", _on)
-    hass.services.async_register("switch", "turn_off", _on)
+    def _register() -> None:
+        hass.services.async_register("switch", "turn_on", _on)
+        hass.services.async_register("switch", "turn_off", _on)
+
+    _register()
+    hass.data["_switch_recorder"] = _register
     return calls
 
 
@@ -116,6 +121,9 @@ async def _setup(hass: HomeAssistant, record: dict) -> MockConfigEntry:
     entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
+    reregister = hass.data.get("_switch_recorder")
+    if reregister is not None:
+        reregister()
     return entry
 
 
@@ -170,7 +178,39 @@ async def test_disabled_zone_schedule_does_not_water(hass: HomeAssistant) -> Non
     assert all(c.service != "turn_on" for c in calls)
 
 
-async def test_same_day_repeat_fires_once(hass: HomeAssistant) -> None:
+async def test_live_schedule_slot_toggle_controls_firing(
+    hass: HomeAssistant,
+) -> None:
+    """Deactivating a slot's switch stops the scheduler firing it (no reload)."""
+    hass.states.async_set("sensor.a", "20.0")
+    calls = _record_switch(hass)
+    entry = await _setup(
+        hass,
+        {
+            CONF_NAME: "Herbs",
+            CONF_MOISTURE_SENSORS: ["sensor.a"],
+            CONF_TARGET_MOISTURE: 40,
+            CONF_MAX_LITERS: 30,
+            CONF_ACTUATOR_TYPE: ACTUATOR_SWITCH,
+            CONF_ACTUATOR_SWITCH: "switch.valve",
+            CONF_SCHEDULE_TIMES: ["06:00"],
+        },
+    )
+    scheduler = hass.data[DOMAIN][entry.entry_id][DATA_SCHEDULER]
+    store = hass.data[DOMAIN][entry.entry_id][DATA_ZONE_STATE]
+
+    # Deactivate the only active slot via its live ZoneState.
+    store.get("z1").schedule_1_active = False
+    await scheduler._run_due(datetime(2024, 6, 3, 6, 0, 0))
+    await hass.async_block_till_done()
+    assert all(c.service != "turn_on" for c in calls)
+
+    # Move slot 2 to 06:00 and activate it: the zone waters again, no reload.
+    store.get("z1").schedule_2_time = "06:00"
+    store.get("z1").schedule_2_active = True
+    await scheduler._run_due(datetime(2024, 6, 4, 6, 0, 0))
+    await hass.async_block_till_done()
+    assert any(c.service == "turn_on" for c in calls)
     """A wall-clock repeat (e.g. DST fall-back) must not water twice in a day."""
     hass.states.async_set("sensor.a", "20.0")
     calls = _record_switch(hass)

@@ -24,6 +24,7 @@ from .const import (
     CONF_ZONES,
     WEEKDAYS,
 )
+from .state import ZoneStateStore
 from .watering import WateringController
 from .zone import ZoneConfig
 
@@ -61,7 +62,13 @@ def parse_times(values: list[str] | None) -> list[tuple[int, int]]:
 
 @dataclass(frozen=True)
 class ZoneSchedule:
-    """A single zone's parsed schedule."""
+    """A single zone's parsed schedule.
+
+    ``weekdays`` always comes from the config-entry options. ``enabled`` and
+    ``times`` here are the *seed* values from options; at fire time the scheduler
+    prefers the live :class:`ZoneState` (the source of truth for the two
+    independently toggleable schedule slots and the zone-enabled switch).
+    """
 
     zone_id: str
     enabled: bool
@@ -78,13 +85,32 @@ class ZoneSchedule:
             times=parse_times(zone.schedule_times),
         )
 
-    def is_due(self, weekday: int, hour: int, minute: int) -> bool:
-        """Whether this schedule should create a Run Request at this moment."""
-        if not self.enabled or not self.times:
+    def weekday_allowed(self, weekday: int) -> bool:
+        """Whether this schedule may run on the given weekday."""
+        return weekday in self.weekdays
+
+    def is_due(
+        self,
+        weekday: int,
+        hour: int,
+        minute: int,
+        *,
+        enabled: bool | None = None,
+        times: list[tuple[int, int]] | None = None,
+    ) -> bool:
+        """Whether this schedule should create a Run Request at this moment.
+
+        ``enabled`` and ``times`` override the seeded values when the live
+        ZoneState is available, so slot toggles and time edits take effect
+        without a config-entry reload.
+        """
+        effective_enabled = self.enabled if enabled is None else enabled
+        effective_times = self.times if times is None else times
+        if not effective_enabled or not effective_times:
             return False
         if weekday not in self.weekdays:
             return False
-        return (hour, minute) in self.times
+        return (hour, minute) in effective_times
 
 
 def another_zone_watering(
@@ -105,10 +131,12 @@ class IrrigationScheduler:
         hass: HomeAssistant,
         controllers: dict[str, WateringController],
         zones: dict[str, dict],
+        zone_state_store: ZoneStateStore | None = None,
     ) -> None:
         """Initialise the scheduler from stored zone records."""
         self.hass = hass
         self.controllers = controllers
+        self._zone_state_store = zone_state_store
         self.schedules = [
             ZoneSchedule.from_zone(ZoneConfig.from_record(zone_id, record))
             for zone_id, record in zones.items()
@@ -120,9 +148,26 @@ class IrrigationScheduler:
         # repeat (e.g. DST fall-back) cannot water a zone twice in one day.
         self._last_fired: dict[tuple[str, tuple[int, int]], date] = {}
 
+    def _live_schedule(
+        self, schedule: ZoneSchedule
+    ) -> tuple[bool, list[tuple[int, int]]]:
+        """Resolve a zone's live (enabled, times), preferring its ZoneState."""
+        if self._zone_state_store is None:
+            return schedule.enabled, schedule.times
+        state = self._zone_state_store.get(schedule.zone_id)
+        if state is None:
+            return schedule.enabled, schedule.times
+        return state.enabled, parse_times(state.active_schedule_times())
+
     def async_start(self) -> None:
         """Begin tracking the minute boundary for due schedules."""
-        if self._unsub is not None or not any(s.times for s in self.schedules):
+        # With a live ZoneState store a zone may gain active slots after start,
+        # so subscribe whenever a store is present rather than only when the
+        # seeded config already had times.
+        has_seeded_times = any(s.times for s in self.schedules)
+        if self._unsub is not None or not (
+            has_seeded_times or self._zone_state_store is not None
+        ):
             return
         self._stopped = False
         self._unsub = async_track_time_change(
@@ -153,7 +198,10 @@ class IrrigationScheduler:
         today = now.date()
         weekday, hour, minute = now.weekday(), now.hour, now.minute
         for schedule in self.schedules:
-            if not schedule.is_due(weekday, hour, minute):
+            enabled, times = self._live_schedule(schedule)
+            if not schedule.is_due(
+                weekday, hour, minute, enabled=enabled, times=times
+            ):
                 continue
             key = (schedule.zone_id, (hour, minute))
             if self._last_fired.get(key) == today:
@@ -172,6 +220,9 @@ def build_scheduler(
     hass: HomeAssistant,
     controllers: dict[str, WateringController],
     options: dict,
+    zone_state_store: ZoneStateStore | None = None,
 ) -> IrrigationScheduler:
     """Create an IrrigationScheduler from the entry options."""
-    return IrrigationScheduler(hass, controllers, options.get(CONF_ZONES, {}))
+    return IrrigationScheduler(
+        hass, controllers, options.get(CONF_ZONES, {}), zone_state_store
+    )

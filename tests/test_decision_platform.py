@@ -214,6 +214,8 @@ async def test_run_button_present_stop_absent_without_actuator(
 
     switches = [e for e in hass.states.async_entity_ids() if e.startswith("switch.")]
     buttons = [e for e in hass.states.async_entity_ids() if e.startswith("button.")]
-    assert switches == []
+    # The integration exposes per-zone control switches (zone/learning/schedule)
+    # but never an actuator switch entity.
+    assert "switch.herb_bed_zone_enabled" in switches
     assert "button.herb_bed_run" in buttons
     assert "button.herb_bed_stop" not in buttons
