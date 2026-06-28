@@ -29,6 +29,10 @@ can add it as a **custom repository** (category: Integration), then install
 After installing, add the integration from **Settings → Devices & Services → Add
 Integration → Amazing Irrigation**.
 
+For full setup details — zone configuration, actuator adapters (switch, service,
+script, LinkTap/MQTT), scheduling, Safety Blockers, greenhouse zones, and the
+services — see [`docs/usage.md`](./docs/usage.md).
+
 ## Lovelace card
 
 The integration bundles a Lovelace card (`amazing-irrigation-card`) and registers
