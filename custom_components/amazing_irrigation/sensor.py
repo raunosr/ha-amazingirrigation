@@ -25,6 +25,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import PERCENTAGE, UnitOfVolume
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_track_state_change_event
 
@@ -35,6 +36,7 @@ from .const import (
     DATA_DECISION_ENTITIES,
     DATA_HISTORY,
     DATA_LEARNERS,
+    DATA_MODEL_INSIGHT_ENTITIES,
     DATA_ZONE_STATE,
     DOMAIN,
 )
@@ -71,6 +73,9 @@ async def async_setup_entry(
         zone = ZoneConfig.from_record(zone_id, record)
         entities.append(ZoneMoistureSensor(entry, zone))
         entities.append(IrrigationDecisionSensor(entry, zone))
+        learner = learners.get(zone_id)
+        if zone_state is not None:
+            entities.append(ModelInsightSensor(entry, zone, zone_state, learner))
         controller = controllers.get(zone_id)
         if controller is not None:
             entities.append(WateringStatusSensor(entry, zone, controller))
@@ -81,7 +86,6 @@ async def async_setup_entry(
         history = histories.get(zone_id)
         if history is not None:
             entities.append(ZoneHistorySensor(entry, zone, history))
-        learner = learners.get(zone_id)
         if learner is not None:
             entities.extend(
                 descriptor.build(entry, zone, learner)
@@ -322,7 +326,19 @@ class IrrigationDecisionSensor(SensorEntity):
         if state is None:
             return
         state.decision_explanation = explanation
+        self._notify_model_insight()
         self.hass.async_create_task(store.async_save())
+
+    @callback
+    def _notify_model_insight(self) -> None:
+        """Refresh the per-zone Model Insight sensor after a decision changes."""
+        entity = (
+            self.hass.data[DOMAIN][self._entry.entry_id]
+            .get(DATA_MODEL_INSIGHT_ENTITIES, {})
+            .get(self._zone.zone_id)
+        )
+        if entity is not None:
+            entity.refresh_from_state(write=True)
 
     @callback
     def _references(self) -> dict[str, object]:
@@ -361,6 +377,151 @@ class IrrigationDecisionSensor(SensorEntity):
             self._store(decision)
             self.async_write_ha_state()
         return decision
+
+
+@dataclass(frozen=True)
+class _ModelParameterDescriptor:
+    """Friendly metadata for one water-balance model parameter."""
+
+    key: str
+    label: str
+    unit: str | None
+
+
+MODEL_PARAMETER_DESCRIPTORS: tuple[_ModelParameterDescriptor, ...] = (
+    _ModelParameterDescriptor("eta_irr", "Irrigation Efficiency", f"{PERCENTAGE}/L"),
+    _ModelParameterDescriptor("eta_rain", "Rain Efficiency", f"{PERCENTAGE}/mm"),
+    _ModelParameterDescriptor("k_et", "ET Coefficient", None),
+    _ModelParameterDescriptor("drain_rate", "Drainage Rate", "1/h"),
+    _ModelParameterDescriptor("field_capacity", "Field Capacity", PERCENTAGE),
+    _ModelParameterDescriptor("wilting_point", "Wilting Point", PERCENTAGE),
+)
+
+
+class ModelInsightSensor(SensorEntity):
+    """Diagnostic explainability surface for one zone's water-balance model."""
+
+    _attr_has_entity_name = True
+    _attr_name = "Model Insight"
+    _attr_icon = "mdi:brain"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(
+        self,
+        entry: ConfigEntry,
+        zone: ZoneConfig,
+        store: ZoneStateStore,
+        learner: ZoneLearner | None,
+    ) -> None:
+        """Initialise the model insight sensor for a zone."""
+        self._entry = entry
+        self._zone = zone
+        self._store = store
+        self._learner = learner
+        self._attr_unique_id = f"{entry.entry_id}_{zone.zone_id}_model_insight"
+        self._attr_device_info = _zone_device_info(entry, zone)
+
+    async def async_added_to_hass(self) -> None:
+        """Register with the entry and refresh when learning updates."""
+        store = self.hass.data[DOMAIN][self._entry.entry_id].setdefault(
+            DATA_MODEL_INSIGHT_ENTITIES, {}
+        )
+        store[self._zone.zone_id] = self
+        if self._learner is not None:
+            self.async_on_remove(self._learner.add_listener(self._on_update))
+        self.refresh_from_state(write=False)
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Deregister from the entry's lookup table."""
+        store = (
+            self.hass.data.get(DOMAIN, {})
+            .get(self._entry.entry_id, {})
+            .get(DATA_MODEL_INSIGHT_ENTITIES, {})
+        )
+        store.pop(self._zone.zone_id, None)
+
+    @callback
+    def _on_update(self) -> None:
+        """Handle a model update."""
+        self.refresh_from_state(write=True)
+
+    @callback
+    def refresh_from_state(self, *, write: bool) -> None:
+        """Read the latest ZoneState into the diagnostic sensor."""
+        state = self._store.get(self._zone.zone_id)
+        attrs = self._attributes(state)
+        self._attr_native_value = self._status(state, attrs["overall_confidence"])
+        self._attr_extra_state_attributes = attrs
+        if write:
+            self.async_write_ha_state()
+
+    def _attributes(self, state) -> dict[str, object]:  # noqa: ANN001 - ZoneState
+        """Build the full explainability attribute payload."""
+        params = state.model_params if state is not None else None
+        confidence = state.model_confidence if state is not None else None
+        params = params if isinstance(params, dict) else {}
+        confidence = confidence if isinstance(confidence, dict) else {}
+        parameter_rows = self._parameter_rows(params, confidence)
+        overall = _overall_confidence(confidence)
+        days = _finite_float(state.bootstrapped_days) if state is not None else None
+        explanation = (
+            state.decision_explanation
+            if state is not None and isinstance(state.decision_explanation, dict)
+            else None
+        )
+        attrs: dict[str, object] = {
+            "zone_id": self._zone.zone_id,
+            "parameters": parameter_rows,
+            "confidence": {
+                key: float(value)
+                for key, value in confidence.items()
+                if _is_finite_number(value)
+            },
+            "overall_confidence": overall,
+            "bootstrapped_days": days,
+            "bootstrap_summary": _bootstrap_summary(days),
+            "decision_explanation": explanation,
+            "water_balance_terms": _dict_attr(explanation, "terms"),
+            "predicted_trajectory": _list_attr(explanation, "predicted_trajectory"),
+            "horizon_hours": _number_attr(explanation, "horizon_hours"),
+            "chosen_liters": _number_attr(explanation, "chosen_liters"),
+            "predicted_critical_theta": _predicted_critical_theta(explanation),
+            "predicted_peak_theta": _number_attr(explanation, "predicted_peak_theta"),
+            "model_updated": None if state is None else state.model_updated,
+            "total_liters": 0.0 if state is None else round(state.total_liters, 3),
+        }
+        return attrs
+
+    def _parameter_rows(
+        self, params: dict[str, object], confidence: dict[str, object]
+    ) -> dict[str, dict[str, object]]:
+        """Return friendly parameter metadata and values keyed by model code."""
+        rows: dict[str, dict[str, object]] = {}
+        for descriptor in MODEL_PARAMETER_DESCRIPTORS:
+            value = _finite_float(params.get(descriptor.key))
+            conf = _finite_float(confidence.get(descriptor.key))
+            rows[descriptor.key] = {
+                "name": descriptor.label,
+                "value": None if value is None else round(value, 6),
+                "unit": descriptor.unit,
+                "confidence": None if conf is None else max(0.0, min(1.0, conf)),
+            }
+        return rows
+
+    @staticmethod
+    def _status(state, overall: float | None) -> str:  # noqa: ANN001 - ZoneState
+        """Short state for the sensor row."""
+        if state is None:
+            return "no model"
+        if isinstance(state.model_params, dict) and state.model_params:
+            if overall is not None:
+                return f"{round(overall * 100)}% confidence"
+            return "model available"
+        if state.bootstrapped_days is not None:
+            return "bootstrapped"
+        if state.learning_enabled:
+            return "learning"
+        return "no model"
 
 
 class WateringStatusSensor(SensorEntity):
@@ -684,6 +845,59 @@ def _is_finite_number(value: object) -> bool:
         return math.isfinite(float(value))  # type: ignore[arg-type]
     except (TypeError, ValueError):
         return False
+
+
+def _finite_float(value: object) -> float | None:
+    """Return a finite float, or None."""
+    if not _is_finite_number(value):
+        return None
+    return float(value)  # type: ignore[arg-type]
+
+
+def _overall_confidence(confidence: dict[str, object]) -> float | None:
+    """Average finite confidence values."""
+    values = [
+        max(0.0, min(1.0, float(value)))
+        for value in confidence.values()
+        if _is_finite_number(value)
+    ]
+    if not values:
+        return None
+    return round(sum(values) / len(values), 6)
+
+
+def _bootstrap_summary(days: float | None) -> str | None:
+    """Human-readable bootstrap summary."""
+    if days is None:
+        return None
+    return f"Learned from {days:g} days of history"
+
+
+def _dict_attr(source: dict | None, key: str) -> dict | None:
+    """Return a nested dict attribute from a decision explanation."""
+    value = source.get(key) if source is not None else None
+    return value if isinstance(value, dict) else None
+
+
+def _list_attr(source: dict | None, key: str) -> list | None:
+    """Return a nested list attribute from a decision explanation."""
+    value = source.get(key) if source is not None else None
+    return value if isinstance(value, list) else None
+
+
+def _number_attr(source: dict | None, key: str) -> float | None:
+    """Return a finite numeric attribute from a decision explanation."""
+    value = source.get(key) if source is not None else None
+    return _finite_float(value)
+
+
+def _predicted_critical_theta(explanation: dict | None) -> float | None:
+    """Return the most useful predicted critical moisture value."""
+    if explanation is None:
+        return None
+    return _number_attr(
+        explanation, "predicted_critical_theta_with_water"
+    ) or _number_attr(explanation, "predicted_critical_theta_without_water")
 
 
 # The learned parameters surfaced as read-only per-zone sensors.

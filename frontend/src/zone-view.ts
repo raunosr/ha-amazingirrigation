@@ -52,6 +52,47 @@ export interface LearnedValue {
   samples: number | null;
 }
 
+/** One learned water-balance parameter with explainable units/confidence. */
+export interface ModelParameter {
+  key: string;
+  label: string;
+  value: number | null;
+  unit: string | null;
+  confidence: number | null;
+}
+
+/** One term in the water-balance prediction, in moisture percentage points. */
+export interface WaterBalanceTerm {
+  key: string;
+  label: string;
+  value: number;
+  unit: string;
+}
+
+/** Latest predictive decision explanation, normalized for display. */
+export interface ModelDecisionExplanation {
+  terms: WaterBalanceTerm[];
+  predictedTrajectory: number[];
+  horizonHours: number | null;
+  predictiveReason: string | null;
+  chosenLiters: number | null;
+  predictedCriticalTheta: number | null;
+  predictedPeakTheta: number | null;
+}
+
+/** Diagnostic model section surfaced by the Model Insight sensor. */
+export interface ModelInsight {
+  entityId: string;
+  status: string | null;
+  parameters: ModelParameter[];
+  overallConfidence: number | null;
+  bootstrappedDays: number | null;
+  bootstrapSummary: string | null;
+  modelUpdated: string | null;
+  totalLiters: number | null;
+  decisionExplanation: ModelDecisionExplanation | null;
+}
+
 /** A live, editable tunable backed by a native entity (number/switch). */
 export interface ControlEntity {
   entityId: string;
@@ -89,6 +130,7 @@ export interface ZoneView {
   maxLitersControl: ControlEntity | null;
   enabledControl: ControlEntity | null;
   learningControl: ControlEntity | null;
+  modelInsight: ModelInsight | null;
 }
 
 function num(value: unknown): number | null {
@@ -217,6 +259,28 @@ const LEARNED_DEFS: Array<{ key: string; label: string }> = [
   { key: "learned_wilting_point", label: "Wilting Point" },
 ];
 
+const MODEL_PARAMETER_DEFS: Array<{ key: string; label: string }> = [
+  { key: "eta_irr", label: "Irrigation Efficiency" },
+  { key: "eta_rain", label: "Rain Efficiency" },
+  { key: "k_et", label: "ET Coefficient" },
+  { key: "drain_rate", label: "Drainage Rate" },
+  { key: "field_capacity", label: "Field Capacity" },
+  { key: "wilting_point", label: "Wilting Point" },
+];
+
+const TERM_LABELS: Record<string, string> = {
+  irrigation: "Irrigation added",
+  rain: "Rain added",
+  et: "Evapotranspiration loss",
+  drainage: "Drainage loss",
+};
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
 /** Build the learned-model rows for a zone from its learned sensors. */
 function buildLearned(
   slug: string,
@@ -240,6 +304,145 @@ function buildLearned(
     });
   }
   return out;
+}
+
+function numericList(value: unknown): number[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.map(num).filter((item): item is number => item !== null);
+}
+
+function buildModelParameters(
+  attrs: Record<string, unknown>,
+): ModelParameter[] {
+  const source = asRecord(attrs["parameters"]);
+  const confidence = asRecord(attrs["confidence"]);
+  if (!source) {
+    return [];
+  }
+  return MODEL_PARAMETER_DEFS.map((def) => {
+    const raw = asRecord(source[def.key]);
+    if (!raw) {
+      return null;
+    }
+    return {
+      key: def.key,
+      label: typeof raw["name"] === "string" ? raw["name"] : def.label,
+      value: num(raw["value"]),
+      unit: typeof raw["unit"] === "string" ? raw["unit"] : null,
+      confidence: num(raw["confidence"]) ?? num(confidence?.[def.key]),
+    };
+  }).filter(
+    (item): item is ModelParameter =>
+      item !== null && (item.value !== null || item.confidence !== null),
+  );
+}
+
+function buildTerms(source: Record<string, unknown> | null): WaterBalanceTerm[] {
+  const terms = asRecord(source?.["water_balance_terms"]) ?? asRecord(source?.["terms"]);
+  if (!terms) {
+    return [];
+  }
+  return Object.entries(terms)
+    .map(([key, value]) => {
+      const parsed = num(value);
+      if (parsed === null) {
+        return null;
+      }
+      return {
+        key,
+        label: TERM_LABELS[key] ?? key.replace(/_/g, " "),
+        value: parsed,
+        unit: "%",
+      };
+    })
+    .filter((item): item is WaterBalanceTerm => item !== null);
+}
+
+function buildDecisionExplanation(
+  insightAttrs: Record<string, unknown>,
+  decisionAttrs: Record<string, unknown>,
+): ModelDecisionExplanation | null {
+  const explanation =
+    asRecord(insightAttrs["decision_explanation"]) ??
+    asRecord(decisionAttrs["explanation"]);
+  const termSource = { ...(explanation ?? {}), ...insightAttrs };
+  const terms = buildTerms(termSource);
+  const predictedTrajectory =
+    numericList(insightAttrs["predicted_trajectory"]).length > 0
+      ? numericList(insightAttrs["predicted_trajectory"])
+      : numericList(decisionAttrs["predicted_trajectory"]).length > 0
+        ? numericList(decisionAttrs["predicted_trajectory"])
+        : numericList(explanation?.["predicted_trajectory"]);
+  const horizonHours =
+    num(insightAttrs["horizon_hours"]) ??
+    num(decisionAttrs["horizon_hours"]) ??
+    num(explanation?.["horizon_hours"]);
+  const chosenLiters =
+    num(insightAttrs["chosen_liters"]) ??
+    num(explanation?.["chosen_liters"]) ??
+    num(decisionAttrs["recommended_liters"]);
+  const predictedCriticalTheta =
+    num(insightAttrs["predicted_critical_theta"]) ??
+    num(explanation?.["predicted_critical_theta_with_water"]) ??
+    num(explanation?.["predicted_critical_theta_without_water"]);
+  const predictedPeakTheta =
+    num(insightAttrs["predicted_peak_theta"]) ??
+    num(explanation?.["predicted_peak_theta"]);
+  if (
+    !terms.length &&
+    !predictedTrajectory.length &&
+    horizonHours === null &&
+    chosenLiters === null
+  ) {
+    return null;
+  }
+  return {
+    terms,
+    predictedTrajectory,
+    horizonHours,
+    predictiveReason: (decisionAttrs["reason"] as string | undefined) ?? null,
+    chosenLiters,
+    predictedCriticalTheta,
+    predictedPeakTheta,
+  };
+}
+
+function buildModelInsight(
+  slug: string,
+  states: Record<string, HassState | undefined>,
+  decisionAttrs: Record<string, unknown>,
+): ModelInsight | null {
+  const entityId = `sensor.${slug}_model_insight`;
+  const state = stateOf(states, entityId);
+  const attrs = state?.attributes ?? {};
+  const parameters = buildModelParameters(attrs);
+  const decisionExplanation = buildDecisionExplanation(attrs, decisionAttrs);
+  const bootstrappedDays = num(attrs["bootstrapped_days"]);
+  const bootstrapSummary =
+    typeof attrs["bootstrap_summary"] === "string"
+      ? attrs["bootstrap_summary"]
+      : null;
+  if (
+    !parameters.length &&
+    decisionExplanation === null &&
+    bootstrappedDays === null
+  ) {
+    return null;
+  }
+  return {
+    entityId,
+    status: isUnavailable(state) ? null : (state?.state ?? null),
+    parameters,
+    overallConfidence: num(attrs["overall_confidence"]),
+    bootstrappedDays,
+    bootstrapSummary,
+    modelUpdated:
+      typeof attrs["model_updated"] === "string" ? attrs["model_updated"] : null,
+    totalLiters: num(attrs["total_liters"]),
+    decisionExplanation,
+  };
 }
 
 /** Build the two schedule slots from their native time + switch entities. */
@@ -377,6 +580,7 @@ export function buildZoneView(
       `switch.${slug}_learning_enabled`,
       "Learning Enabled",
     ),
+    modelInsight: buildModelInsight(slug, states, decisionAttrs),
   };
 }
 

@@ -102,7 +102,11 @@ class ZoneLearner:
 
     def _climate(self) -> Climate | None:
         """Current ET climate inputs for the estimator, if any are available."""
-        if self.zone.greenhouse:
+        prefer_greenhouse = (
+            self.zone.et_source == "greenhouse"
+            or (self.zone.et_source == "auto" and self.zone.greenhouse)
+        )
+        if prefer_greenhouse:
             temperature_entity = (
                 self.zone.temperature_sensor or self.zone.observed_air_temperature
             )
@@ -128,7 +132,9 @@ class ZoneLearner:
     def _ensure_estimator(self, state: ZoneState) -> JointEstimator:
         """Create the per-zone estimator from persisted params/covariance."""
         if self._estimator is None:
-            prior = params_from_state(state) or default_params("loam")
+            prior = params_from_state(state, soil_type=self.zone.soil_type) or default_params(
+                self.zone.soil_type
+            )
             self._estimator = JointEstimator(
                 prior_params=prior,
                 prior_cov=state.model_covariance,

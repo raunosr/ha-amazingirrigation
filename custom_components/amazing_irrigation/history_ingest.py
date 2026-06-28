@@ -313,24 +313,16 @@ async def async_bootstrap_zone(
     observations = assemble_observations(
         moisture,
         rain_series=rain,
-        temp_series=_first_series(
-            history,
-            zone.observed_air_temperature,
-            zone.temperature_sensor,
-            zone.forecast_air_temperature,
-        ),
-        humidity_series=_first_series(
-            history,
-            zone.observed_air_humidity,
-            zone.humidity_sensor,
-            zone.forecast_air_humidity,
-        ),
+        temp_series=_first_series(history, *_temperature_candidates(zone)),
+        humidity_series=_first_series(history, *_humidity_candidates(zone)),
         wind_series=_series_for(history, zone.wind_speed),
         solar_series=_series_for(history, zone.solar_radiation),
         irrigation_events=detect_irrigation_events(moisture, rain_series=rain),
         protected_rain=protected,
     )
-    prior = params_from_state(state) or default_params("loam")
+    prior = params_from_state(state, soil_type=zone.soil_type) or default_params(
+        zone.soil_type
+    )
     result = bootstrap_from_series(
         prior,
         observations,
@@ -458,6 +450,43 @@ def _first_series(
         if series:
             return series
     return None
+
+
+def _prefer_greenhouse_climate(zone: ZoneConfig) -> bool:
+    """Whether climate history should prefer greenhouse-local sensors."""
+    return zone.et_source == "greenhouse" or (
+        zone.et_source == "auto" and zone.greenhouse
+    )
+
+
+def _temperature_candidates(zone: ZoneConfig) -> tuple[str | None, ...]:
+    """Temperature history candidates ordered by the zone's ET source preference."""
+    if _prefer_greenhouse_climate(zone):
+        return (
+            zone.temperature_sensor,
+            zone.observed_air_temperature,
+            zone.forecast_air_temperature,
+        )
+    return (
+        zone.forecast_air_temperature,
+        zone.observed_air_temperature,
+        zone.temperature_sensor,
+    )
+
+
+def _humidity_candidates(zone: ZoneConfig) -> tuple[str | None, ...]:
+    """Humidity history candidates ordered by the zone's ET source preference."""
+    if _prefer_greenhouse_climate(zone):
+        return (
+            zone.humidity_sensor,
+            zone.observed_air_humidity,
+            zone.forecast_air_humidity,
+        )
+    return (
+        zone.forecast_air_humidity,
+        zone.observed_air_humidity,
+        zone.humidity_sensor,
+    )
 
 
 def _zone_overrides(zone: ZoneConfig) -> dict[str, float]:

@@ -9,8 +9,12 @@ from custom_components.amazing_irrigation.const import (
     CONF_MOISTURE_SENSORS,
     CONF_NAME,
     CONF_ZONES,
+    DATA_LEARNERS,
+    DATA_ZONE_STATE,
     DOMAIN,
 )
+from custom_components.amazing_irrigation.state import apply_model_to_state
+from custom_components.amazing_irrigation.waterbalance import WaterBalanceParams
 
 
 async def _setup_zone(hass: HomeAssistant, sensors: list[str]) -> MockConfigEntry:
@@ -79,6 +83,71 @@ async def test_zone_moisture_tracks_source_updates(hass: HomeAssistant) -> None:
     await hass.async_block_till_done()
 
     assert float(hass.states.get("sensor.herb_bed_zone_moisture").state) == 20.0
+
+
+async def test_model_insight_sensor_exposes_explainability(
+    hass: HomeAssistant,
+) -> None:
+    """Model Insight carries parameters, confidence and latest explanation."""
+    hass.states.async_set("sensor.a", "40.0")
+    entry = await _setup_zone(hass, ["sensor.a"])
+    store = hass.data[DOMAIN][entry.entry_id][DATA_ZONE_STATE]
+    zone_state = store.get("abc123")
+    zone_state.learning_enabled = True
+    zone_state.bootstrapped_days = 7.5
+    zone_state.total_liters = 123.456
+    zone_state.decision_explanation = {
+        "terms": {"irrigation": 2.0, "rain": 0.5, "et": -0.2, "drainage": -0.1},
+        "predicted_trajectory": [38.0, 39.5],
+        "horizon_hours": 2.0,
+        "chosen_liters": 1.0,
+        "predicted_critical_theta_with_water": 38.0,
+        "predicted_peak_theta": 39.5,
+    }
+    apply_model_to_state(
+        zone_state,
+        WaterBalanceParams(1.5, 0.9, 0.65, 0.14, 50.0, 18.0),
+        {"eta_irr": 0.8, "eta_rain": 0.6, "k_et": 0.7, "drain_rate": 0.5},
+        updated="2026-06-28T12:00:00+00:00",
+    )
+    learner = hass.data[DOMAIN][entry.entry_id][DATA_LEARNERS]["abc123"]
+    for listener in list(learner._listeners):  # noqa: SLF001
+        listener()
+    await hass.async_block_till_done()
+
+    state = hass.states.get("sensor.herb_bed_model_insight")
+    assert state is not None
+    assert state.state == "65% confidence"
+    attrs = state.attributes
+    assert attrs["parameters"]["eta_irr"]["name"] == "Irrigation Efficiency"
+    assert attrs["parameters"]["eta_irr"]["value"] == 1.5
+    assert attrs["parameters"]["eta_irr"]["confidence"] == 0.8
+    assert attrs["overall_confidence"] == 0.65
+    assert attrs["bootstrapped_days"] == 7.5
+    assert attrs["bootstrap_summary"] == "Learned from 7.5 days of history"
+    assert attrs["decision_explanation"]["chosen_liters"] == 1.0
+    assert attrs["water_balance_terms"]["irrigation"] == 2.0
+    assert attrs["predicted_trajectory"] == [38.0, 39.5]
+    assert attrs["horizon_hours"] == 2.0
+    assert attrs["predicted_critical_theta"] == 38.0
+    assert attrs["predicted_peak_theta"] == 39.5
+    assert attrs["model_updated"] == "2026-06-28T12:00:00+00:00"
+    assert attrs["total_liters"] == 123.456
+
+
+async def test_model_insight_sensor_handles_missing_model(
+    hass: HomeAssistant,
+) -> None:
+    """Model Insight has a sensible empty state before learning has a model."""
+    hass.states.async_set("sensor.a", "40.0")
+    await _setup_zone(hass, ["sensor.a"])
+
+    state = hass.states.get("sensor.herb_bed_model_insight")
+    assert state is not None
+    assert state.state == "no model"
+    assert state.attributes["parameters"]["eta_irr"]["value"] is None
+    assert state.attributes["overall_confidence"] is None
+    assert state.attributes["decision_explanation"] is None
 
 
 async def test_run_button_created_without_stop_when_no_actuator(

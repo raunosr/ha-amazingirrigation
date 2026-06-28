@@ -21,12 +21,16 @@ CONF_SAFETY_BLOCKERS = "safety_blockers"
 
 # Decision-tuning keys (used by the Irrigation Decision engine).
 CONF_TARGET_MOISTURE = "target_moisture"
+CONF_TARGET_MOISTURE_LOW = "target_moisture_low"
+CONF_TARGET_MOISTURE_HIGH = "target_moisture_high"
 CONF_MAX_LITERS = "max_liters"
 CONF_GAIN_PER_LITER = "gain_per_liter"
 CONF_RAIN_SKIP_MM = "rain_skip_mm"
 CONF_RAIN_SKIP_PROBABILITY = "rain_skip_probability"
 CONF_SEASON_START = "season_start"
 CONF_SEASON_END = "season_end"
+CONF_ET_SOURCE = "et_source"
+CONF_SOIL_TYPE = "soil_type"
 
 # Advanced per-zone calibration keys (visible, manually set in this slice).
 CONF_FIELD_CAPACITY = "field_capacity"
@@ -102,6 +106,9 @@ EVENT_WATERING = "amazing_irrigation_watering"
 
 # hass.data[DOMAIN][entry_id] sub-key holding decision sensor entities by id.
 DATA_DECISION_ENTITIES = "decision_entities"
+
+# hass.data[DOMAIN][entry_id] sub-key holding Model Insight sensors by zone_id.
+DATA_MODEL_INSIGHT_ENTITIES = "model_insight_entities"
 
 # hass.data[DOMAIN][entry_id] sub-key holding WateringController by zone_id.
 DATA_CONTROLLERS = "controllers"

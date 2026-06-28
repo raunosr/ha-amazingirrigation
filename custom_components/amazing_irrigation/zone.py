@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 
 from .const import (
     CONF_ENABLED,
+    CONF_ET_SOURCE,
     CONF_FIELD_CAPACITY,
     CONF_FORECAST_AIR_HUMIDITY,
     CONF_FORECAST_AIR_TEMPERATURE,
@@ -38,8 +39,11 @@ from .const import (
     CONF_SCHEDULE_WEEKDAYS,
     CONF_SEASON_END,
     CONF_SEASON_START,
+    CONF_SOIL_TYPE,
     CONF_SOLAR_RADIATION,
     CONF_TARGET_MOISTURE,
+    CONF_TARGET_MOISTURE_HIGH,
+    CONF_TARGET_MOISTURE_LOW,
     CONF_TEMPERATURE_SENSOR,
     CONF_WILTING_POINT,
     CONF_WIND_SPEED,
@@ -105,6 +109,8 @@ class ZoneConfig:
     observed_rain_amount: str | None = None
     safety_blockers: list[str] = field(default_factory=list)
     target_moisture: float | None = DEFAULT_TARGET_MOISTURE
+    target_moisture_low: float | None = None
+    target_moisture_high: float | None = None
     max_liters: float = DEFAULT_MAX_LITERS
     gain_per_liter: float | None = None
     rain_skip_mm: float = DEFAULT_RAIN_SKIP_MM
@@ -117,6 +123,8 @@ class ZoneConfig:
     field_capacity: float | None = None
     wilting_point: float | None = None
     learning_enabled: bool = False
+    et_source: str = "auto"
+    soil_type: str = "loam"
     greenhouse: bool = False
     protected_rain: bool = False
     temperature_sensor: str | None = None
@@ -140,6 +148,8 @@ class ZoneConfig:
             observed_rain_amount=record.get(CONF_OBSERVED_RAIN_AMOUNT) or None,
             safety_blockers=list(record.get(CONF_SAFETY_BLOCKERS, []) or []),
             target_moisture=_as_float(record.get(CONF_TARGET_MOISTURE), DEFAULT_TARGET_MOISTURE),
+            target_moisture_low=_as_float(record.get(CONF_TARGET_MOISTURE_LOW), None),
+            target_moisture_high=_as_float(record.get(CONF_TARGET_MOISTURE_HIGH), None),
             max_liters=_as_float(record.get(CONF_MAX_LITERS), DEFAULT_MAX_LITERS),
             gain_per_liter=_as_float(record.get(CONF_GAIN_PER_LITER), None),
             rain_skip_mm=_as_float(record.get(CONF_RAIN_SKIP_MM), DEFAULT_RAIN_SKIP_MM),
@@ -154,6 +164,8 @@ class ZoneConfig:
             field_capacity=_as_float(record.get(CONF_FIELD_CAPACITY), None),
             wilting_point=_as_float(record.get(CONF_WILTING_POINT), None),
             learning_enabled=bool(record.get(CONF_LEARNING_ENABLED, False)),
+            et_source=_select(record.get(CONF_ET_SOURCE), {"auto", "weather", "greenhouse"}, "auto"),
+            soil_type=_select(record.get(CONF_SOIL_TYPE), {"loam", "sand", "clay"}, "loam"),
             greenhouse=bool(record.get(CONF_GREENHOUSE, False)),
             protected_rain=bool(record.get(CONF_PROTECTED_RAIN, False)),
             temperature_sensor=record.get(CONF_TEMPERATURE_SENSOR) or None,
@@ -179,6 +191,14 @@ def _as_float(value: object, default: float | None) -> float | None:
         return float(value)  # type: ignore[arg-type]
     except (TypeError, ValueError):
         return default
+
+
+def _select(value: object, allowed: set[str], default: str) -> str:
+    """Return a stored select value when allowed, otherwise the default."""
+    if not isinstance(value, str):
+        return default
+    normalized = value.strip().lower()
+    return normalized if normalized in allowed else default
 
 
 def _parse_md(value: str | None) -> tuple[int, int] | None:

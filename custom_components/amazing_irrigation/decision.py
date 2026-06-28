@@ -18,7 +18,7 @@ from datetime import datetime, timedelta
 from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 
-from .controller import ForecastInterval, band_from_target
+from .controller import ForecastInterval, TargetBand, band_from_target
 from .engine import Decision, DecisionInputs, decide
 from .state import ZoneState, params_from_state
 from .waterbalance import Climate
@@ -27,6 +27,9 @@ from .zone import ZoneConfig, aggregate_zone_moisture, is_in_season
 _INVALID_STATES = ("unknown", "unavailable", "", None)
 _DEFAULT_HORIZON_HOURS = 24.0
 _MAX_HORIZON_STEP_HOURS = 1.0
+_ET_SOURCE_AUTO = "auto"
+_ET_SOURCE_WEATHER = "weather"
+_ET_SOURCE_GREENHOUSE = "greenhouse"
 
 
 def read_number(hass: HomeAssistant, entity_id: str | None) -> float | None:
@@ -67,23 +70,62 @@ def _gain_per_liter(zone: ZoneConfig, state: ZoneState | None) -> float | None:
     return zone.gain_per_liter
 
 
+def _climate_preference(zone: ZoneConfig) -> str:
+    """Return the ET climate source preference resolved for this zone."""
+    if zone.et_source == _ET_SOURCE_GREENHOUSE:
+        return _ET_SOURCE_GREENHOUSE
+    if zone.et_source == _ET_SOURCE_WEATHER:
+        return _ET_SOURCE_WEATHER
+    return _ET_SOURCE_GREENHOUSE if zone.greenhouse else _ET_SOURCE_WEATHER
+
+
+def _temperature_candidates(zone: ZoneConfig) -> tuple[str | None, ...]:
+    """Preferred temperature entities for the zone's configured ET source."""
+    if _climate_preference(zone) == _ET_SOURCE_GREENHOUSE:
+        return (
+            zone.temperature_sensor,
+            zone.observed_air_temperature,
+            zone.forecast_air_temperature,
+        )
+    return (
+        zone.forecast_air_temperature,
+        zone.observed_air_temperature,
+        zone.temperature_sensor,
+    )
+
+
+def _humidity_candidates(zone: ZoneConfig) -> tuple[str | None, ...]:
+    """Preferred humidity entities for the zone's configured ET source."""
+    if _climate_preference(zone) == _ET_SOURCE_GREENHOUSE:
+        return (
+            zone.humidity_sensor,
+            zone.observed_air_humidity,
+            zone.forecast_air_humidity,
+        )
+    return (
+        zone.forecast_air_humidity,
+        zone.observed_air_humidity,
+        zone.humidity_sensor,
+    )
+
+
+def _first_number(hass: HomeAssistant, entity_ids: tuple[str | None, ...]) -> float | None:
+    """Return the first numeric value among preferred entity ids."""
+    for entity_id in entity_ids:
+        value = read_number(hass, entity_id)
+        if value is not None:
+            return value
+    return None
+
+
 def _climate_from_entities(hass: HomeAssistant, zone: ZoneConfig) -> Climate | None:
     """Build a scalar forecast climate, falling back to observed sensors.
 
     Home Assistant exposes scalar forecast entities here rather than a full time
     series, so the same climate is held constant across every horizon step.
     """
-    temp = read_number(hass, zone.forecast_air_temperature)
-    if temp is None:
-        temp = read_number(hass, zone.observed_air_temperature)
-    if temp is None:
-        temp = read_number(hass, zone.temperature_sensor)
-
-    humidity = read_number(hass, zone.forecast_air_humidity)
-    if humidity is None:
-        humidity = read_number(hass, zone.observed_air_humidity)
-    if humidity is None:
-        humidity = read_number(hass, zone.humidity_sensor)
+    temp = _first_number(hass, _temperature_candidates(zone))
+    humidity = _first_number(hass, _humidity_candidates(zone))
 
     wind = read_number(hass, zone.wind_speed)
     solar = read_number(hass, zone.solar_radiation)
@@ -175,7 +217,7 @@ def _predictive_kwargs(
         or target_moisture is None
     ):
         return {}
-    params = params_from_state(state)
+    params = params_from_state(state, soil_type=zone.soil_type)
     if params is None:
         return {}
     horizon = _forecast_horizon(hass, zone, state, now)
@@ -185,11 +227,26 @@ def _predictive_kwargs(
         "predictive": True,
         "params": params,
         "horizon": horizon,
-        "target_band": band_from_target(
-            target_moisture,
-            field_capacity=params.field_capacity,
-        ),
+        "target_band": _target_band(zone, target_moisture, params.field_capacity),
     }
+
+
+def _target_band(
+    zone: ZoneConfig, target_moisture: float | None, field_capacity: float | None
+) -> TargetBand:
+    """Return an explicit configured target range, or the derived Slice E band."""
+    band = band_from_target(target_moisture, field_capacity=field_capacity)
+    low = zone.target_moisture_low
+    high = zone.target_moisture_high
+    if low is None and high is None:
+        return band
+    explicit = TargetBand(
+        low=band.low if low is None else max(0.0, min(100.0, float(low))),
+        high=band.high if high is None else max(0.0, min(100.0, float(high))),
+    )
+    if explicit.high < explicit.low:
+        return TargetBand(explicit.low, explicit.low)
+    return explicit
 
 
 def build_inputs(
@@ -214,6 +271,8 @@ def build_inputs(
         target_moisture = state.target_moisture
         max_liters = state.max_liters
         enabled = state.enabled
+    if zone.target_moisture_low is not None:
+        target_moisture = zone.target_moisture_low
     predictive = _predictive_kwargs(hass, zone, state, target_moisture, now)
 
     return DecisionInputs(
