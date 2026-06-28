@@ -33,6 +33,12 @@ CONF_FIELD_CAPACITY = "field_capacity"
 CONF_WILTING_POINT = "wilting_point"
 CONF_LEARNING_ENABLED = "learning_enabled"
 
+# Greenhouse Zone keys (a zone subtype with protected-environment context).
+CONF_GREENHOUSE = "greenhouse"
+CONF_PROTECTED_RAIN = "protected_rain"
+CONF_TEMPERATURE_SENSOR = "temperature_sensor"
+CONF_HUMIDITY_SENSOR = "humidity_sensor"
+
 # Bounded Irrigation History size kept per zone for explainability.
 HISTORY_LIMIT = 50
 

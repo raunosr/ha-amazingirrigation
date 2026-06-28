@@ -6,11 +6,17 @@ from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.amazing_irrigation.const import (
+    CONF_GREENHOUSE,
+    CONF_HUMIDITY_SENSOR,
     CONF_MAX_LITERS,
     CONF_MOISTURE_SENSORS,
     CONF_NAME,
+    CONF_OBSERVED_RAIN_AMOUNT,
+    CONF_PROTECTED_RAIN,
+    CONF_RAIN_SKIP_MM,
     CONF_SAFETY_BLOCKERS,
     CONF_TARGET_MOISTURE,
+    CONF_TEMPERATURE_SENSOR,
     CONF_ZONES,
     DOMAIN,
     EVENT_DECISION,
@@ -85,6 +91,39 @@ async def test_decision_sensor_fails_closed_on_safety_blocker(
     state = hass.states.get("sensor.herb_bed_irrigation_decision")
     assert state.state == "skip"
     assert state.attributes["reason"] == "safety_blocker"
+
+
+async def test_greenhouse_zone_exposes_context_and_ignores_rain(
+    hass: HomeAssistant,
+) -> None:
+    hass.states.async_set("sensor.a", "20.0")
+    hass.states.async_set("sensor.rain", "20.0")  # heavy rain
+    hass.states.async_set("sensor.temp", "27.4")
+    hass.states.async_set("sensor.hum", "65")
+    await _setup(
+        hass,
+        {
+            CONF_NAME: "Greenhouse",
+            CONF_MOISTURE_SENSORS: ["sensor.a"],
+            CONF_TARGET_MOISTURE: 40,
+            CONF_MAX_LITERS: 30,
+            CONF_OBSERVED_RAIN_AMOUNT: "sensor.rain",
+            CONF_RAIN_SKIP_MM: 3,
+            CONF_GREENHOUSE: True,
+            CONF_PROTECTED_RAIN: True,
+            CONF_TEMPERATURE_SENSOR: "sensor.temp",
+            CONF_HUMIDITY_SENSOR: "sensor.hum",
+        },
+    )
+
+    state = hass.states.get("sensor.greenhouse_irrigation_decision")
+    assert state is not None
+    # Protected from rain, so heavy rain does not skip watering.
+    assert state.state == "water"
+    assert state.attributes["greenhouse"] is True
+    assert state.attributes["protected_rain"] is True
+    assert state.attributes["temperature"] == 27.4
+    assert state.attributes["humidity"] == 65.0
 
 
 async def test_decision_sensor_tracks_input_changes(hass: HomeAssistant) -> None:

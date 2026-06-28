@@ -1,10 +1,12 @@
 import { describe, it, expect } from "vitest";
 
 import {
+  buildOverview,
   buildZoneView,
   canRun,
   canStop,
   type HassState,
+  type OverviewCardConfig,
   type ZoneCardConfig,
 } from "../src/zone-view";
 
@@ -89,6 +91,73 @@ describe("buildZoneView", () => {
       }),
     );
     expect(view.decision).toBeNull();
+  });
+});
+
+describe("greenhouse context", () => {
+  it("exposes greenhouse, protected-rain, temperature and humidity", () => {
+    const view = buildZoneView(
+      config,
+      states({
+        "sensor.herb_decision": {
+          state: "water",
+          attributes: {
+            reason: "below_target",
+            greenhouse: true,
+            protected_rain: true,
+            temperature: 27.4,
+            humidity: 65,
+          },
+        },
+      }),
+    );
+    expect(view.greenhouse).toBe(true);
+    expect(view.protectedRain).toBe(true);
+    expect(view.temperature).toBe(27.4);
+    expect(view.humidity).toBe(65);
+  });
+
+  it("defaults greenhouse fields off for normal zones", () => {
+    const view = buildZoneView(config, states());
+    expect(view.greenhouse).toBe(false);
+    expect(view.protectedRain).toBe(false);
+    expect(view.temperature).toBeNull();
+    expect(view.humidity).toBeNull();
+  });
+});
+
+describe("buildOverview", () => {
+  it("builds a view model per configured zone", () => {
+    const overview: OverviewCardConfig = {
+      type: "custom:amazing-irrigation-overview-card",
+      title: "Garden",
+      zones: [
+        config,
+        {
+          type: "x",
+          decision_entity: "sensor.green_decision",
+          name: "Greenhouse",
+        },
+      ],
+    };
+    const all = states({
+      "sensor.green_decision": {
+        state: "skip",
+        attributes: { greenhouse: true, protected_rain: true },
+      },
+    });
+    const views = buildOverview(overview, all);
+    expect(views).toHaveLength(2);
+    expect(views[0].name).toBe("Herb Bed");
+    expect(views[1].name).toBe("Greenhouse");
+    expect(views[1].greenhouse).toBe(true);
+    expect(views[1].decision).toBe("skip");
+  });
+
+  it("returns an empty list when no zones are configured", () => {
+    expect(
+      buildOverview({ type: "x", zones: [] } as OverviewCardConfig, {}),
+    ).toEqual([]);
   });
 });
 

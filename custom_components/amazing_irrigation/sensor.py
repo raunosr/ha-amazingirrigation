@@ -169,6 +169,8 @@ class IrrigationDecisionSensor(SensorEntity):
             self._zone.forecast_rain_amount,
             self._zone.forecast_rain_probability,
             self._zone.observed_rain_amount,
+            self._zone.temperature_sensor,
+            self._zone.humidity_sensor,
         ):
             if entity_id:
                 tracked.append(entity_id)
@@ -239,6 +241,14 @@ class IrrigationDecisionSensor(SensorEntity):
                 None if available is None else round(available, 3)
             ),
             "learning_enabled": self._zone.learning_enabled,
+            "greenhouse": self._zone.greenhouse,
+            "protected_rain": self._zone.protected_rain,
+            "temperature": _read_moisture(self.hass, self._zone.temperature_sensor)
+            if self._zone.temperature_sensor
+            else None,
+            "humidity": _read_moisture(self.hass, self._zone.humidity_sensor)
+            if self._zone.humidity_sensor
+            else None,
             **decision.details,
         }
 

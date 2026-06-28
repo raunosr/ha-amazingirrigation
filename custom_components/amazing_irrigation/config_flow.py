@@ -39,6 +39,8 @@ from .const import (
     CONF_FORECAST_RAIN_AMOUNT,
     CONF_FORECAST_RAIN_PROBABILITY,
     CONF_GAIN_PER_LITER,
+    CONF_GREENHOUSE,
+    CONF_HUMIDITY_SENSOR,
     CONF_LEARNING_ENABLED,
     CONF_LINKTAP_FAILSAFE,
     CONF_LINKTAP_ID,
@@ -47,6 +49,7 @@ from .const import (
     CONF_MOISTURE_SENSORS,
     CONF_NAME,
     CONF_OBSERVED_RAIN_AMOUNT,
+    CONF_PROTECTED_RAIN,
     CONF_RAIN_SKIP_MM,
     CONF_RAIN_SKIP_PROBABILITY,
     CONF_SAFETY_BLOCKERS,
@@ -55,6 +58,7 @@ from .const import (
     CONF_SEASON_END,
     CONF_SEASON_START,
     CONF_TARGET_MOISTURE,
+    CONF_TEMPERATURE_SENSOR,
     CONF_VOLUME_FIELD,
     CONF_VOLUME_SENSOR,
     CONF_WATERING_SENSOR,
@@ -139,6 +143,18 @@ def _zone_schema() -> vol.Schema:
             vol.Optional(
                 CONF_LEARNING_ENABLED, default=False
             ): selector.BooleanSelector(),
+            vol.Optional(
+                CONF_GREENHOUSE, default=False
+            ): selector.BooleanSelector(),
+            vol.Optional(
+                CONF_PROTECTED_RAIN, default=False
+            ): selector.BooleanSelector(),
+            vol.Optional(CONF_TEMPERATURE_SENSOR): selector.EntitySelector(
+                selector.EntitySelectorConfig(domain=["sensor", "input_number"])
+            ),
+            vol.Optional(CONF_HUMIDITY_SENSOR): selector.EntitySelector(
+                selector.EntitySelectorConfig(domain=["sensor", "input_number"])
+            ),
             vol.Optional(CONF_SEASON_START): selector.TextSelector(),
             vol.Optional(CONF_SEASON_END): selector.TextSelector(),
             vol.Optional(CONF_ENABLED, default=True): selector.BooleanSelector(),
