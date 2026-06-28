@@ -49,11 +49,14 @@ history_entity: sensor.herb_bed_irrigation_history
 ```
 
 Only `decision_entity` is required; the other entities enrich the display. The
-card shows Zone Moisture, target, recommended Watering Volume, the latest
-Irrigation Decision and recent Irrigation History, and exposes Run, Force Water,
-and Stop controls. Stop appears only when the backend reports a stoppable run.
-The card never stores zone configuration — the integration remains the source of
-truth.
+card shows Zone Moisture, target, recommended Watering Volume, cumulative Total
+Watering Volume, the latest Irrigation Decision and recent Irrigation History,
+and surfaces the zone's settings, both schedule slots, its Learned Model
+(Moisture Gain per Liter, Daily Drying Rate, Rain Efficiency, Field Capacity,
+Wilting Point) and every referenced sensor — all discovered from the decision
+sensor, no extra config. It exposes Run, Force Water, and Stop controls; Stop
+appears only when the backend reports a stoppable run. The card never stores
+zone configuration — the integration remains the source of truth.
 
 ## Development
 

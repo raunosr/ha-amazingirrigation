@@ -69,7 +69,13 @@ Rain inputs are typed rather than arbitrary entities:
 | Safety blockers | Binary sensors that block watering when `on`. **Unavailable blockers block by default** (fail closed). The skip reason is recorded. |
 | Season start / end | Optional active watering season; out-of-season zones never run. |
 | Field capacity / wilting point | Advanced per-zone calibration that explains Target Available Water and learning. |
-| Learning enabled | Per-zone toggle. v1 collects observations and supports manual/visible calibration; automatic learning updates are gated behind this toggle. |
+| Learning enabled | Per-zone toggle. When on, Amazing Irrigation builds a Learned Model from observations (Moisture Gain per Liter, Daily Drying Rate, Rain Efficiency, bounded Field Capacity / Wilting Point) and feeds the learned gain into decisions, always bounded by safety limits with any manual value winning. When off, observations are still collected but never change decisions. |
+
+The Learned Model is exposed as five read-only **Learned …** sensors per zone
+(`sensor.<zone>_learned_moisture_gain_per_liter`, `…_learned_daily_drying_rate`,
+`…_learned_rain_efficiency`, `…_learned_field_capacity`, `…_learned_wilting_point`),
+and surfaced on the zone card. Each shows `learning…` until enough evidence is
+gathered.
 
 ### Greenhouse zones
 
@@ -147,13 +153,24 @@ standalone script for manual testing is in
 
 ## Scheduling
 
-v1 ships simple per-zone scheduling:
+Each zone has **two independent daily schedule slots**, editable live from the
+device page (and the zone card) as native entities — no options-flow reload:
 
-- **Schedule weekdays** — tokens `mon`…`sun`. An empty set means *every day*.
-- **Schedule times** — up to three start times, each picked with a time picker.
-- A zone with no start times is never auto-scheduled; manual and Force runs still
-  work.
+- **Schedule 1 / Schedule 2 Time** (`time.<zone>_schedule_1_time`,
+  `…_schedule_2_time`) — pick each slot's start time with a time picker.
+- **Schedule 1 / Schedule 2 Active** (`switch.<zone>_schedule_1_active`,
+  `…_schedule_2_active`) — toggle each slot on or off independently.
+- **Defaults:** a fresh zone has Schedule 1 = **21:00** and **active**, and
+  Schedule 2 = 21:00 but **inactive**, so it waters once each evening until you
+  change it. The scheduler fires only the **active** slots.
+- **Schedule weekdays** — tokens `mon`…`sun` (options flow). An empty set means
+  *every day*.
 - Disabled and out-of-season zones are skipped.
+
+Editing these native entities is the live source of truth; the options-flow
+schedule fields only seed their initial values. Target Moisture, Max Liters per
+Run, Zone Enabled and Learning Enabled are likewise exposed as native
+`number` / `switch` entities so they can be changed without an options reload.
 
 External Home Assistant automations may also create Run Requests by calling
 `amazing_irrigation.run_zone`. Keep such automations thin (schedule trigger →
@@ -192,6 +209,21 @@ card, the UI shows entity pickers:
   each selecting that zone's Decision sensor (and optional sensors).
 
 You can still switch to **Show code editor** for raw YAML if you prefer.
+
+The zone card surfaces the whole zone at a glance, discovering the zone's
+sibling entities from the Decision sensor (no extra config needed):
+
+- **Settings** — Target Moisture and Max Liters per Run (click to edit), plus
+  Zone Enabled / Learning Enabled toggles.
+- **Schedule** — both daily slots with their time and an independent Active
+  toggle each.
+- **Learned model** — the five learned parameters, shown as `learning…` until
+  enough evidence is gathered.
+- **Sensors** — every referenced source (moisture sensors, rain
+  forecast/observed, climate, safety blockers) with its live state.
+- **Total water** — cumulative Total Watering Volume for the zone.
+
+Click any row to open Home Assistant's more-info dialog and edit the value.
 
 > **After updating via HACS:** the resource URL is cache-busted per version, but
 > if the cards still show a loading spinner or "Custom element not found",

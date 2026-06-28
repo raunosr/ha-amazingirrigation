@@ -91,3 +91,28 @@ _Avoid_: Minimum moisture, dry limit
 **Learned Recommendation**:
 A watering recommendation derived from historical moisture, rain, and Watering Events, bounded by user-defined safety limits.
 _Avoid_: AI decision, automatic target
+
+**Zone State**:
+The per-zone persisted store holding live-editable tunables (target moisture, max liters, enabled, learning, and the two schedule slots), the Learned Model, and cumulative volume. It is the live source of truth that the scheduler and Irrigation Decision read; the config-entry options only seed its initial values.
+_Avoid_: Settings, config
+
+**Learned Model**:
+The set of values Amazing Irrigation learns for an Irrigation Zone over time — Moisture Gain per Liter, Daily Drying Rate, Rain Efficiency, and bounded Field Capacity / Wilting Point estimates — stored in the Zone State and used only when Learning is enabled, always bounded by safety limits and overridden by any manual value.
+_Avoid_: AI model, profile
+
+**Moisture Gain per Liter**:
+The rise in Zone Moisture observed per liter applied during a Confirmed Watering Event, learned as a bounded moving average.
+_Avoid_: Absorption rate
+
+**Daily Drying Rate**:
+The decline in Zone Moisture per day observed between Watering Events, learned as a bounded moving average.
+_Avoid_: Evaporation, drying model
+
+**Rain Efficiency**:
+The rise in Zone Moisture observed per millimeter of Observed Rain, learned as a bounded moving average.
+_Avoid_: Rain factor
+
+**Total Watering Volume**:
+The cumulative liters applied to an Irrigation Zone (or across the whole system) by every Confirmed Watering Event, exposed as a total-increasing sensor.
+_Avoid_: Water usage, consumption
+
