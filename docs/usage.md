@@ -144,7 +144,7 @@ standalone script for manual testing is in
 v1 ships simple per-zone scheduling:
 
 - **Schedule weekdays** — tokens `mon`…`sun`. An empty set means *every day*.
-- **Schedule times** — one or more `HH:MM` start times.
+- **Schedule times** — up to three start times, each picked with a time picker.
 - A zone with no start times is never auto-scheduled; manual and Force runs still
   work.
 - Disabled and out-of-season zones are skipped.
