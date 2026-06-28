@@ -20,6 +20,7 @@ from .const import (
     DATA_HISTORY,
     DATA_RAIN_WATCHERS,
     DATA_SCHEDULER,
+    DATA_ZONE_STATE,
     DOMAIN,
 )
 from .frontend_card import async_register_card
@@ -27,6 +28,7 @@ from .history import build_histories
 from .rain import build_rain_watchers
 from .scheduler import build_scheduler
 from .services import async_setup_services, async_unload_services
+from .state import ZoneStateStore
 from .watering import build_controllers
 
 _LOGGER = logging.getLogger(__name__)
@@ -39,6 +41,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Amazing Irrigation from a config entry."""
     domain_data = hass.data.setdefault(DOMAIN, {})
     zones = entry.options.get(CONF_ZONES, {})
+    zone_state = ZoneStateStore(hass, entry.entry_id)
+    await zone_state.async_load(zones)
     histories = build_histories(zones)
     controllers = build_controllers(hass, zones, histories)
     scheduler = build_scheduler(hass, controllers, entry.options)
@@ -48,6 +52,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         DATA_SCHEDULER: scheduler,
         DATA_HISTORY: histories,
         DATA_RAIN_WATCHERS: rain_watchers,
+        DATA_ZONE_STATE: zone_state,
     }
 
     if PLATFORMS:
