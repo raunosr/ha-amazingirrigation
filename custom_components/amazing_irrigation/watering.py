@@ -19,9 +19,9 @@ from homeassistant.util import dt as dt_util
 
 from .actuator import (
     ActuatorConfig,
-    async_execute,
-    build_start_call,
-    build_stop_call,
+    async_execute_all,
+    build_start_calls,
+    build_stop_calls,
 )
 from .const import EVENT_WATERING
 from .decision import evaluate_zone, read_number
@@ -145,8 +145,8 @@ class WateringController:
         # Bound the Watering Volume by safety limits BEFORE any actuator call.
         volume = bound_volume(decision.recommended_liters, self.zone.max_liters)
 
-        start_call = build_start_call(self.actuator, volume)
-        if start_call is None:
+        start_call = build_start_calls(self.actuator, volume)
+        if not start_call:
             event = WateringEvent(
                 WateringStatus.NO_ACTUATOR, requested_liters=volume
             )
@@ -157,7 +157,7 @@ class WateringController:
             self._volume_baseline = read_number(self.hass, self.actuator.volume_sensor)
 
         try:
-            await async_execute(self.hass, start_call)
+            await async_execute_all(self.hass, start_call)
         except Exception as err:  # noqa: BLE001 - record any actuator failure
             event = WateringEvent(
                 WateringStatus.FAILED, requested_liters=volume, reason=str(err)
@@ -267,8 +267,8 @@ class WateringController:
 
     async def async_stop(self) -> WateringEvent:
         """Stop watering if a stop path is configured."""
-        stop_call = build_stop_call(self.actuator)
-        if stop_call is None:
+        stop_call = build_stop_calls(self.actuator)
+        if not stop_call:
             return self.last_event
 
         measured = self.last_event.measured_liters
@@ -278,7 +278,7 @@ class WateringController:
                 measured = max(0.0, current - self._volume_baseline)
 
         try:
-            await async_execute(self.hass, stop_call)
+            await async_execute_all(self.hass, stop_call)
         except Exception as err:  # noqa: BLE001 - record any actuator failure
             event = WateringEvent(
                 WateringStatus.FAILED,

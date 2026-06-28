@@ -64,12 +64,28 @@ CONF_VOLUME_FIELD = "volume_field"
 CONF_WATERING_SENSOR = "watering_sensor"
 CONF_VOLUME_SENSOR = "volume_sensor"
 
+# LinkTap/MQTT actuator config keys.
+CONF_LINKTAP_TOPIC = "linktap_topic"
+CONF_LINKTAP_ID = "linktap_id"
+CONF_LINKTAP_FAILSAFE = "linktap_failsafe"
+
 # Actuator types.
 ACTUATOR_NONE = "none"
 ACTUATOR_SWITCH = "switch"
 ACTUATOR_SERVICE = "service"
 ACTUATOR_SCRIPT = "script"
-ACTUATOR_TYPES = [ACTUATOR_NONE, ACTUATOR_SWITCH, ACTUATOR_SERVICE, ACTUATOR_SCRIPT]
+ACTUATOR_LINKTAP = "linktap"
+ACTUATOR_TYPES = [
+    ACTUATOR_NONE,
+    ACTUATOR_SWITCH,
+    ACTUATOR_SERVICE,
+    ACTUATOR_SCRIPT,
+    ACTUATOR_LINKTAP,
+]
 
 # Default variable/field name used to inject the bounded Watering Volume.
 DEFAULT_VOLUME_FIELD = "volume"
+
+# LinkTap defaults matching the current MQTT script pattern.
+DEFAULT_LINKTAP_TOPIC = "/homeassistant/config_from_ha"
+DEFAULT_LINKTAP_FAILSAFE = 3600
