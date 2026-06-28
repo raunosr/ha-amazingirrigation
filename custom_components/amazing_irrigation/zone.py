@@ -16,10 +16,21 @@ from dataclasses import dataclass, field
 from .const import (
     CONF_FORECAST_RAIN_AMOUNT,
     CONF_FORECAST_RAIN_PROBABILITY,
+    CONF_GAIN_PER_LITER,
+    CONF_MAX_LITERS,
     CONF_MOISTURE_SENSORS,
     CONF_NAME,
     CONF_OBSERVED_RAIN_AMOUNT,
+    CONF_RAIN_SKIP_MM,
+    CONF_RAIN_SKIP_PROBABILITY,
     CONF_SAFETY_BLOCKERS,
+    CONF_SEASON_END,
+    CONF_SEASON_START,
+    CONF_TARGET_MOISTURE,
+    DEFAULT_MAX_LITERS,
+    DEFAULT_RAIN_SKIP_MM,
+    DEFAULT_RAIN_SKIP_PROBABILITY,
+    DEFAULT_TARGET_MOISTURE,
 )
 
 
@@ -77,6 +88,13 @@ class ZoneConfig:
     forecast_rain_probability: str | None = None
     observed_rain_amount: str | None = None
     safety_blockers: list[str] = field(default_factory=list)
+    target_moisture: float | None = DEFAULT_TARGET_MOISTURE
+    max_liters: float = DEFAULT_MAX_LITERS
+    gain_per_liter: float | None = None
+    rain_skip_mm: float = DEFAULT_RAIN_SKIP_MM
+    rain_skip_probability: float = DEFAULT_RAIN_SKIP_PROBABILITY
+    season_start: str | None = None
+    season_end: str | None = None
 
     @classmethod
     def from_record(cls, zone_id: str, record: dict) -> ZoneConfig:
@@ -89,4 +107,56 @@ class ZoneConfig:
             forecast_rain_probability=record.get(CONF_FORECAST_RAIN_PROBABILITY) or None,
             observed_rain_amount=record.get(CONF_OBSERVED_RAIN_AMOUNT) or None,
             safety_blockers=list(record.get(CONF_SAFETY_BLOCKERS, []) or []),
+            target_moisture=_as_float(record.get(CONF_TARGET_MOISTURE), DEFAULT_TARGET_MOISTURE),
+            max_liters=_as_float(record.get(CONF_MAX_LITERS), DEFAULT_MAX_LITERS),
+            gain_per_liter=_as_float(record.get(CONF_GAIN_PER_LITER), None),
+            rain_skip_mm=_as_float(record.get(CONF_RAIN_SKIP_MM), DEFAULT_RAIN_SKIP_MM),
+            rain_skip_probability=_as_float(
+                record.get(CONF_RAIN_SKIP_PROBABILITY), DEFAULT_RAIN_SKIP_PROBABILITY
+            ),
+            season_start=record.get(CONF_SEASON_START) or None,
+            season_end=record.get(CONF_SEASON_END) or None,
         )
+
+
+def _as_float(value: object, default: float | None) -> float | None:
+    """Coerce a stored value to float, falling back to a default."""
+    if value in (None, ""):
+        return default
+    try:
+        return float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return default
+
+
+def _parse_md(value: str | None) -> tuple[int, int] | None:
+    """Parse an ``MM-DD`` season boundary into a (month, day) tuple."""
+    if not value:
+        return None
+    try:
+        month, day = (int(part) for part in value.split("-", 1))
+    except (ValueError, AttributeError):
+        return None
+    if 1 <= month <= 12 and 1 <= day <= 31:
+        return (month, day)
+    return None
+
+
+def is_in_season(
+    season_start: str | None, season_end: str | None, month: int, day: int
+) -> bool:
+    """Whether (month, day) falls within the inclusive season window.
+
+    Both boundaries are ``MM-DD`` strings. A window that wraps the year end
+    (start later than end, e.g. ``11-01``..``02-28``) is supported. If either
+    boundary is missing or invalid, the zone is considered always in season.
+    """
+    start = _parse_md(season_start)
+    end = _parse_md(season_end)
+    if start is None or end is None:
+        return True
+    today = (month, day)
+    if start <= end:
+        return start <= today <= end
+    # Wrap-around window: in season if at/after start OR at/before end.
+    return today >= start or today <= end

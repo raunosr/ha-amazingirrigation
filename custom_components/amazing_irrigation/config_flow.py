@@ -25,11 +25,22 @@ from homeassistant.helpers import selector
 from .const import (
     CONF_FORECAST_RAIN_AMOUNT,
     CONF_FORECAST_RAIN_PROBABILITY,
+    CONF_GAIN_PER_LITER,
+    CONF_MAX_LITERS,
     CONF_MOISTURE_SENSORS,
     CONF_NAME,
     CONF_OBSERVED_RAIN_AMOUNT,
+    CONF_RAIN_SKIP_MM,
+    CONF_RAIN_SKIP_PROBABILITY,
     CONF_SAFETY_BLOCKERS,
+    CONF_SEASON_END,
+    CONF_SEASON_START,
+    CONF_TARGET_MOISTURE,
     CONF_ZONES,
+    DEFAULT_MAX_LITERS,
+    DEFAULT_RAIN_SKIP_MM,
+    DEFAULT_RAIN_SKIP_PROBABILITY,
+    DEFAULT_TARGET_MOISTURE,
     DOMAIN,
     INTEGRATION_TITLE,
 )
@@ -43,6 +54,39 @@ def _zone_schema() -> vol.Schema:
             vol.Required(CONF_MOISTURE_SENSORS): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain="sensor", multiple=True)
             ),
+            vol.Optional(
+                CONF_TARGET_MOISTURE, default=DEFAULT_TARGET_MOISTURE
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=0, max=100, step=1, unit_of_measurement="%", mode="box"
+                )
+            ),
+            vol.Optional(
+                CONF_MAX_LITERS, default=DEFAULT_MAX_LITERS
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=0, max=1000, step=1, unit_of_measurement="L", mode="box"
+                )
+            ),
+            vol.Optional(CONF_GAIN_PER_LITER): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=0, step=0.1, unit_of_measurement="%/L", mode="box"
+                )
+            ),
+            vol.Optional(
+                CONF_RAIN_SKIP_MM, default=DEFAULT_RAIN_SKIP_MM
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=0, step=0.5, unit_of_measurement="mm", mode="box"
+                )
+            ),
+            vol.Optional(
+                CONF_RAIN_SKIP_PROBABILITY, default=DEFAULT_RAIN_SKIP_PROBABILITY
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=0, max=100, step=5, unit_of_measurement="%", mode="box"
+                )
+            ),
             vol.Optional(CONF_FORECAST_RAIN_AMOUNT): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain=["sensor", "input_number"])
             ),
@@ -55,6 +99,8 @@ def _zone_schema() -> vol.Schema:
             vol.Optional(CONF_SAFETY_BLOCKERS): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain="binary_sensor", multiple=True)
             ),
+            vol.Optional(CONF_SEASON_START): selector.TextSelector(),
+            vol.Optional(CONF_SEASON_END): selector.TextSelector(),
         }
     )
 

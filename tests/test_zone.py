@@ -5,6 +5,7 @@ from __future__ import annotations
 from custom_components.amazing_irrigation.zone import (
     ZoneConfig,
     aggregate_zone_moisture,
+    is_in_season,
 )
 
 
@@ -62,3 +63,26 @@ def test_zone_config_from_record_normalises_optionals() -> None:
     assert zone.forecast_rain_probability is None
     assert zone.observed_rain_amount is None
     assert zone.safety_blockers == ["binary_sensor.lock"]
+
+
+def test_no_season_means_always_in_season() -> None:
+    assert is_in_season(None, None, 1, 15) is True
+    assert is_in_season("04-01", None, 7, 1) is True
+
+
+def test_simple_season_window() -> None:
+    assert is_in_season("04-01", "09-30", 6, 15) is True
+    assert is_in_season("04-01", "09-30", 3, 31) is False
+    assert is_in_season("04-01", "09-30", 4, 1) is True
+    assert is_in_season("04-01", "09-30", 9, 30) is True
+
+
+def test_wrap_around_season_window() -> None:
+    # Nov 1 .. Feb 28 wraps the year end.
+    assert is_in_season("11-01", "02-28", 12, 25) is True
+    assert is_in_season("11-01", "02-28", 1, 15) is True
+    assert is_in_season("11-01", "02-28", 7, 1) is False
+
+
+def test_invalid_season_is_treated_as_always_in_season() -> None:
+    assert is_in_season("garbage", "09-30", 6, 1) is True
