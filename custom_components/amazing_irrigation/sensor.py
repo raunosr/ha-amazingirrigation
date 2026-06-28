@@ -13,6 +13,8 @@ Neither sensor actuates water; watering arrives in later slices.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
@@ -31,12 +33,14 @@ from .const import (
     DATA_CONTROLLERS,
     DATA_DECISION_ENTITIES,
     DATA_HISTORY,
+    DATA_LEARNERS,
     DATA_ZONE_STATE,
     DOMAIN,
 )
 from .decision import evaluate_zone
 from .engine import Decision, DecisionAction
 from .history import IrrigationHistory
+from .learner import ZoneLearner
 from .state import ZoneStateStore
 from .watering import WateringController, WateringStatus
 from .zone import ZoneConfig, aggregate_zone_moisture
@@ -57,6 +61,9 @@ async def async_setup_entry(
     zone_state: ZoneStateStore | None = hass.data[DOMAIN][entry.entry_id].get(
         DATA_ZONE_STATE
     )
+    learners: dict[str, ZoneLearner] = hass.data[DOMAIN][entry.entry_id].get(
+        DATA_LEARNERS, {}
+    )
     zones = entry.options.get(CONF_ZONES, {})
     entities: list[SensorEntity] = []
     for zone_id, record in zones.items():
@@ -73,6 +80,12 @@ async def async_setup_entry(
         history = histories.get(zone_id)
         if history is not None:
             entities.append(ZoneHistorySensor(entry, zone, history))
+        learner = learners.get(zone_id)
+        if learner is not None:
+            entities.extend(
+                descriptor.build(entry, zone, learner)
+                for descriptor in LEARNED_SENSORS
+            )
     if zone_state is not None and controllers:
         entities.append(SystemTotalVolumeSensor(entry, controllers, zone_state))
     async_add_entities(entities)
@@ -474,3 +487,135 @@ class ZoneHistorySensor(SensorEntity):
             "observation_count": self._history.count,
             "entries": self._history.recent(limit=20),
         }
+
+
+class LearnedValueSensor(SensorEntity):
+    """A single read-only learned parameter from a zone's Learned Model.
+
+    Learned values change slowly and are written to the persisted ZoneState by
+    the :class:`ZoneLearner`; this sensor mirrors one of them, refreshing when
+    the learner reports an update. ``None`` until enough evidence is gathered.
+    """
+
+    _attr_has_entity_name = True
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_suggested_display_precision = 2
+
+    def __init__(
+        self,
+        entry: ConfigEntry,
+        zone: ZoneConfig,
+        learner: ZoneLearner,
+        *,
+        key: str,
+        name: str,
+        icon: str,
+        unit: str,
+        attribute: str,
+        samples_key: str | None,
+    ) -> None:
+        """Initialise a learned-value sensor for one parameter of a zone."""
+        self._zone = zone
+        self._learner = learner
+        self._attribute = attribute
+        self._samples_key = samples_key
+        self._attr_name = name
+        self._attr_icon = icon
+        self._attr_native_unit_of_measurement = unit
+        self._attr_unique_id = f"{entry.entry_id}_{zone.zone_id}_learned_{key}"
+        self._attr_device_info = _zone_device_info(entry, zone)
+
+    async def async_added_to_hass(self) -> None:
+        """Refresh whenever the learner reports a model update."""
+        self.async_on_remove(self._learner.add_listener(self._on_update))
+        self._refresh()
+
+    @callback
+    def _on_update(self) -> None:
+        """Handle a learner update."""
+        self._refresh()
+        self.async_write_ha_state()
+
+    @callback
+    def _refresh(self) -> None:
+        """Read the learned value from the zone's persisted state."""
+        state = self._learner.state
+        value = None if state is None else getattr(state, self._attribute)
+        self._attr_native_value = None if value is None else round(float(value), 3)
+        attributes = {"zone_id": self._zone.zone_id}
+        if state is not None and self._samples_key is not None:
+            attributes["samples"] = state.learning_state.get(self._samples_key, 0)
+        self._attr_extra_state_attributes = attributes
+
+
+@dataclass(frozen=True)
+class _LearnedSensorDescriptor:
+    """Static description of one learned-value sensor."""
+
+    key: str
+    name: str
+    icon: str
+    unit: str
+    attribute: str
+    samples_key: str | None
+
+    def build(
+        self, entry: ConfigEntry, zone: ZoneConfig, learner: ZoneLearner
+    ) -> LearnedValueSensor:
+        """Instantiate the described sensor for a zone."""
+        return LearnedValueSensor(
+            entry,
+            zone,
+            learner,
+            key=self.key,
+            name=self.name,
+            icon=self.icon,
+            unit=self.unit,
+            attribute=self.attribute,
+            samples_key=self.samples_key,
+        )
+
+
+# The five learned parameters surfaced as read-only per-zone sensors.
+LEARNED_SENSORS: tuple[_LearnedSensorDescriptor, ...] = (
+    _LearnedSensorDescriptor(
+        key="gain_per_liter",
+        name="Learned Moisture Gain per Liter",
+        icon="mdi:water-percent",
+        unit=f"{PERCENTAGE}/L",
+        attribute="learned_gain_per_liter",
+        samples_key="gain_samples",
+    ),
+    _LearnedSensorDescriptor(
+        key="drying_rate",
+        name="Learned Daily Drying Rate",
+        icon="mdi:weather-sunny",
+        unit=f"{PERCENTAGE}/d",
+        attribute="learned_drying_rate",
+        samples_key="drying_samples",
+    ),
+    _LearnedSensorDescriptor(
+        key="rain_efficiency",
+        name="Learned Rain Efficiency",
+        icon="mdi:weather-pouring",
+        unit=f"{PERCENTAGE}/mm",
+        attribute="learned_rain_efficiency",
+        samples_key="rain_samples",
+    ),
+    _LearnedSensorDescriptor(
+        key="field_capacity",
+        name="Learned Field Capacity",
+        icon="mdi:cup-water",
+        unit=PERCENTAGE,
+        attribute="learned_field_capacity",
+        samples_key="capacity_samples",
+    ),
+    _LearnedSensorDescriptor(
+        key="wilting_point",
+        name="Learned Wilting Point",
+        icon="mdi:flower-tulip-outline",
+        unit=PERCENTAGE,
+        attribute="learned_wilting_point",
+        samples_key="capacity_samples",
+    ),
+)

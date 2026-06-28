@@ -18,6 +18,7 @@ from .const import (
     CONF_ZONES,
     DATA_CONTROLLERS,
     DATA_HISTORY,
+    DATA_LEARNERS,
     DATA_RAIN_WATCHERS,
     DATA_SCHEDULER,
     DATA_ZONE_STATE,
@@ -25,6 +26,7 @@ from .const import (
 )
 from .frontend_card import async_register_card
 from .history import build_histories
+from .learner import build_learners
 from .rain import build_rain_watchers
 from .scheduler import build_scheduler
 from .services import async_setup_services, async_unload_services
@@ -47,12 +49,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     controllers = build_controllers(hass, zones, histories, zone_state)
     scheduler = build_scheduler(hass, controllers, entry.options)
     rain_watchers = build_rain_watchers(hass, zones, histories)
+    learners = build_learners(hass, zones, zone_state)
     domain_data[entry.entry_id] = {
         DATA_CONTROLLERS: controllers,
         DATA_SCHEDULER: scheduler,
         DATA_HISTORY: histories,
         DATA_RAIN_WATCHERS: rain_watchers,
         DATA_ZONE_STATE: zone_state,
+        DATA_LEARNERS: learners,
     }
 
     if PLATFORMS:
@@ -63,6 +67,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     scheduler.async_start()
     for watcher in rain_watchers:
         watcher.async_start()
+    for learner in learners.values():
+        learner.async_start()
 
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 
@@ -88,6 +94,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 scheduler.async_stop()
             for watcher in entry_data.get(DATA_RAIN_WATCHERS, []):
                 watcher.async_stop()
+            for learner in entry_data.get(DATA_LEARNERS, {}).values():
+                learner.async_stop()
             for controller in entry_data.get(DATA_CONTROLLERS, {}).values():
                 controller.teardown()
         # Only entry data is stored as a dict; ignore the card-registered flag
