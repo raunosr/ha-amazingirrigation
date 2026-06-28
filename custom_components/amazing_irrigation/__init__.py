@@ -11,14 +11,16 @@ from __future__ import annotations
 import logging
 
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
-# No platforms are loaded by the shell. Later slices extend this list.
-PLATFORMS: list[str] = []
+# Observe-only platforms. Control platforms (switch/button/number) arrive in
+# later slices; nothing here can actuate water.
+PLATFORMS: list[Platform] = [Platform.SENSOR]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
