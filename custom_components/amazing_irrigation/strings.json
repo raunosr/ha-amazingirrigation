@@ -96,8 +96,9 @@
           "volume_field": "Volume field/variable name",
           "watering_sensor": "Watering feedback sensor (confirms flow)",
           "volume_sensor": "Cumulative volume sensor (confirms flow)",
+          "linktap_device": "LinkTap device (auto-fills id, switch and sensors)",
           "linktap_topic": "LinkTap MQTT topic",
-          "linktap_id": "LinkTap id (taplinker entity id)",
+          "linktap_id": "LinkTap id (auto-filled from device; optional override)",
           "linktap_failsafe": "LinkTap failsafe duration (s)"
         }
       },
@@ -110,7 +111,7 @@
     },
     "error": {
       "no_moisture_sensors": "Select at least one soil moisture sensor for the zone.",
-      "linktap_requires_id_and_switch": "A LinkTap actuator needs both a LinkTap id and a switch entity."
+      "linktap_requires_id_and_switch": "Select a LinkTap device, or enter both a LinkTap id and a switch entity."
     }
   },
   "selector": {

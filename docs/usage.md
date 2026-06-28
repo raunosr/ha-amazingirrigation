@@ -106,18 +106,27 @@ existing watering script.
 
 ### `linktap` (LinkTap over MQTT)
 
-First-class adapter reproducing a LinkTap volume-based watering script:
+First-class adapter reproducing a LinkTap volume-based watering script. The
+easiest setup is to **select the LinkTap device** — the integration then
+auto-fills the LinkTap id (exact case, from the device), the water switch, the
+watering-state binary sensor and the volume sensor from that device's entities:
 
 | Field | Purpose |
 | --- | --- |
-| LinkTap id | The LinkTap device id (e.g. `1F43B22F004B1200_3`). |
+| LinkTap device | Select the `by LinkTap` device. Auto-fills the fields below. |
+| LinkTap id | Auto-filled from the device; optional manual override. |
+| Actuator switch | Auto-filled (`*_water_switch`); optional override. |
 | LinkTap topic | MQTT config topic; defaults to `/homeassistant/config_from_ha`. |
 | LinkTap failsafe | Failsafe duration in seconds (LinkTap range 900–21600, step 900). |
-| Actuator switch | The LinkTap water switch entity used to start/stop. |
+
+Provide a device **or** enter a LinkTap id and switch manually. The watering and
+volume feedback sensors are also auto-filled from the device when present.
 
 The adapter publishes the volume limit and failsafe to the MQTT topic, then turns
-on the configured switch. Provide a watering-state binary sensor and/or volume
-sensor (below) so Watering Events are confirmed from feedback rather than assumed.
+on the configured switch — i.e. **the integration performs the LinkTap watering
+script for you**, so no separate Home Assistant script is required. (An optional
+standalone script for manual testing is in
+[`examples/linktap-water-by-volume.yaml`](./examples/linktap-water-by-volume.yaml).)
 
 ### Feedback (recommended)
 

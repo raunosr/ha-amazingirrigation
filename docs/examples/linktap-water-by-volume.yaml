@@ -1,0 +1,87 @@
+# OPTIONAL — Amazing Irrigation already does this for you.
+#
+# The Amazing Irrigation LinkTap (MQTT) Watering Actuator performs these exact
+# steps internally (publish the volume limit, publish the failsafe duration,
+# then turn the water switch on), so you do NOT need this script to use the
+# integration. It is provided only if you want a standalone script for manual
+# testing or a dashboard "water now" button.
+#
+# This is an optimized version of the common "Taplinker - Water by Volume"
+# script: it targets the water switch entity directly (rather than a device),
+# runs in single mode to avoid overlapping runs, and rounds the volume.
+#
+# To use: Settings -> Automations & scenes -> Scripts -> Add Script ->
+# (three-dot menu) Edit in YAML, then paste this body.
+
+alias: Amazing Irrigation - LinkTap Water by Volume
+icon: mdi:watering-can
+mode: single
+description: >-
+  Publish a LinkTap volume limit and failsafe duration over MQTT, then open the
+  LinkTap water switch. Used for manual/standalone watering; the Amazing
+  Irrigation integration does this automatically for configured zones.
+fields:
+  taplinker_id:
+    name: LinkTap id
+    description: The LinkTap id (e.g. 1F43B22F004B1200_4), exact case.
+    required: true
+    selector:
+      text: {}
+  water_volume_l:
+    name: Water volume (L)
+    description: Volume in liters for this watering run.
+    required: true
+    selector:
+      number:
+        min: 0
+        max: 1000
+        step: 1
+        unit_of_measurement: L
+        mode: box
+  water_switch:
+    name: LinkTap water switch
+    description: The LinkTap water switch entity to turn on.
+    required: true
+    selector:
+      entity:
+        domain: switch
+  failsafe_duration_s:
+    name: Failsafe duration (s)
+    description: Safety cut-off duration if volume feedback is lost.
+    required: false
+    default: 3600
+    selector:
+      number:
+        min: 900
+        max: 21600
+        step: 900
+        unit_of_measurement: s
+        mode: box
+  mqtt_topic:
+    name: MQTT topic
+    description: LinkTap config topic.
+    required: false
+    default: /homeassistant/config_from_ha
+    selector:
+      text: {}
+sequence:
+  - variables:
+      topic: "{{ mqtt_topic | default('/homeassistant/config_from_ha', true) }}"
+      failsafe: "{{ (failsafe_duration_s | default(3600, true)) | int }}"
+      volume: "{{ (water_volume_l | float(0)) | round(2) }}"
+  - alias: Publish the volume limit
+    action: mqtt.publish
+    data:
+      topic: "{{ topic }}"
+      payload: >-
+        {"tag":"volume_limit", "id":"{{ taplinker_id }}", "value": {{ volume }}}
+  - alias: Publish the failsafe duration
+    action: mqtt.publish
+    data:
+      topic: "{{ topic }}"
+      payload: >-
+        {"id":"{{ taplinker_id }}", "duration": {{ failsafe }}}
+  - alias: Open the LinkTap water switch
+    action: switch.turn_on
+    target:
+      entity_id: "{{ water_switch }}"

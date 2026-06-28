@@ -102,6 +102,7 @@ CONF_VOLUME_SENSOR = "volume_sensor"
 CONF_LINKTAP_TOPIC = "linktap_topic"
 CONF_LINKTAP_ID = "linktap_id"
 CONF_LINKTAP_FAILSAFE = "linktap_failsafe"
+CONF_LINKTAP_DEVICE = "linktap_device"
 
 # Actuator types.
 ACTUATOR_NONE = "none"
