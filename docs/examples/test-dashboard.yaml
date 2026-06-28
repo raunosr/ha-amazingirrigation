@@ -1,0 +1,47 @@
+# Amazing Irrigation — non-destructive test dashboard view
+#
+# Add this as a NEW view on an existing dashboard (or a new dashboard). It reads
+# ONLY the new Amazing Irrigation entities and does not modify the existing
+# Kastelu cards/automations. Replace the entity ids below with the ones produced
+# by your configured zone names (e.g. a zone named "Kukkakäytävä" yields
+# sensor.kukkakaytava_irrigation_decision, etc.).
+#
+# Validate ONE zone first: confirm the Irrigation Decision matches expectations,
+# then use the per-zone card's Run/Stop controls.
+
+title: Irrigation (test)
+path: amazing-irrigation-test
+icon: mdi:sprinkler-variant
+cards:
+  # Compact overview of all migrated zones.
+  - type: custom:amazing-irrigation-overview-card
+    title: Irrigation zones (Amazing Irrigation)
+    zones:
+      - decision_entity: sensor.kukkakaytava_irrigation_decision
+        moisture_entity: sensor.kukkakaytava_zone_moisture
+        status_entity: sensor.kukkakaytava_watering_status
+        history_entity: sensor.kukkakaytava_irrigation_history
+        name: Kukkakäytävä / Yrtit
+      - decision_entity: sensor.taka_altaat_irrigation_decision
+        moisture_entity: sensor.taka_altaat_zone_moisture
+        status_entity: sensor.taka_altaat_watering_status
+        history_entity: sensor.taka_altaat_irrigation_history
+        name: Taka-Altaat
+      - decision_entity: sensor.kartiomarjakuuset_irrigation_decision
+        moisture_entity: sensor.kartiomarjakuuset_zone_moisture
+        status_entity: sensor.kartiomarjakuuset_watering_status
+        history_entity: sensor.kartiomarjakuuset_irrigation_history
+        name: Kartiomarjakuuset
+      - decision_entity: sensor.etuallas_irrigation_decision
+        moisture_entity: sensor.etuallas_zone_moisture
+        status_entity: sensor.etuallas_watering_status
+        history_entity: sensor.etuallas_irrigation_history
+        name: Etuallas
+
+  # Detailed card for the zone you are validating first.
+  - type: custom:amazing-irrigation-card
+    name: Kukkakäytävä / Yrtit
+    decision_entity: sensor.kukkakaytava_irrigation_decision
+    moisture_entity: sensor.kukkakaytava_zone_moisture
+    status_entity: sensor.kukkakaytava_watering_status
+    history_entity: sensor.kukkakaytava_irrigation_history
