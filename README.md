@@ -29,6 +29,28 @@ can add it as a **custom repository** (category: Integration), then install
 After installing, add the integration from **Settings → Devices & Services → Add
 Integration → Amazing Irrigation**.
 
+## Lovelace card
+
+The integration bundles a Lovelace card (`amazing-irrigation-card`) and registers
+it automatically — no manual resource setup is required. Add it to a dashboard
+to display and control a single Irrigation Zone:
+
+```yaml
+type: custom:amazing-irrigation-card
+name: Herb Bed
+decision_entity: sensor.herb_bed_irrigation_decision
+moisture_entity: sensor.herb_bed_zone_moisture
+status_entity: sensor.herb_bed_watering_status
+history_entity: sensor.herb_bed_irrigation_history
+```
+
+Only `decision_entity` is required; the other entities enrich the display. The
+card shows Zone Moisture, target, recommended Watering Volume, the latest
+Irrigation Decision and recent Irrigation History, and exposes Run, Force Water,
+and Stop controls. Stop appears only when the backend reports a stoppable run.
+The card never stores zone configuration — the integration remains the source of
+truth.
+
 ## Development
 
 ```bash
@@ -36,6 +58,16 @@ python -m venv .venv
 .venv/Scripts/activate        # Windows
 pip install -r requirements_test.txt
 pytest
+```
+
+The Lovelace card lives in `frontend/` (Lit + TypeScript). Build the bundle into
+the integration package with:
+
+```bash
+cd frontend
+npm install
+npm run test     # vitest unit tests
+npm run build    # emits custom_components/amazing_irrigation/frontend/amazing-irrigation-card.js
 ```
 
 ## Security
