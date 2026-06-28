@@ -45,9 +45,6 @@
           "et_source": "ET climate source preference",
           "soil_type": "Soil type preset",
           "greenhouse": "Greenhouse Zone",
-          "protected_rain": "Protected from rain (ignore rain in decisions)",
-          "temperature_sensor": "Greenhouse temperature sensor (optional)",
-          "humidity_sensor": "Greenhouse humidity sensor (optional)",
           "observed_air_temperature": "ET climate observed air temperature (optional)",
           "observed_air_humidity": "ET climate observed air humidity (optional)",
           "forecast_air_temperature": "ET climate forecast air temperature (optional)",
@@ -102,9 +99,6 @@
           "et_source": "ET climate source preference",
           "soil_type": "Soil type preset",
           "greenhouse": "Greenhouse Zone",
-          "protected_rain": "Protected from rain (ignore rain in decisions)",
-          "temperature_sensor": "Greenhouse temperature sensor (optional)",
-          "humidity_sensor": "Greenhouse humidity sensor (optional)",
           "observed_air_temperature": "ET climate observed air temperature (optional)",
           "observed_air_humidity": "ET climate observed air humidity (optional)",
           "forecast_air_temperature": "ET climate forecast air temperature (optional)",
@@ -132,6 +126,15 @@
           "forecast_air_humidity": "Optional ET/model input. Use the zone's relevant weather forecast sensor.",
           "wind_speed": "Optional ET/model input. Outdoor zones usually use the weather station; greenhouse zones can leave this blank unless local airflow is measured.",
           "solar_radiation": "Optional ET/model input. Select irradiance or illuminance from the local greenhouse or outdoor weather station."
+        }
+      },
+      "greenhouse": {
+        "title": "Greenhouse Settings",
+        "description": "These inputs apply only to greenhouse zones. Configure rain protection and optional local greenhouse climate sensors.",
+        "data": {
+          "protected_rain": "Protected from rain (ignore rain in decisions)",
+          "temperature_sensor": "Greenhouse temperature sensor (optional)",
+          "humidity_sensor": "Greenhouse humidity sensor (optional)"
         }
       },
       "actuator": {

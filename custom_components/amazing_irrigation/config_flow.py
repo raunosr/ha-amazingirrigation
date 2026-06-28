@@ -244,15 +244,6 @@ def _zone_basics_schema() -> vol.Schema:
             vol.Optional(
                 CONF_GREENHOUSE, default=False
             ): selector.BooleanSelector(),
-            vol.Optional(
-                CONF_PROTECTED_RAIN, default=False
-            ): selector.BooleanSelector(),
-            vol.Optional(CONF_TEMPERATURE_SENSOR): selector.EntitySelector(
-                selector.EntitySelectorConfig(domain=["sensor", "input_number"])
-            ),
-            vol.Optional(CONF_HUMIDITY_SENSOR): selector.EntitySelector(
-                selector.EntitySelectorConfig(domain=["sensor", "input_number"])
-            ),
             vol.Optional(CONF_SEASON_START): selector.TextSelector(),
             vol.Optional(CONF_SEASON_END): selector.TextSelector(),
             vol.Optional(CONF_ENABLED, default=True): selector.BooleanSelector(),
@@ -272,6 +263,28 @@ def _zone_basics_schema() -> vol.Schema:
                 selector.SelectSelectorConfig(
                     options=ACTUATOR_TYPES, translation_key="actuator_type"
                 )
+            ),
+        }
+    )
+
+
+def _greenhouse_schema() -> vol.Schema:
+    """Build the schema for greenhouse-only inputs.
+
+    These fields are collected in a dedicated step that is shown only when a
+    zone is marked as a greenhouse zone, so non-greenhouse zones are not
+    cluttered with rain-protection and local climate sensor inputs.
+    """
+    return vol.Schema(
+        {
+            vol.Optional(
+                CONF_PROTECTED_RAIN, default=False
+            ): selector.BooleanSelector(),
+            vol.Optional(CONF_TEMPERATURE_SENSOR): selector.EntitySelector(
+                selector.EntitySelectorConfig(domain=["sensor", "input_number"])
+            ),
+            vol.Optional(CONF_HUMIDITY_SENSOR): selector.EntitySelector(
+                selector.EntitySelectorConfig(domain=["sensor", "input_number"])
             ),
         }
     )
@@ -355,6 +368,14 @@ _ACTUATOR_DETAIL_KEYS = (
 )
 
 
+# Greenhouse-only fields cleared when a zone is no longer a greenhouse zone.
+_GREENHOUSE_DETAIL_KEYS = (
+    CONF_PROTECTED_RAIN,
+    CONF_TEMPERATURE_SENSOR,
+    CONF_HUMIDITY_SENSOR,
+)
+
+
 class AmazingIrrigationConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Amazing Irrigation."""
 
@@ -390,6 +411,8 @@ class AmazingIrrigationOptionsFlow(OptionsFlow):
         self._zone_draft: dict[str, Any] = {}
         self._actuator_type: str = ACTUATOR_NONE
         self._actuator_suggested: dict[str, Any] = {}
+        self._existing_record: dict[str, Any] = {}
+        self._greenhouse_suggested: dict[str, Any] = {}
 
     @property
     def _zones(self) -> dict[str, dict[str, Any]]:
@@ -415,7 +438,7 @@ class AmazingIrrigationOptionsFlow(OptionsFlow):
             _times_from_slots(user_input)
             errors = _validate_zone_basics(user_input)
             if not errors:
-                return await self._continue_to_actuator(user_input)
+                return await self._continue_from_basics(user_input)
 
         suggested = (
             {**user_input, **_slots_from_times(user_input)}
@@ -448,7 +471,7 @@ class AmazingIrrigationOptionsFlow(OptionsFlow):
             _times_from_slots(user_input)
             errors = _validate_zone_basics(user_input)
             if not errors:
-                return await self._continue_to_actuator(user_input, existing=record)
+                return await self._continue_from_basics(user_input, existing=record)
             current = user_input
         else:
             current = record
@@ -537,18 +560,52 @@ class AmazingIrrigationOptionsFlow(OptionsFlow):
             if value and not merged.get(key):
                 merged[key] = value
 
-    async def _continue_to_actuator(
+    async def _continue_from_basics(
         self, basics: dict[str, Any], existing: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Store the basics and either finish (None) or open the actuator step."""
+        """Store the basics, then branch to greenhouse settings or the actuator.
+
+        Greenhouse-only inputs live on a dedicated step that appears only when
+        the zone is marked as a greenhouse zone. A zone that is not (or no
+        longer) a greenhouse never carries those fields, because the draft is
+        rebuilt from the basics form which omits them.
+        """
         self._zone_draft = _clean_zone_input(basics)
         self._actuator_type = basics.get(CONF_ACTUATOR_TYPE, ACTUATOR_NONE)
+        self._existing_record = dict(existing or {})
+        if basics.get(CONF_GREENHOUSE):
+            self._greenhouse_suggested = {
+                key: value
+                for key, value in self._existing_record.items()
+                if key in _GREENHOUSE_DETAIL_KEYS
+            }
+            return await self.async_step_greenhouse()
+        return await self._continue_to_actuator()
+
+    async def async_step_greenhouse(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Collect greenhouse-only inputs (shown only for greenhouse zones)."""
+        if user_input is not None:
+            self._zone_draft = {
+                **self._zone_draft,
+                **_clean_zone_input(user_input),
+            }
+            return await self._continue_to_actuator()
+
+        schema = self.add_suggested_values_to_schema(
+            _greenhouse_schema(), self._greenhouse_suggested
+        )
+        return self.async_show_form(step_id="greenhouse", data_schema=schema)
+
+    async def _continue_to_actuator(self) -> ConfigFlowResult:
+        """Finish (no actuator) or open the actuator step using the draft."""
         if self._actuator_type == ACTUATOR_NONE:
             # No actuator: drop any previously stored actuator detail fields.
             return self._persist(dict(self._zone_draft))
         self._actuator_suggested = {
             key: value
-            for key, value in (existing or {}).items()
+            for key, value in self._existing_record.items()
             if key in _ACTUATOR_DETAIL_KEYS
         }
         return await self.async_step_actuator()
