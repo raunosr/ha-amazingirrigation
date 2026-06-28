@@ -16,6 +16,8 @@ zone is seen; thereafter this store is the live source of truth.
 
 from __future__ import annotations
 
+import math
+from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
@@ -27,6 +29,11 @@ from .const import (
     DEFAULT_SCHEDULE_TIME,
     DOMAIN,
     STORAGE_VERSION,
+)
+from .waterbalance import (
+    MISSING_CLIMATE_ET_PER_HOUR,
+    WaterBalanceParams,
+    default_params,
 )
 from .zone import ZoneConfig
 
@@ -85,6 +92,12 @@ class ZoneState:
     learned_rain_efficiency: float | None = None
     learned_field_capacity: float | None = None
     learned_wilting_point: float | None = None
+    # Physics-informed water-balance model (v0.7+).
+    model_params: dict[str, float] | None = None
+    model_covariance: list[list[float]] | None = None
+    model_confidence: dict[str, float] | None = None
+    bootstrapped_days: float | None = None
+    model_updated: str | None = None
     # Cumulative Total Watering Volume in liters.
     total_liters: float = 0.0
     # Opaque bookkeeping for the learning engine (EMA counters, last samples).
@@ -146,6 +159,132 @@ def seed_zone_state(zone_id: str, record: dict[str, Any]) -> ZoneState:
             state.schedule_2_time = configured[0]
             state.schedule_2_active = False
     return state
+
+
+_PARAMETER_NAMES = (
+    "eta_irr",
+    "eta_rain",
+    "k_et",
+    "drain_rate",
+    "field_capacity",
+    "wilting_point",
+)
+_CONFIDENCE_NAMES = ("eta_irr", "eta_rain", "k_et", "drain_rate")
+_DAILY_DRYING_PER_K_ET = MISSING_CLIMATE_ET_PER_HOUR * 24.0
+
+
+def _finite(value: object) -> float | None:
+    """Return ``value`` as a finite float, or ``None``."""
+    try:
+        result = float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+    return result if math.isfinite(result) else None
+
+
+def _params_dict(params: WaterBalanceParams) -> dict[str, float]:
+    """Serialise bounded water-balance params to a plain Store-safe dict."""
+    bounded = params.clamped()
+    return {name: float(getattr(bounded, name)) for name in _PARAMETER_NAMES}
+
+
+def _confidence_dict(confidence: Mapping[str, float] | None) -> dict[str, float] | None:
+    """Return finite 0..1 confidence values for known coefficients."""
+    if confidence is None:
+        return None
+    result: dict[str, float] = {}
+    for name in _CONFIDENCE_NAMES:
+        value = _finite(confidence.get(name))
+        if value is not None:
+            result[name] = max(0.0, min(1.0, value))
+    return result
+
+
+def _covariance_list(covariance: object) -> list[list[float]] | None:
+    """Return a finite 4x4 covariance matrix, or ``None``."""
+    if covariance is None or not isinstance(covariance, Sequence):
+        return None
+    rows: list[list[float]] = []
+    for row in covariance:
+        if not isinstance(row, Sequence) or isinstance(row, (str, bytes)):
+            return None
+        values: list[float] = []
+        for value in row:
+            finite = _finite(value)
+            if finite is None:
+                return None
+            values.append(finite)
+        rows.append(values)
+    if len(rows) != 4 or any(len(row) != 4 for row in rows):
+        return None
+    return rows
+
+
+def apply_model_to_state(
+    state: ZoneState,
+    params: WaterBalanceParams,
+    confidence: dict[str, float] | None,
+    *,
+    covariance: list[list[float]] | None = None,
+    updated: str | None = None,
+) -> ZoneState:
+    """Persist a water-balance model and mirror it to legacy learned fields.
+
+    ``learned_drying_rate`` remains a daily moisture-% loss for existing sensors.
+    It is derived from ``k_et`` using the physics core's missing-climate ET
+    baseline (``k_et * 0.04 %/h * 24 h``), so it is stable even when no live
+    weather inputs are configured.
+    """
+    bounded = params.clamped()
+    state.model_params = _params_dict(bounded)
+    state.model_confidence = _confidence_dict(confidence)
+    state.model_covariance = _covariance_list(covariance)
+    state.model_updated = updated
+
+    state.learned_gain_per_liter = bounded.eta_irr
+    state.learned_rain_efficiency = bounded.eta_rain
+    state.learned_drying_rate = bounded.k_et * _DAILY_DRYING_PER_K_ET
+    state.learned_field_capacity = bounded.field_capacity
+    state.learned_wilting_point = bounded.wilting_point
+    return state
+
+
+def params_from_state(state: ZoneState) -> WaterBalanceParams | None:
+    """Reconstruct water-balance params from persisted model or legacy mirrors."""
+    prior = default_params("loam")
+    source = state.model_params if isinstance(state.model_params, Mapping) else {}
+
+    eta_irr = _finite(source.get("eta_irr"))
+    if eta_irr is None:
+        eta_irr = _finite(state.learned_gain_per_liter)
+    eta_rain = _finite(source.get("eta_rain"))
+    if eta_rain is None:
+        eta_rain = _finite(state.learned_rain_efficiency)
+    k_et = _finite(source.get("k_et"))
+    if k_et is None and state.learned_drying_rate is not None:
+        drying = _finite(state.learned_drying_rate)
+        if drying is not None and _DAILY_DRYING_PER_K_ET > 0:
+            k_et = drying / _DAILY_DRYING_PER_K_ET
+    drain_rate = _finite(source.get("drain_rate"))
+    field_capacity = _finite(source.get("field_capacity"))
+    if field_capacity is None:
+        field_capacity = _finite(state.learned_field_capacity)
+    wilting_point = _finite(source.get("wilting_point"))
+    if wilting_point is None:
+        wilting_point = _finite(state.learned_wilting_point)
+
+    return WaterBalanceParams(
+        eta_irr=eta_irr if eta_irr is not None else prior.eta_irr,
+        eta_rain=eta_rain if eta_rain is not None else prior.eta_rain,
+        k_et=k_et if k_et is not None else prior.k_et,
+        drain_rate=drain_rate if drain_rate is not None else prior.drain_rate,
+        field_capacity=(
+            field_capacity if field_capacity is not None else prior.field_capacity
+        ),
+        wilting_point=(
+            wilting_point if wilting_point is not None else prior.wilting_point
+        ),
+    ).clamped()
 
 
 class ZoneStateStore:

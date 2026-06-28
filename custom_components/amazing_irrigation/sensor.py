@@ -13,6 +13,7 @@ Neither sensor actuates water; watering arrives in later slices.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 from homeassistant.components.sensor import (
@@ -250,7 +251,18 @@ class IrrigationDecisionSensor(SensorEntity):
 
     def _compute(self, *, force: bool = False) -> Decision:
         """Compute a Decision without mutating entity state."""
-        return evaluate_zone(self.hass, self._zone, force=force)
+        return evaluate_zone(
+            self.hass, self._zone, force=force, state=self._zone_state()
+        )
+
+    def _zone_state(self):
+        """Return the persisted live ZoneState for this decision, if available."""
+        store: ZoneStateStore | None = self.hass.data[DOMAIN][self._entry.entry_id].get(
+            DATA_ZONE_STATE
+        )
+        if store is None:
+            return None
+        return store.get(self._zone.zone_id)
 
     @callback
     def _current_moisture(self) -> float | None:
@@ -541,15 +553,23 @@ class LearnedValueSensor(SensorEntity):
         key: str,
         name: str,
         icon: str,
-        unit: str,
-        attribute: str,
+        unit: str | None,
+        attribute: str | None,
         samples_key: str | None,
+        dict_attribute: str | None = None,
+        dict_key: str | None = None,
+        average_dict: bool = False,
+        scale: float = 1.0,
     ) -> None:
         """Initialise a learned-value sensor for one parameter of a zone."""
         self._zone = zone
         self._learner = learner
         self._attribute = attribute
         self._samples_key = samples_key
+        self._dict_attribute = dict_attribute
+        self._dict_key = dict_key
+        self._average_dict = average_dict
+        self._scale = scale
         self._attr_name = name
         self._attr_icon = icon
         self._attr_native_unit_of_measurement = unit
@@ -571,12 +591,37 @@ class LearnedValueSensor(SensorEntity):
     def _refresh(self) -> None:
         """Read the learned value from the zone's persisted state."""
         state = self._learner.state
-        value = None if state is None else getattr(state, self._attribute)
+        value = None if state is None else self._read_value(state)
+        self._attr_available = value is not None
         self._attr_native_value = None if value is None else round(float(value), 3)
         attributes = {"zone_id": self._zone.zone_id}
         if state is not None and self._samples_key is not None:
             attributes["samples"] = state.learning_state.get(self._samples_key, 0)
         self._attr_extra_state_attributes = attributes
+
+    def _read_value(self, state) -> float | None:  # noqa: ANN001 - ZoneState import cycle
+        """Read either a direct ZoneState attribute or a dict-backed model value."""
+        if self._dict_attribute is not None:
+            source = getattr(state, self._dict_attribute, None)
+            if not isinstance(source, dict):
+                return None
+            if self._average_dict:
+                values = [
+                    float(value)
+                    for value in source.values()
+                    if _is_finite_number(value)
+                ]
+                if not values:
+                    return None
+                return sum(values) / len(values) * self._scale
+            value = source.get(self._dict_key)
+        elif self._attribute is not None:
+            value = getattr(state, self._attribute)
+        else:
+            return None
+        if not _is_finite_number(value):
+            return None
+        return float(value) * self._scale
 
 
 @dataclass(frozen=True)
@@ -586,9 +631,13 @@ class _LearnedSensorDescriptor:
     key: str
     name: str
     icon: str
-    unit: str
-    attribute: str
+    unit: str | None
+    attribute: str | None
     samples_key: str | None
+    dict_attribute: str | None = None
+    dict_key: str | None = None
+    average_dict: bool = False
+    scale: float = 1.0
 
     def build(
         self, entry: ConfigEntry, zone: ZoneConfig, learner: ZoneLearner
@@ -604,10 +653,22 @@ class _LearnedSensorDescriptor:
             unit=self.unit,
             attribute=self.attribute,
             samples_key=self.samples_key,
+            dict_attribute=self.dict_attribute,
+            dict_key=self.dict_key,
+            average_dict=self.average_dict,
+            scale=self.scale,
         )
 
 
-# The five learned parameters surfaced as read-only per-zone sensors.
+def _is_finite_number(value: object) -> bool:
+    """Whether ``value`` can be exposed as a finite numeric sensor state."""
+    try:
+        return math.isfinite(float(value))  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return False
+
+
+# The learned parameters surfaced as read-only per-zone sensors.
 LEARNED_SENSORS: tuple[_LearnedSensorDescriptor, ...] = (
     _LearnedSensorDescriptor(
         key="gain_per_liter",
@@ -648,5 +709,36 @@ LEARNED_SENSORS: tuple[_LearnedSensorDescriptor, ...] = (
         unit=PERCENTAGE,
         attribute="learned_wilting_point",
         samples_key="capacity_samples",
+    ),
+    _LearnedSensorDescriptor(
+        key="drainage_rate",
+        name="Learned Drainage Rate",
+        icon="mdi:water-percent",
+        unit="1/h",
+        attribute=None,
+        samples_key=None,
+        dict_attribute="model_params",
+        dict_key="drain_rate",
+    ),
+    _LearnedSensorDescriptor(
+        key="et_coefficient",
+        name="Learned ET Coefficient",
+        icon="mdi:weather-sunny",
+        unit=None,
+        attribute=None,
+        samples_key=None,
+        dict_attribute="model_params",
+        dict_key="k_et",
+    ),
+    _LearnedSensorDescriptor(
+        key="model_confidence",
+        name="Model Confidence",
+        icon="mdi:gauge",
+        unit=PERCENTAGE,
+        attribute=None,
+        samples_key=None,
+        dict_attribute="model_confidence",
+        average_dict=True,
+        scale=100.0,
     ),
 )
