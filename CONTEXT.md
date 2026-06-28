@@ -97,7 +97,7 @@ The per-zone persisted store holding live-editable tunables (target moisture, ma
 _Avoid_: Settings, config
 
 **Learned Model**:
-The set of values Amazing Irrigation learns for an Irrigation Zone over time — Moisture Gain per Liter, Daily Drying Rate, Rain Efficiency, and bounded Field Capacity / Wilting Point estimates — stored in the Zone State and used only when Learning is enabled, always bounded by safety limits and overridden by any manual value.
+The Soil Water Balance values Amazing Irrigation learns for an Irrigation Zone over time — Irrigation Efficiency, Rain Efficiency, the Evapotranspiration coefficient, the Drainage rate, and bounded Field Capacity / Wilting Point estimates, each with a Model Confidence — stored in the Zone State and used only when Learning is enabled, always bounded by safety limits and overridden by any manual value.
 _Avoid_: AI model, profile
 
 **Moisture Gain per Liter**:
@@ -115,4 +115,40 @@ _Avoid_: Rain factor
 **Total Watering Volume**:
 The cumulative liters applied to an Irrigation Zone (or across the whole system) by every Confirmed Watering Event, exposed as a total-increasing sensor.
 _Avoid_: Water usage, consumption
+
+**Soil Water Balance**:
+The physics-informed model that advances Zone Moisture over time by adding Irrigation Efficiency and Rain Efficiency gains and subtracting Evapotranspiration and Drainage losses, bounded by Field Capacity and Wilting Point. It is the basis of the Learned Model and Predictive Control.
+_Avoid_: Bucket model, water model
+
+**Irrigation Efficiency**:
+The rise in Zone Moisture per liter applied, learned jointly by the Soil Water Balance estimator. The model-based successor to Moisture Gain per Liter.
+_Avoid_: Absorption rate
+
+**Evapotranspiration**:
+The modelled loss of Zone Moisture to the air over time, driven by temperature and humidity (and optional wind and solar inputs), scaled by a learned coefficient. The physics-based successor to Daily Drying Rate.
+_Avoid_: Evaporation, drying
+
+**Drainage**:
+The modelled loss of Zone Moisture once it rises above Field Capacity, learned as a bounded drainage rate.
+_Avoid_: Runoff, leakage
+
+**Target Range**:
+A configurable low/high Zone Moisture band the Predictive Control keeps a zone within, instead of a single Target Moisture point. Backward-compatible: a zone with only a Target Moisture derives a band from it.
+_Avoid_: Target band, moisture window
+
+**Predictive Control**:
+Deciding watering by simulating the Soil Water Balance forward over a forecast horizon to the next active schedule slot and applying only the minimum liters needed to keep predicted Zone Moisture inside the Target Range, without exceeding Field Capacity.
+_Avoid_: Forecasting, smart control
+
+**Model Confidence**:
+A per-parameter and overall measure, derived from the estimator's covariance, of how certain the Learned Model is about each coefficient of the Soil Water Balance.
+_Avoid_: Accuracy, certainty score
+
+**History Bootstrap**:
+Initialising a zone's Learned Model quickly by replaying recorder history (moisture, rain, climate and irrigation events) through the Soil Water Balance estimator, run at setup and on demand. It degrades gracefully and reports how much history it used.
+_Avoid_: Backfill, training run
+
+**Model Insight**:
+The diagnostic sensor and card section that make every conclusion reviewable: learned parameters with Model Confidence, the History Bootstrap summary, and the water-balance breakdown, predicted trajectory and chosen liters behind the latest Irrigation Decision.
+_Avoid_: Debug info, model dump
 
