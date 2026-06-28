@@ -433,9 +433,10 @@ class SystemTotalVolumeSensor(SensorEntity):
 class ZoneHistorySensor(SensorEntity):
     """Exposes a zone's bounded Irrigation History for explainability.
 
-    The state is the number of recorded Observations; the most recent entries
-    (Run Requests, Decisions, Rain Events, Watering Events) are exposed as
-    attributes so a card can show *why* a zone behaved as it did.
+    The state is a short human-readable summary of the most recent Observation
+    (e.g. "Watered 8 L", "Skipped: above target", "Rain +4 mm"); the recent
+    entries and an observation count are exposed as attributes so a card can
+    show *why* a zone behaved as it did.
     """
 
     _attr_has_entity_name = True
@@ -466,9 +467,10 @@ class ZoneHistorySensor(SensorEntity):
     def _refresh(self) -> None:
         """Read the latest history into entity state and attributes."""
         last = self._history.last
-        self._attr_native_value = self._history.count
+        self._attr_native_value = "No activity yet" if last is None else last.summary
         self._attr_extra_state_attributes = {
             "zone_id": self._zone.zone_id,
             "last_kind": None if last is None else last.kind.value,
+            "observation_count": self._history.count,
             "entries": self._history.recent(limit=20),
         }
