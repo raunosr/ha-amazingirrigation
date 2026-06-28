@@ -21,6 +21,8 @@ from .const import (
     DATA_LEARNERS,
     DATA_RAIN_WATCHERS,
     DATA_SCHEDULER,
+    DATA_WEATHER_FORECAST,
+    DATA_WEATHER_PROVIDER,
     DATA_ZONE_STATE,
     DOMAIN,
 )
@@ -33,6 +35,7 @@ from .scheduler import build_scheduler
 from .services import async_setup_services, async_unload_services
 from .state import ZoneStateStore
 from .watering import build_controllers
+from .weather_forecast import build_weather_provider
 from .zone import ZoneConfig
 
 _LOGGER = logging.getLogger(__name__)
@@ -50,6 +53,7 @@ PLATFORMS: list[Platform] = [
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Amazing Irrigation from a config entry."""
     domain_data = hass.data.setdefault(DOMAIN, {})
+    domain_data.setdefault(DATA_WEATHER_FORECAST, {})
     zones = entry.options.get(CONF_ZONES, {})
     zone_state = ZoneStateStore(hass, entry.entry_id)
     await zone_state.async_load(zones)
@@ -57,12 +61,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     controllers = build_controllers(hass, zones, histories, zone_state)
     scheduler = build_scheduler(hass, controllers, entry.options, zone_state)
     rain_watchers = build_rain_watchers(hass, zones, histories)
+    weather_provider = build_weather_provider(hass, zones)
     learners = build_learners(hass, zones, zone_state)
     domain_data[entry.entry_id] = {
         DATA_CONTROLLERS: controllers,
         DATA_SCHEDULER: scheduler,
         DATA_HISTORY: histories,
         DATA_RAIN_WATCHERS: rain_watchers,
+        DATA_WEATHER_PROVIDER: weather_provider,
         DATA_ZONE_STATE: zone_state,
         DATA_LEARNERS: learners,
     }
@@ -75,6 +81,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     scheduler.async_start()
     for watcher in rain_watchers:
         watcher.async_start()
+    await weather_provider.async_start()
     for learner in learners.values():
         learner.async_start()
     hass.async_create_task(_async_bootstrap_missing_models(hass, zones, zone_state))
@@ -103,13 +110,18 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 scheduler.async_stop()
             for watcher in entry_data.get(DATA_RAIN_WATCHERS, []):
                 watcher.async_stop()
+            weather_provider = entry_data.get(DATA_WEATHER_PROVIDER)
+            if weather_provider is not None:
+                weather_provider.async_stop()
             for learner in entry_data.get(DATA_LEARNERS, {}).values():
                 learner.async_stop()
             for controller in entry_data.get(DATA_CONTROLLERS, {}).values():
                 controller.teardown()
-        # Only entry data is stored as a dict; ignore the card-registered flag
-        # when deciding whether any config entries remain.
-        if not any(isinstance(value, dict) for value in domain_data.values()):
+        # Entry data is keyed by entry_id; ignore domain-level caches/flags.
+        if not any(
+            key != DATA_WEATHER_FORECAST and isinstance(value, dict)
+            for key, value in domain_data.items()
+        ):
             async_unload_services(hass)
 
     return unload_ok

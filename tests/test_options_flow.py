@@ -29,6 +29,7 @@ from custom_components.amazing_irrigation.const import (
     CONF_TARGET_MOISTURE_LOW,
     CONF_VOLUME_SENSOR,
     CONF_WATERING_SENSOR,
+    CONF_WEATHER_FORECAST_ENTITY,
     CONF_WIND_SPEED,
     CONF_ZONES,
     DOMAIN,
@@ -65,6 +66,7 @@ async def test_add_zone_creates_record(hass: HomeAssistant) -> None:
             CONF_OBSERVED_AIR_HUMIDITY: "sensor.outdoor_humidity",
             CONF_FORECAST_AIR_TEMPERATURE: "sensor.forecast_temp",
             CONF_FORECAST_AIR_HUMIDITY: "sensor.forecast_humidity",
+            CONF_WEATHER_FORECAST_ENTITY: "weather.home",
             CONF_WIND_SPEED: "sensor.wind_speed",
             CONF_SOLAR_RADIATION: "sensor.solar_radiation",
             CONF_TARGET_MOISTURE_LOW: 35,
@@ -84,6 +86,7 @@ async def test_add_zone_creates_record(hass: HomeAssistant) -> None:
     assert record[CONF_OBSERVED_AIR_HUMIDITY] == "sensor.outdoor_humidity"
     assert record[CONF_FORECAST_AIR_TEMPERATURE] == "sensor.forecast_temp"
     assert record[CONF_FORECAST_AIR_HUMIDITY] == "sensor.forecast_humidity"
+    assert record[CONF_WEATHER_FORECAST_ENTITY] == "weather.home"
     assert record[CONF_WIND_SPEED] == "sensor.wind_speed"
     assert record[CONF_SOLAR_RADIATION] == "sensor.solar_radiation"
     assert record[CONF_TARGET_MOISTURE_LOW] == 35
@@ -193,6 +196,7 @@ async def test_edit_zone_updates_record(hass: HomeAssistant) -> None:
             CONF_MOISTURE_SENSORS: ["sensor.a", "sensor.b"],
             CONF_TARGET_MOISTURE_LOW: 32,
             CONF_TARGET_MOISTURE_HIGH: 44,
+            CONF_WEATHER_FORECAST_ENTITY: "weather.updated",
             CONF_ET_SOURCE: "greenhouse",
             CONF_SOIL_TYPE: "clay",
         },
@@ -204,6 +208,7 @@ async def test_edit_zone_updates_record(hass: HomeAssistant) -> None:
     assert record[CONF_MOISTURE_SENSORS] == ["sensor.a", "sensor.b"]
     assert record[CONF_TARGET_MOISTURE_LOW] == 32
     assert record[CONF_TARGET_MOISTURE_HIGH] == 44
+    assert record[CONF_WEATHER_FORECAST_ENTITY] == "weather.updated"
     assert record[CONF_ET_SOURCE] == "greenhouse"
     assert record[CONF_SOIL_TYPE] == "clay"
 

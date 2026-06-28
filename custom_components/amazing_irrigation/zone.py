@@ -45,6 +45,7 @@ from .const import (
     CONF_TARGET_MOISTURE_HIGH,
     CONF_TARGET_MOISTURE_LOW,
     CONF_TEMPERATURE_SENSOR,
+    CONF_WEATHER_FORECAST_ENTITY,
     CONF_WILTING_POINT,
     CONF_WIND_SPEED,
     DEFAULT_MAX_LITERS,
@@ -106,6 +107,7 @@ class ZoneConfig:
     moisture_sensors: list[str] = field(default_factory=list)
     forecast_rain_amount: str | None = None
     forecast_rain_probability: str | None = None
+    weather_forecast_entity: str | None = None
     observed_rain_amount: str | None = None
     safety_blockers: list[str] = field(default_factory=list)
     target_moisture: float | None = DEFAULT_TARGET_MOISTURE
@@ -145,6 +147,7 @@ class ZoneConfig:
             moisture_sensors=list(record.get(CONF_MOISTURE_SENSORS, []) or []),
             forecast_rain_amount=record.get(CONF_FORECAST_RAIN_AMOUNT) or None,
             forecast_rain_probability=record.get(CONF_FORECAST_RAIN_PROBABILITY) or None,
+            weather_forecast_entity=record.get(CONF_WEATHER_FORECAST_ENTITY) or None,
             observed_rain_amount=record.get(CONF_OBSERVED_RAIN_AMOUNT) or None,
             safety_blockers=list(record.get(CONF_SAFETY_BLOCKERS, []) or []),
             target_moisture=_as_float(record.get(CONF_TARGET_MOISTURE), DEFAULT_TARGET_MOISTURE),

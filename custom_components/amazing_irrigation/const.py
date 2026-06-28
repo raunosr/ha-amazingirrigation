@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
+
 DOMAIN = "amazing_irrigation"
 
 # Title shown for the single integration config entry.
@@ -16,6 +18,7 @@ CONF_NAME = "name"
 CONF_MOISTURE_SENSORS = "moisture_sensors"
 CONF_FORECAST_RAIN_AMOUNT = "forecast_rain_amount"
 CONF_FORECAST_RAIN_PROBABILITY = "forecast_rain_probability"
+CONF_WEATHER_FORECAST_ENTITY = "weather_forecast_entity"
 CONF_OBSERVED_RAIN_AMOUNT = "observed_rain_amount"
 CONF_SAFETY_BLOCKERS = "safety_blockers"
 
@@ -59,6 +62,15 @@ DATA_HISTORY = "history"
 
 # hass.data[DOMAIN][entry_id] sub-key holding the RainWatcher list.
 DATA_RAIN_WATCHERS = "rain_watchers"
+
+# hass.data[DOMAIN][entry_id] sub-key holding the WeatherForecastProvider.
+DATA_WEATHER_PROVIDER = "weather_provider"
+
+# hass.data[DOMAIN] sub-key holding cached weather forecast series by entity id.
+DATA_WEATHER_FORECAST = "weather_forecast"
+
+# How often weather forecast series are refreshed from Home Assistant.
+WEATHER_FORECAST_REFRESH_INTERVAL = timedelta(minutes=30)
 
 # hass.data[DOMAIN] flag marking the Lovelace card frontend resource registered.
 DATA_CARD_REGISTERED = "card_registered"

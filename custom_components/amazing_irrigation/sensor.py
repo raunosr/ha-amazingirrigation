@@ -208,6 +208,7 @@ class IrrigationDecisionSensor(SensorEntity):
         for entity_id in (
             self._zone.forecast_rain_amount,
             self._zone.forecast_rain_probability,
+            self._zone.weather_forecast_entity,
             self._zone.observed_rain_amount,
             self._zone.temperature_sensor,
             self._zone.humidity_sensor,
@@ -352,6 +353,7 @@ class IrrigationDecisionSensor(SensorEntity):
             "moisture_sensors": list(self._zone.moisture_sensors),
             "forecast_rain_amount": self._zone.forecast_rain_amount,
             "forecast_rain_probability": self._zone.forecast_rain_probability,
+            "weather_forecast_entity": self._zone.weather_forecast_entity,
             "observed_rain_amount": self._zone.observed_rain_amount,
             "temperature_sensor": self._zone.temperature_sensor,
             "humidity_sensor": self._zone.humidity_sensor,
