@@ -284,7 +284,26 @@ class IrrigationDecisionSensor(SensorEntity):
             "humidity": _read_moisture(self.hass, self._zone.humidity_sensor)
             if self._zone.humidity_sensor
             else None,
+            "references": self._references(),
             **decision.details,
+        }
+
+    @callback
+    def _references(self) -> dict[str, object]:
+        """The configured source entities this zone reads, for card surfacing.
+
+        Exposed so the Lovelace card can list every referenced sensor (moisture,
+        rain, climate and safety blockers) with its live state without the user
+        having to wire each one into the card config by hand.
+        """
+        return {
+            "moisture_sensors": list(self._zone.moisture_sensors),
+            "forecast_rain_amount": self._zone.forecast_rain_amount,
+            "forecast_rain_probability": self._zone.forecast_rain_probability,
+            "observed_rain_amount": self._zone.observed_rain_amount,
+            "temperature_sensor": self._zone.temperature_sensor,
+            "humidity_sensor": self._zone.humidity_sensor,
+            "safety_blockers": list(self._zone.safety_blockers),
         }
 
     @callback

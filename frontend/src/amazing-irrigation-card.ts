@@ -8,7 +8,11 @@ import {
   canRun,
   canStop,
   decisionEntities,
+  type ControlEntity,
   type HassState,
+  type LearnedValue,
+  type RelatedEntity,
+  type ScheduleSlot,
   type ZoneCardConfig,
   type ZoneView,
 } from "./zone-view";
@@ -77,6 +81,25 @@ export class AmazingIrrigationCard extends LitElement {
     this.hass.callService("amazing_irrigation", service, data);
   }
 
+  /** Open Home Assistant's more-info dialog so the user can edit a value. */
+  private _moreInfo(entityId: string) {
+    this.dispatchEvent(
+      new CustomEvent("hass-more-info", {
+        detail: { entityId },
+        bubbles: true,
+        composed: true,
+      }),
+    );
+  }
+
+  /** Toggle a switch entity (schedule active, zone enabled, learning). */
+  private _toggleSwitch(entityId: string) {
+    if (!this.hass) {
+      return;
+    }
+    this.hass.callService("switch", "toggle", { entity_id: entityId });
+  }
+
   protected render(): TemplateResult | typeof nothing {
     const view = this._view;
     if (!this._config) {
@@ -110,6 +133,12 @@ export class AmazingIrrigationCard extends LitElement {
                 "Available water",
                 `${Math.round(view.availableWater * 100)}%`,
               )}
+          ${view.totalVolume === null
+            ? nothing
+            : this._metric(
+                "Total water",
+                `${view.totalVolume} ${view.totalVolumeUnit ?? "L"}`,
+              )}
         </div>
 
         <div class="decision">
@@ -122,6 +151,10 @@ export class AmazingIrrigationCard extends LitElement {
         </div>
 
         ${this._renderGreenhouse(view)}
+        ${this._renderControls(view)}
+        ${this._renderSchedule(view)}
+        ${this._renderLearned(view)}
+        ${this._renderReferences(view)}
         ${this._renderHistory(view)}
 
         <div class="actions">
@@ -164,6 +197,132 @@ export class AmazingIrrigationCard extends LitElement {
         ${view.humidity !== null
           ? html`<span class="ctx">${view.humidity}% RH</span>`
           : nothing}
+      </div>
+    `;
+  }
+
+  private _renderControls(view: ZoneView): TemplateResult | typeof nothing {
+    const numbers = [view.targetControl, view.maxLitersControl].filter(
+      (c): c is ControlEntity => c !== null,
+    );
+    const toggles = [view.enabledControl, view.learningControl].filter(
+      (c): c is ControlEntity => c !== null,
+    );
+    if (!numbers.length && !toggles.length) {
+      return nothing;
+    }
+    return html`
+      <div class="section">
+        <div class="section-head">Settings</div>
+        ${numbers.map(
+          (c) => html`
+            <div
+              class="row clickable"
+              @click=${() => this._moreInfo(c.entityId)}
+            >
+              <span class="row-label">${c.label}</span>
+              <span class="row-value"
+                >${c.state ?? "–"} ${c.unit ?? ""}</span
+              >
+            </div>
+          `,
+        )}
+        ${toggles.map(
+          (c) => html`
+            <div class="row">
+              <span class="row-label">${c.label}</span>
+              <button
+                class="toggle ${c.isOn ? "on" : ""}"
+                @click=${() => this._toggleSwitch(c.entityId)}
+              >
+                ${c.isOn ? "On" : "Off"}
+              </button>
+            </div>
+          `,
+        )}
+      </div>
+    `;
+  }
+
+  private _renderSchedule(view: ZoneView): TemplateResult | typeof nothing {
+    if (!view.schedule.length) {
+      return nothing;
+    }
+    return html`
+      <div class="section">
+        <div class="section-head">Schedule</div>
+        ${view.schedule.map(
+          (slot: ScheduleSlot) => html`
+            <div class="row">
+              <span
+                class="row-label clickable"
+                @click=${() => this._moreInfo(slot.timeEntity)}
+                >Schedule ${slot.index}</span
+              >
+              <span
+                class="row-value clickable"
+                @click=${() => this._moreInfo(slot.timeEntity)}
+                >${slot.time ?? "–"}</span
+              >
+              <button
+                class="toggle ${slot.active ? "on" : ""}"
+                @click=${() => this._toggleSwitch(slot.activeEntity)}
+              >
+                ${slot.active ? "Active" : "Off"}
+              </button>
+            </div>
+          `,
+        )}
+      </div>
+    `;
+  }
+
+  private _renderLearned(view: ZoneView): TemplateResult | typeof nothing {
+    if (!view.learned.length) {
+      return nothing;
+    }
+    return html`
+      <div class="section">
+        <div class="section-head">Learned model</div>
+        ${view.learned.map(
+          (item: LearnedValue) => html`
+            <div
+              class="row clickable"
+              @click=${() => this._moreInfo(item.entityId)}
+            >
+              <span class="row-label">${item.label}</span>
+              <span class="row-value">
+                ${item.value === null
+                  ? "learning…"
+                  : `${item.value} ${item.unit ?? ""}`}
+              </span>
+            </div>
+          `,
+        )}
+      </div>
+    `;
+  }
+
+  private _renderReferences(view: ZoneView): TemplateResult | typeof nothing {
+    if (!view.references.length) {
+      return nothing;
+    }
+    return html`
+      <div class="section">
+        <div class="section-head">Sensors</div>
+        ${view.references.map(
+          (ref: RelatedEntity) => html`
+            <div
+              class="row clickable"
+              @click=${() => this._moreInfo(ref.entityId)}
+            >
+              <span class="row-label">${ref.label}</span>
+              <span class="row-value"
+                >${ref.state ?? "–"} ${ref.unit ?? ""}</span
+              >
+            </div>
+          `,
+        )}
       </div>
     `;
   }
@@ -295,6 +454,50 @@ export class AmazingIrrigationCard extends LitElement {
     }
     .greenhouse .ctx.on {
       color: var(--primary-color);
+    }
+    .section {
+      margin-bottom: 12px;
+    }
+    .section-head {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--secondary-text-color);
+      margin-bottom: 4px;
+    }
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.85rem;
+      padding: 4px 0;
+      border-bottom: 1px solid var(--divider-color);
+    }
+    .row-label {
+      flex: 1;
+    }
+    .row-value {
+      color: var(--secondary-text-color);
+      text-align: right;
+    }
+    .clickable {
+      cursor: pointer;
+    }
+    .clickable:hover {
+      color: var(--primary-color);
+    }
+    .toggle {
+      border: 1px solid var(--divider-color);
+      background: var(--secondary-background-color);
+      color: var(--secondary-text-color);
+      border-radius: 12px;
+      padding: 2px 10px;
+      font-size: 0.75rem;
+      cursor: pointer;
+    }
+    .toggle.on {
+      background: var(--primary-color);
+      color: var(--text-primary-color, #fff);
+      border-color: var(--primary-color);
     }
     .history {
       margin-bottom: 12px;

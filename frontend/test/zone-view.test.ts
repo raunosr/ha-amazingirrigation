@@ -6,6 +6,7 @@ import {
   canRun,
   canStop,
   decisionEntities,
+  zoneSlug,
   type HassState,
   type OverviewCardConfig,
   type ZoneCardConfig,
@@ -210,5 +211,151 @@ describe("capability gating", () => {
       }),
     );
     expect(canStop(noStopPath)).toBe(false);
+  });
+});
+
+describe("zoneSlug", () => {
+  it("strips the decision sensor prefix and suffix", () => {
+    expect(zoneSlug("sensor.herb_bed_irrigation_decision")).toBe("herb_bed");
+  });
+
+  it("leaves a non-standard entity id usable as a base", () => {
+    expect(zoneSlug("sensor.herb_decision")).toBe("herb_decision");
+  });
+});
+
+describe("surfaced zone entities", () => {
+  const slug = "herb_bed";
+  const decisionEntity = `sensor.${slug}_irrigation_decision`;
+  const cfg: ZoneCardConfig = { type: "x", decision_entity: decisionEntity };
+
+  function fullStates(): Record<string, HassState> {
+    return {
+      [decisionEntity]: {
+        state: "water",
+        attributes: {
+          reason: "below_target",
+          references: {
+            moisture_sensors: ["sensor.soil_a", "sensor.soil_b"],
+            observed_rain_amount: "sensor.rain_today",
+            temperature_sensor: "sensor.gh_temp",
+            safety_blockers: ["binary_sensor.valve_fault"],
+          },
+        },
+      },
+      "sensor.soil_a": {
+        state: "30",
+        attributes: { unit_of_measurement: "%", friendly_name: "Soil A" },
+      },
+      "sensor.soil_b": { state: "34", attributes: { unit_of_measurement: "%" } },
+      "sensor.rain_today": {
+        state: "2.4",
+        attributes: { unit_of_measurement: "mm" },
+      },
+      "sensor.gh_temp": {
+        state: "21",
+        attributes: { unit_of_measurement: "°C" },
+      },
+      "binary_sensor.valve_fault": { state: "off", attributes: {} },
+      [`sensor.${slug}_total_watering_volume`]: {
+        state: "123.4",
+        attributes: { unit_of_measurement: "L" },
+      },
+      [`sensor.${slug}_learned_moisture_gain_per_liter`]: {
+        state: "1.8",
+        attributes: { unit_of_measurement: "%/L", samples: 5 },
+      },
+      [`sensor.${slug}_learned_field_capacity`]: {
+        state: "unknown",
+        attributes: {},
+      },
+      [`time.${slug}_schedule_1_time`]: {
+        state: "21:00:00",
+        attributes: {},
+      },
+      [`switch.${slug}_schedule_1_active`]: { state: "on", attributes: {} },
+      [`time.${slug}_schedule_2_time`]: { state: "06:30:00", attributes: {} },
+      [`switch.${slug}_schedule_2_active`]: { state: "off", attributes: {} },
+      [`number.${slug}_target_moisture`]: {
+        state: "40",
+        attributes: { unit_of_measurement: "%" },
+      },
+      [`number.${slug}_max_liters_per_run`]: {
+        state: "15",
+        attributes: { unit_of_measurement: "L" },
+      },
+      [`switch.${slug}_zone_enabled`]: { state: "on", attributes: {} },
+      [`switch.${slug}_learning_enabled`]: { state: "off", attributes: {} },
+    };
+  }
+
+  it("lists referenced source sensors with live states", () => {
+    const view = buildZoneView(cfg, fullStates());
+    expect(view.references.map((r) => r.entityId)).toEqual([
+      "sensor.soil_a",
+      "sensor.soil_b",
+      "sensor.rain_today",
+      "sensor.gh_temp",
+      "binary_sensor.valve_fault",
+    ]);
+    expect(view.references[0].name).toBe("Soil A");
+    expect(view.references[0].label).toBe("Moisture sensor");
+    expect(view.references[2].label).toBe("Observed rain");
+    expect(view.references[4].label).toBe("Safety blocker");
+  });
+
+  it("skips references whose entity is missing", () => {
+    const s = fullStates();
+    delete s["sensor.soil_b"];
+    const view = buildZoneView(cfg, s);
+    expect(view.references.map((r) => r.entityId)).not.toContain(
+      "sensor.soil_b",
+    );
+  });
+
+  it("builds the two schedule slots from time and switch entities", () => {
+    const view = buildZoneView(cfg, fullStates());
+    expect(view.schedule).toHaveLength(2);
+    expect(view.schedule[0]).toMatchObject({
+      index: 1,
+      time: "21:00",
+      active: true,
+    });
+    expect(view.schedule[1]).toMatchObject({
+      index: 2,
+      time: "06:30",
+      active: false,
+    });
+  });
+
+  it("surfaces learned values, treating unknown as not-yet-learned", () => {
+    const view = buildZoneView(cfg, fullStates());
+    const gain = view.learned.find(
+      (l) => l.key === "learned_moisture_gain_per_liter",
+    );
+    expect(gain).toMatchObject({ value: 1.8, unit: "%/L", samples: 5 });
+    const fc = view.learned.find((l) => l.key === "learned_field_capacity");
+    expect(fc?.value).toBeNull();
+  });
+
+  it("exposes total volume and editable controls", () => {
+    const view = buildZoneView(cfg, fullStates());
+    expect(view.totalVolume).toBe(123.4);
+    expect(view.totalVolumeUnit).toBe("L");
+    expect(view.targetControl?.state).toBe("40");
+    expect(view.maxLitersControl?.state).toBe("15");
+    expect(view.enabledControl?.isOn).toBe(true);
+    expect(view.learningControl?.isOn).toBe(false);
+  });
+
+  it("degrades to empty surfaces when no sibling entities exist", () => {
+    const view = buildZoneView(cfg, {
+      [decisionEntity]: { state: "skip", attributes: {} },
+    });
+    expect(view.references).toEqual([]);
+    expect(view.schedule).toEqual([]);
+    expect(view.learned).toEqual([]);
+    expect(view.totalVolume).toBeNull();
+    expect(view.targetControl).toBeNull();
   });
 });

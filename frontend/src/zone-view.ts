@@ -22,6 +22,46 @@ export interface ZoneCardConfig {
   name?: string;
 }
 
+/** A referenced source entity (moisture, rain, climate, safety) for display. */
+export interface RelatedEntity {
+  entityId: string;
+  label: string;
+  name: string;
+  state: string | null;
+  unit: string | null;
+  available: boolean;
+}
+
+/** One of the two daily schedule slots, each independently toggleable. */
+export interface ScheduleSlot {
+  index: number;
+  timeEntity: string;
+  time: string | null;
+  activeEntity: string;
+  active: boolean;
+  available: boolean;
+}
+
+/** A single learned-model parameter surfaced read-only on the card. */
+export interface LearnedValue {
+  key: string;
+  label: string;
+  entityId: string;
+  value: number | null;
+  unit: string | null;
+  samples: number | null;
+}
+
+/** A live, editable tunable backed by a native entity (number/switch). */
+export interface ControlEntity {
+  entityId: string;
+  label: string;
+  state: string | null;
+  unit: string | null;
+  isOn: boolean;
+  available: boolean;
+}
+
 export interface ZoneView {
   name: string;
   moisture: number | null;
@@ -40,6 +80,15 @@ export interface ZoneView {
   protectedRain: boolean;
   temperature: number | null;
   humidity: number | null;
+  references: RelatedEntity[];
+  schedule: ScheduleSlot[];
+  learned: LearnedValue[];
+  totalVolume: number | null;
+  totalVolumeUnit: string | null;
+  targetControl: ControlEntity | null;
+  maxLitersControl: ControlEntity | null;
+  enabledControl: ControlEntity | null;
+  learningControl: ControlEntity | null;
 }
 
 function num(value: unknown): number | null {
@@ -56,6 +105,181 @@ function isUnavailable(state: HassState | undefined): boolean {
     state.state === "unavailable" ||
     state.state === "unknown"
   );
+}
+
+/**
+ * Derive the shared entity-id slug for a zone from its decision sensor.
+ *
+ * All of a zone's entities share Home Assistant's per-device naming, so the
+ * decision sensor `sensor.<slug>_irrigation_decision` lets us locate the zone's
+ * sibling entities (learned model, schedule, totals, controls) without making
+ * the user wire each one into the card config.
+ */
+export function zoneSlug(decisionEntity: string): string {
+  return decisionEntity
+    .replace(/^sensor\./, "")
+    .replace(/_irrigation_decision$/, "");
+}
+
+function stateOf(
+  states: Record<string, HassState | undefined>,
+  entityId: string,
+): HassState | undefined {
+  return states[entityId];
+}
+
+function unitOf(state: HassState | undefined): string | null {
+  const unit = state?.attributes?.["unit_of_measurement"];
+  return typeof unit === "string" ? unit : null;
+}
+
+function friendlyName(
+  state: HassState | undefined,
+  fallback: string,
+): string {
+  const name = state?.attributes?.["friendly_name"];
+  return typeof name === "string" && name.length > 0 ? name : fallback;
+}
+
+function relatedEntity(
+  states: Record<string, HassState | undefined>,
+  entityId: string,
+  label: string,
+): RelatedEntity | null {
+  const state = stateOf(states, entityId);
+  if (!state) {
+    return null;
+  }
+  return {
+    entityId,
+    label,
+    name: friendlyName(state, entityId),
+    state: isUnavailable(state) ? null : state.state,
+    unit: unitOf(state),
+    available: !isUnavailable(state),
+  };
+}
+
+/** Collect the configured source sensors a zone reads, with live states. */
+function buildReferences(
+  refs: Record<string, unknown>,
+  states: Record<string, HassState | undefined>,
+): RelatedEntity[] {
+  const out: RelatedEntity[] = [];
+  const single: Array<[string, string]> = [
+    ["forecast_rain_amount", "Rain forecast"],
+    ["forecast_rain_probability", "Rain chance"],
+    ["observed_rain_amount", "Observed rain"],
+    ["temperature_sensor", "Temperature"],
+    ["humidity_sensor", "Humidity"],
+  ];
+  const moisture = Array.isArray(refs["moisture_sensors"])
+    ? (refs["moisture_sensors"] as string[])
+    : [];
+  for (const id of moisture) {
+    const entity = relatedEntity(states, id, "Moisture sensor");
+    if (entity) {
+      out.push(entity);
+    }
+  }
+  for (const [key, label] of single) {
+    const id = refs[key];
+    if (typeof id === "string" && id) {
+      const entity = relatedEntity(states, id, label);
+      if (entity) {
+        out.push(entity);
+      }
+    }
+  }
+  const blockers = Array.isArray(refs["safety_blockers"])
+    ? (refs["safety_blockers"] as string[])
+    : [];
+  for (const id of blockers) {
+    const entity = relatedEntity(states, id, "Safety blocker");
+    if (entity) {
+      out.push(entity);
+    }
+  }
+  return out;
+}
+
+const LEARNED_DEFS: Array<{ key: string; label: string }> = [
+  { key: "learned_moisture_gain_per_liter", label: "Moisture Gain per Liter" },
+  { key: "learned_daily_drying_rate", label: "Daily Drying Rate" },
+  { key: "learned_rain_efficiency", label: "Rain Efficiency" },
+  { key: "learned_field_capacity", label: "Field Capacity" },
+  { key: "learned_wilting_point", label: "Wilting Point" },
+];
+
+/** Build the learned-model rows for a zone from its learned sensors. */
+function buildLearned(
+  slug: string,
+  states: Record<string, HassState | undefined>,
+): LearnedValue[] {
+  const out: LearnedValue[] = [];
+  for (const def of LEARNED_DEFS) {
+    const entityId = `sensor.${slug}_${def.key}`;
+    const state = stateOf(states, entityId);
+    if (!state) {
+      continue;
+    }
+    const samples = state.attributes?.["samples"];
+    out.push({
+      key: def.key,
+      label: def.label,
+      entityId,
+      value: isUnavailable(state) ? null : num(state.state),
+      unit: unitOf(state),
+      samples: typeof samples === "number" ? samples : null,
+    });
+  }
+  return out;
+}
+
+/** Build the two schedule slots from their native time + switch entities. */
+function buildSchedule(
+  slug: string,
+  states: Record<string, HassState | undefined>,
+): ScheduleSlot[] {
+  const out: ScheduleSlot[] = [];
+  for (const index of [1, 2]) {
+    const timeEntity = `time.${slug}_schedule_${index}_time`;
+    const activeEntity = `switch.${slug}_schedule_${index}_active`;
+    const timeState = stateOf(states, timeEntity);
+    const activeState = stateOf(states, activeEntity);
+    if (!timeState && !activeState) {
+      continue;
+    }
+    const raw = timeState && !isUnavailable(timeState) ? timeState.state : null;
+    out.push({
+      index,
+      timeEntity,
+      time: raw ? raw.slice(0, 5) : null,
+      activeEntity,
+      active: activeState?.state === "on",
+      available: !isUnavailable(timeState),
+    });
+  }
+  return out;
+}
+
+function controlEntity(
+  states: Record<string, HassState | undefined>,
+  entityId: string,
+  label: string,
+): ControlEntity | null {
+  const state = stateOf(states, entityId);
+  if (!state) {
+    return null;
+  }
+  return {
+    entityId,
+    label,
+    state: isUnavailable(state) ? null : state.state,
+    unit: unitOf(state),
+    isOn: state.state === "on",
+    available: !isUnavailable(state),
+  };
 }
 
 /**
@@ -88,6 +312,14 @@ export function buildZoneView(
       ? num(moisture.state)
       : num(decisionAttrs["zone_moisture"]);
 
+  const slug = zoneSlug(config.decision_entity);
+  const refs =
+    (decisionAttrs["references"] as Record<string, unknown> | undefined) ?? {};
+  const totalVolumeState = stateOf(
+    states,
+    `sensor.${slug}_total_watering_volume`,
+  );
+
   return {
     name:
       config.name ??
@@ -111,6 +343,34 @@ export function buildZoneView(
     protectedRain: decisionAttrs["protected_rain"] === true,
     temperature: num(decisionAttrs["temperature"]),
     humidity: num(decisionAttrs["humidity"]),
+    references: buildReferences(refs, states),
+    schedule: buildSchedule(slug, states),
+    learned: buildLearned(slug, states),
+    totalVolume:
+      totalVolumeState && !isUnavailable(totalVolumeState)
+        ? num(totalVolumeState.state)
+        : null,
+    totalVolumeUnit: unitOf(totalVolumeState),
+    targetControl: controlEntity(
+      states,
+      `number.${slug}_target_moisture`,
+      "Target Moisture",
+    ),
+    maxLitersControl: controlEntity(
+      states,
+      `number.${slug}_max_liters_per_run`,
+      "Max Liters per Run",
+    ),
+    enabledControl: controlEntity(
+      states,
+      `switch.${slug}_zone_enabled`,
+      "Zone Enabled",
+    ),
+    learningControl: controlEntity(
+      states,
+      `switch.${slug}_learning_enabled`,
+      "Learning Enabled",
+    ),
   };
 }
 
