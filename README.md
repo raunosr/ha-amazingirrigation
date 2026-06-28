@@ -70,6 +70,15 @@ npm run test     # vitest unit tests
 npm run build    # emits custom_components/amazing_irrigation/frontend/amazing-irrigation-card.js
 ```
 
+## Migration from an existing setup
+
+Migrating an existing Home Assistant irrigation setup (e.g. Ecowitt soil moisture
+with LinkTap-over-MQTT)? See [`docs/migration.md`](./docs/migration.md) for an
+entity mapping, the rule that old per-zone automations must be disabled before
+enabling the same zone here, and a non-destructive
+[test dashboard](./docs/examples/test-dashboard.yaml) for validating one zone
+first.
+
 ## Security
 
 Never commit Home Assistant secrets, tokens, backups, `.storage` files or runtime
