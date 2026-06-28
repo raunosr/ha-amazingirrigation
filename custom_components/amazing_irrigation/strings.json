@@ -43,6 +43,12 @@
           "protected_rain": "Protected from rain (ignore rain in decisions)",
           "temperature_sensor": "Greenhouse temperature sensor (optional)",
           "humidity_sensor": "Greenhouse humidity sensor (optional)",
+          "observed_air_temperature": "ET climate observed air temperature (optional)",
+          "observed_air_humidity": "ET climate observed air humidity (optional)",
+          "forecast_air_temperature": "ET climate forecast air temperature (optional)",
+          "forecast_air_humidity": "ET climate forecast air humidity (optional)",
+          "wind_speed": "ET climate wind speed (optional)",
+          "solar_radiation": "ET climate solar radiation / illuminance (optional)",
           "season_start": "Active season start (MM-DD, optional)",
           "season_end": "Active season end (MM-DD, optional)",
           "enabled": "Automation enabled",
@@ -51,6 +57,14 @@
           "schedule_time_2": "Scheduled start time 2 (optional)",
           "schedule_time_3": "Scheduled start time 3 (optional)",
           "actuator_type": "Watering Actuator type"
+        },
+        "data_description": {
+          "observed_air_temperature": "Optional ET/model input. Use a local greenhouse sensor for greenhouse zones, or an outdoor weather-station sensor for outdoor zones.",
+          "observed_air_humidity": "Optional ET/model input. Use a local greenhouse sensor for greenhouse zones, or an outdoor weather-station sensor for outdoor zones.",
+          "forecast_air_temperature": "Optional ET/model input. Use the zone's relevant weather forecast sensor.",
+          "forecast_air_humidity": "Optional ET/model input. Use the zone's relevant weather forecast sensor.",
+          "wind_speed": "Optional ET/model input. Outdoor zones usually use the weather station; greenhouse zones can leave this blank unless local airflow is measured.",
+          "solar_radiation": "Optional ET/model input. Select irradiance or illuminance from the local greenhouse or outdoor weather station."
         }
       },
       "edit_zone": {
@@ -76,6 +90,12 @@
           "protected_rain": "Protected from rain (ignore rain in decisions)",
           "temperature_sensor": "Greenhouse temperature sensor (optional)",
           "humidity_sensor": "Greenhouse humidity sensor (optional)",
+          "observed_air_temperature": "ET climate observed air temperature (optional)",
+          "observed_air_humidity": "ET climate observed air humidity (optional)",
+          "forecast_air_temperature": "ET climate forecast air temperature (optional)",
+          "forecast_air_humidity": "ET climate forecast air humidity (optional)",
+          "wind_speed": "ET climate wind speed (optional)",
+          "solar_radiation": "ET climate solar radiation / illuminance (optional)",
           "season_start": "Active season start (MM-DD, optional)",
           "season_end": "Active season end (MM-DD, optional)",
           "enabled": "Automation enabled",
@@ -84,6 +104,14 @@
           "schedule_time_2": "Scheduled start time 2 (optional)",
           "schedule_time_3": "Scheduled start time 3 (optional)",
           "actuator_type": "Watering Actuator type"
+        },
+        "data_description": {
+          "observed_air_temperature": "Optional ET/model input. Use a local greenhouse sensor for greenhouse zones, or an outdoor weather-station sensor for outdoor zones.",
+          "observed_air_humidity": "Optional ET/model input. Use a local greenhouse sensor for greenhouse zones, or an outdoor weather-station sensor for outdoor zones.",
+          "forecast_air_temperature": "Optional ET/model input. Use the zone's relevant weather forecast sensor.",
+          "forecast_air_humidity": "Optional ET/model input. Use the zone's relevant weather forecast sensor.",
+          "wind_speed": "Optional ET/model input. Outdoor zones usually use the weather station; greenhouse zones can leave this blank unless local airflow is measured.",
+          "solar_radiation": "Optional ET/model input. Select irradiance or illuminance from the local greenhouse or outdoor weather station."
         }
       },
       "actuator": {

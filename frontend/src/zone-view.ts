@@ -172,6 +172,12 @@ function buildReferences(
     ["observed_rain_amount", "Observed rain"],
     ["temperature_sensor", "Temperature"],
     ["humidity_sensor", "Humidity"],
+    ["observed_air_temperature", "Air temperature"],
+    ["observed_air_humidity", "Air humidity"],
+    ["forecast_air_temperature", "Forecast air temp"],
+    ["forecast_air_humidity", "Forecast air humidity"],
+    ["wind_speed", "Wind speed"],
+    ["solar_radiation", "Solar"],
   ];
   const moisture = Array.isArray(refs["moisture_sensors"])
     ? (refs["moisture_sensors"] as string[])

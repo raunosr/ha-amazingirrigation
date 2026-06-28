@@ -16,6 +16,8 @@ from dataclasses import dataclass, field
 from .const import (
     CONF_ENABLED,
     CONF_FIELD_CAPACITY,
+    CONF_FORECAST_AIR_HUMIDITY,
+    CONF_FORECAST_AIR_TEMPERATURE,
     CONF_FORECAST_RAIN_AMOUNT,
     CONF_FORECAST_RAIN_PROBABILITY,
     CONF_GAIN_PER_LITER,
@@ -25,6 +27,8 @@ from .const import (
     CONF_MAX_LITERS,
     CONF_MOISTURE_SENSORS,
     CONF_NAME,
+    CONF_OBSERVED_AIR_HUMIDITY,
+    CONF_OBSERVED_AIR_TEMPERATURE,
     CONF_OBSERVED_RAIN_AMOUNT,
     CONF_PROTECTED_RAIN,
     CONF_RAIN_SKIP_MM,
@@ -34,9 +38,11 @@ from .const import (
     CONF_SCHEDULE_WEEKDAYS,
     CONF_SEASON_END,
     CONF_SEASON_START,
+    CONF_SOLAR_RADIATION,
     CONF_TARGET_MOISTURE,
     CONF_TEMPERATURE_SENSOR,
     CONF_WILTING_POINT,
+    CONF_WIND_SPEED,
     DEFAULT_MAX_LITERS,
     DEFAULT_RAIN_SKIP_MM,
     DEFAULT_RAIN_SKIP_PROBABILITY,
@@ -115,6 +121,12 @@ class ZoneConfig:
     protected_rain: bool = False
     temperature_sensor: str | None = None
     humidity_sensor: str | None = None
+    observed_air_temperature: str | None = None
+    observed_air_humidity: str | None = None
+    forecast_air_temperature: str | None = None
+    forecast_air_humidity: str | None = None
+    wind_speed: str | None = None
+    solar_radiation: str | None = None
 
     @classmethod
     def from_record(cls, zone_id: str, record: dict) -> ZoneConfig:
@@ -146,6 +158,16 @@ class ZoneConfig:
             protected_rain=bool(record.get(CONF_PROTECTED_RAIN, False)),
             temperature_sensor=record.get(CONF_TEMPERATURE_SENSOR) or None,
             humidity_sensor=record.get(CONF_HUMIDITY_SENSOR) or None,
+            observed_air_temperature=(
+                record.get(CONF_OBSERVED_AIR_TEMPERATURE) or None
+            ),
+            observed_air_humidity=record.get(CONF_OBSERVED_AIR_HUMIDITY) or None,
+            forecast_air_temperature=(
+                record.get(CONF_FORECAST_AIR_TEMPERATURE) or None
+            ),
+            forecast_air_humidity=record.get(CONF_FORECAST_AIR_HUMIDITY) or None,
+            wind_speed=record.get(CONF_WIND_SPEED) or None,
+            solar_radiation=record.get(CONF_SOLAR_RADIATION) or None,
         )
 
 

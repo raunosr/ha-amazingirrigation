@@ -239,6 +239,12 @@ describe("surfaced zone entities", () => {
             moisture_sensors: ["sensor.soil_a", "sensor.soil_b"],
             observed_rain_amount: "sensor.rain_today",
             temperature_sensor: "sensor.gh_temp",
+            observed_air_temperature: "sensor.air_temp",
+            observed_air_humidity: "sensor.air_humidity",
+            forecast_air_temperature: "sensor.forecast_temp",
+            forecast_air_humidity: "sensor.forecast_humidity",
+            wind_speed: "sensor.wind_speed",
+            solar_radiation: "sensor.solar_radiation",
             safety_blockers: ["binary_sensor.valve_fault"],
           },
         },
@@ -255,6 +261,30 @@ describe("surfaced zone entities", () => {
       "sensor.gh_temp": {
         state: "21",
         attributes: { unit_of_measurement: "°C" },
+      },
+      "sensor.air_temp": {
+        state: "22",
+        attributes: { unit_of_measurement: "°C" },
+      },
+      "sensor.air_humidity": {
+        state: "61",
+        attributes: { unit_of_measurement: "%" },
+      },
+      "sensor.forecast_temp": {
+        state: "24",
+        attributes: { unit_of_measurement: "°C" },
+      },
+      "sensor.forecast_humidity": {
+        state: "58",
+        attributes: { unit_of_measurement: "%" },
+      },
+      "sensor.wind_speed": {
+        state: "3.5",
+        attributes: { unit_of_measurement: "m/s" },
+      },
+      "sensor.solar_radiation": {
+        state: "430",
+        attributes: { unit_of_measurement: "W/m²" },
       },
       "binary_sensor.valve_fault": { state: "off", attributes: {} },
       [`sensor.${slug}_total_watering_volume`]: {
@@ -296,12 +326,24 @@ describe("surfaced zone entities", () => {
       "sensor.soil_b",
       "sensor.rain_today",
       "sensor.gh_temp",
+      "sensor.air_temp",
+      "sensor.air_humidity",
+      "sensor.forecast_temp",
+      "sensor.forecast_humidity",
+      "sensor.wind_speed",
+      "sensor.solar_radiation",
       "binary_sensor.valve_fault",
     ]);
     expect(view.references[0].name).toBe("Soil A");
     expect(view.references[0].label).toBe("Moisture sensor");
     expect(view.references[2].label).toBe("Observed rain");
-    expect(view.references[4].label).toBe("Safety blocker");
+    expect(view.references[4].label).toBe("Air temperature");
+    expect(view.references[5].label).toBe("Air humidity");
+    expect(view.references[6].label).toBe("Forecast air temp");
+    expect(view.references[7].label).toBe("Forecast air humidity");
+    expect(view.references[8].label).toBe("Wind speed");
+    expect(view.references[9].label).toBe("Solar");
+    expect(view.references[10].label).toBe("Safety blocker");
   });
 
   it("skips references whose entity is missing", () => {
