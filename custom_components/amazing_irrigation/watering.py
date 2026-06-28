@@ -26,6 +26,7 @@ from .actuator import (
 from .const import EVENT_WATERING
 from .decision import evaluate_zone, read_number
 from .engine import Decision
+from .history import IrrigationHistory, ObservationKind
 from .zone import ZoneConfig
 
 
@@ -66,12 +67,17 @@ class WateringController:
     """Owns a single zone's Watering Events and actuator interaction."""
 
     def __init__(
-        self, hass: HomeAssistant, zone: ZoneConfig, actuator: ActuatorConfig
+        self,
+        hass: HomeAssistant,
+        zone: ZoneConfig,
+        actuator: ActuatorConfig,
+        history: IrrigationHistory | None = None,
     ) -> None:
         """Initialise the controller for one zone."""
         self.hass = hass
         self.zone = zone
         self.actuator = actuator
+        self.history = history
         self.last_event = WateringEvent(WateringStatus.IDLE)
         self._listeners: list[Callable[[], None]] = []
         self._active = False
@@ -116,6 +122,42 @@ class WateringController:
                 "reason": event.reason,
             },
         )
+        # Skipped Run Requests are recorded as Decisions, not Watering Events.
+        if self.history is not None and event.status is not WateringStatus.SKIPPED:
+            self.history.record(
+                ObservationKind.WATERING_EVENT,
+                {
+                    "status": event.status.value,
+                    "requested_liters": round(event.requested_liters, 2),
+                    "measured_liters": (
+                        None
+                        if event.measured_liters is None
+                        else round(event.measured_liters, 2)
+                    ),
+                    "confirmed": event.confirmed,
+                    "reason": event.reason,
+                },
+            )
+
+    @callback
+    def _record_decision(
+        self, decision: Decision, *, force: bool, zone_locked: bool
+    ) -> None:
+        """Capture a Run Request and its Irrigation Decision in history."""
+        if self.history is None:
+            return
+        self.history.record(
+            ObservationKind.RUN_REQUEST, {"force": force, "zone_locked": zone_locked}
+        )
+        self.history.record(
+            ObservationKind.DECISION,
+            {
+                "action": decision.action.value,
+                "reason": decision.reason.value,
+                "recommended_liters": round(decision.recommended_liters, 2),
+                "degraded": decision.degraded,
+            },
+        )
 
     async def async_run(
         self, *, force: bool = False, zone_locked: bool = False
@@ -134,6 +176,7 @@ class WateringController:
         decision: Decision = evaluate_zone(
             self.hass, self.zone, force=force, zone_locked=zone_locked
         )
+        self._record_decision(decision, force=force, zone_locked=zone_locked)
 
         if not decision.will_water:
             event = WateringEvent(
@@ -299,14 +342,19 @@ class WateringController:
 
 
 def build_controllers(
-    hass: HomeAssistant, zones: dict[str, dict]
+    hass: HomeAssistant,
+    zones: dict[str, dict],
+    histories: dict[str, IrrigationHistory] | None = None,
 ) -> dict[str, WateringController]:
     """Create a WateringController for each configured zone."""
+    histories = histories or {}
     controllers: dict[str, WateringController] = {}
     for zone_id, record in zones.items():
         zone = ZoneConfig.from_record(zone_id, record)
         actuator = ActuatorConfig.from_record(record)
-        controllers[zone_id] = WateringController(hass, zone, actuator)
+        controllers[zone_id] = WateringController(
+            hass, zone, actuator, histories.get(zone_id)
+        )
     return controllers
 
 

@@ -14,7 +14,16 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 
-from .const import CONF_ZONES, DATA_CONTROLLERS, DATA_SCHEDULER, DOMAIN
+from .const import (
+    CONF_ZONES,
+    DATA_CONTROLLERS,
+    DATA_HISTORY,
+    DATA_RAIN_WATCHERS,
+    DATA_SCHEDULER,
+    DOMAIN,
+)
+from .history import build_histories
+from .rain import build_rain_watchers
 from .scheduler import build_scheduler
 from .services import async_setup_services, async_unload_services
 from .watering import build_controllers
@@ -28,11 +37,16 @@ PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.BUTTON]
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Amazing Irrigation from a config entry."""
     domain_data = hass.data.setdefault(DOMAIN, {})
-    controllers = build_controllers(hass, entry.options.get(CONF_ZONES, {}))
+    zones = entry.options.get(CONF_ZONES, {})
+    histories = build_histories(zones)
+    controllers = build_controllers(hass, zones, histories)
     scheduler = build_scheduler(hass, controllers, entry.options)
+    rain_watchers = build_rain_watchers(hass, zones, histories)
     domain_data[entry.entry_id] = {
         DATA_CONTROLLERS: controllers,
         DATA_SCHEDULER: scheduler,
+        DATA_HISTORY: histories,
+        DATA_RAIN_WATCHERS: rain_watchers,
     }
 
     if PLATFORMS:
@@ -40,6 +54,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     async_setup_services(hass)
     scheduler.async_start()
+    for watcher in rain_watchers:
+        watcher.async_start()
 
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 
@@ -63,6 +79,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             scheduler = entry_data.get(DATA_SCHEDULER)
             if scheduler is not None:
                 scheduler.async_stop()
+            for watcher in entry_data.get(DATA_RAIN_WATCHERS, []):
+                watcher.async_stop()
             for controller in entry_data.get(DATA_CONTROLLERS, {}).values():
                 controller.teardown()
         if not domain_data:

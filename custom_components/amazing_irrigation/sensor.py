@@ -25,9 +25,17 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_track_state_change_event
 
-from .const import CONF_ZONES, DATA_CONTROLLERS, DATA_DECISION_ENTITIES, DOMAIN
+from .calibration import available_water_fraction
+from .const import (
+    CONF_ZONES,
+    DATA_CONTROLLERS,
+    DATA_DECISION_ENTITIES,
+    DATA_HISTORY,
+    DOMAIN,
+)
 from .decision import evaluate_zone
 from .engine import Decision, DecisionAction
+from .history import IrrigationHistory
 from .watering import WateringController, WateringStatus
 from .zone import ZoneConfig, aggregate_zone_moisture
 
@@ -41,6 +49,9 @@ async def async_setup_entry(
     controllers: dict[str, WateringController] = hass.data[DOMAIN][entry.entry_id][
         DATA_CONTROLLERS
     ]
+    histories: dict[str, IrrigationHistory] = hass.data[DOMAIN][entry.entry_id].get(
+        DATA_HISTORY, {}
+    )
     zones = entry.options.get(CONF_ZONES, {})
     entities: list[SensorEntity] = []
     for zone_id, record in zones.items():
@@ -50,6 +61,9 @@ async def async_setup_entry(
         controller = controllers.get(zone_id)
         if controller is not None:
             entities.append(WateringStatusSensor(entry, zone, controller))
+        history = histories.get(zone_id)
+        if history is not None:
+            entities.append(ZoneHistorySensor(entry, zone, history))
     async_add_entities(entities)
 
 
@@ -196,9 +210,22 @@ class IrrigationDecisionSensor(SensorEntity):
         return evaluate_zone(self.hass, self._zone, force=force)
 
     @callback
+    def _current_moisture(self) -> float | None:
+        """Current canonical Zone Moisture from the live source sensors."""
+        readings = [
+            _read_moisture(self.hass, entity_id)
+            for entity_id in self._zone.moisture_sensors
+        ]
+        return aggregate_zone_moisture(readings).value
+
+    @callback
     def _store(self, decision: Decision) -> None:
         """Reflect a Decision on this entity's attributes (no state write)."""
         self._attr_native_value = decision.action.value
+        current = self._current_moisture()
+        available = available_water_fraction(
+            current, self._zone.wilting_point, self._zone.field_capacity
+        )
         self._attr_extra_state_attributes = {
             "zone_id": self._zone.zone_id,
             "reason": decision.reason.value,
@@ -206,6 +233,12 @@ class IrrigationDecisionSensor(SensorEntity):
             "degraded": decision.degraded,
             "target_moisture": self._zone.target_moisture,
             "max_liters": self._zone.max_liters,
+            "field_capacity": self._zone.field_capacity,
+            "wilting_point": self._zone.wilting_point,
+            "available_water": (
+                None if available is None else round(available, 3)
+            ),
+            "learning_enabled": self._zone.learning_enabled,
             **decision.details,
         }
 
@@ -270,4 +303,48 @@ class WateringStatusSensor(SensorEntity):
             "is_watering": self._controller.is_watering,
             "can_stop": self._controller.can_stop,
             "reason": event.reason,
+        }
+
+
+class ZoneHistorySensor(SensorEntity):
+    """Exposes a zone's bounded Irrigation History for explainability.
+
+    The state is the number of recorded Observations; the most recent entries
+    (Run Requests, Decisions, Rain Events, Watering Events) are exposed as
+    attributes so a card can show *why* a zone behaved as it did.
+    """
+
+    _attr_has_entity_name = True
+    _attr_name = "Irrigation History"
+    _attr_icon = "mdi:history"
+
+    def __init__(
+        self, entry: ConfigEntry, zone: ZoneConfig, history: IrrigationHistory
+    ) -> None:
+        """Initialise the history sensor for a zone."""
+        self._zone = zone
+        self._history = history
+        self._attr_unique_id = f"{entry.entry_id}_{zone.zone_id}_history"
+        self._attr_device_info = _zone_device_info(entry, zone)
+
+    async def async_added_to_hass(self) -> None:
+        """Subscribe to history updates."""
+        self.async_on_remove(self._history.add_listener(self._on_update))
+        self._refresh()
+
+    @callback
+    def _on_update(self) -> None:
+        """Handle a new Observation."""
+        self._refresh()
+        self.async_write_ha_state()
+
+    @callback
+    def _refresh(self) -> None:
+        """Read the latest history into entity state and attributes."""
+        last = self._history.last
+        self._attr_native_value = self._history.count
+        self._attr_extra_state_attributes = {
+            "zone_id": self._zone.zone_id,
+            "last_kind": None if last is None else last.kind.value,
+            "entries": self._history.recent(limit=20),
         }
