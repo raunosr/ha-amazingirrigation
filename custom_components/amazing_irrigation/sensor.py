@@ -25,9 +25,10 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_track_state_change_event
 
-from .const import CONF_ZONES, DATA_DECISION_ENTITIES, DOMAIN
+from .const import CONF_ZONES, DATA_CONTROLLERS, DATA_DECISION_ENTITIES, DOMAIN
 from .decision import evaluate_zone
 from .engine import Decision, DecisionAction
+from .watering import WateringController, WateringStatus
 from .zone import ZoneConfig, aggregate_zone_moisture
 
 
@@ -37,12 +38,18 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up per-zone read-only sensors."""
+    controllers: dict[str, WateringController] = hass.data[DOMAIN][entry.entry_id][
+        DATA_CONTROLLERS
+    ]
     zones = entry.options.get(CONF_ZONES, {})
     entities: list[SensorEntity] = []
     for zone_id, record in zones.items():
         zone = ZoneConfig.from_record(zone_id, record)
         entities.append(ZoneMoistureSensor(entry, zone))
         entities.append(IrrigationDecisionSensor(entry, zone))
+        controller = controllers.get(zone_id)
+        if controller is not None:
+            entities.append(WateringStatusSensor(entry, zone, controller))
     async_add_entities(entities)
 
 
@@ -215,3 +222,52 @@ class IrrigationDecisionSensor(SensorEntity):
             self._store(decision)
             self.async_write_ha_state()
         return decision
+
+
+class WateringStatusSensor(SensorEntity):
+    """Reflects a zone's latest Watering Event status and volume."""
+
+    _attr_has_entity_name = True
+    _attr_name = "Watering Status"
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_icon = "mdi:sprinkler"
+
+    def __init__(
+        self, entry: ConfigEntry, zone: ZoneConfig, controller: WateringController
+    ) -> None:
+        """Initialise the watering status sensor for a zone."""
+        self._zone = zone
+        self._controller = controller
+        self._attr_unique_id = f"{entry.entry_id}_{zone.zone_id}_watering_status"
+        self._attr_device_info = _zone_device_info(entry, zone)
+        self._attr_options = [status.value for status in WateringStatus]
+
+    async def async_added_to_hass(self) -> None:
+        """Subscribe to the controller's updates."""
+        self.async_on_remove(self._controller.add_listener(self._on_update))
+        self._refresh()
+
+    @callback
+    def _on_update(self) -> None:
+        """Handle a controller update."""
+        self._refresh()
+        self.async_write_ha_state()
+
+    @callback
+    def _refresh(self) -> None:
+        """Read the controller's latest event into entity attributes."""
+        event = self._controller.last_event
+        self._attr_native_value = event.status.value
+        self._attr_extra_state_attributes = {
+            "zone_id": self._zone.zone_id,
+            "confirmed": event.confirmed,
+            "requested_liters": round(event.requested_liters, 2),
+            "measured_liters": (
+                None
+                if event.measured_liters is None
+                else round(event.measured_liters, 2)
+            ),
+            "is_watering": self._controller.is_watering,
+            "can_stop": self._controller.can_stop,
+            "reason": event.reason,
+        }

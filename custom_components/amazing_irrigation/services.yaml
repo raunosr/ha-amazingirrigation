@@ -20,3 +20,34 @@ evaluate_zone:
       default: false
       selector:
         boolean:
+
+run_zone:
+  name: Run zone
+  description: >-
+    Create a Run Request that waters the targeted zones through their Watering
+    Actuator when the decision allows.
+  target:
+    entity:
+      integration: amazing_irrigation
+    device:
+      integration: amazing_irrigation
+  fields:
+    force:
+      name: Force water
+      description: Bypass soft checks (still respects Safety Blockers).
+      required: false
+      default: false
+      selector:
+        boolean:
+
+stop_zone:
+  name: Stop zone
+  description: >-
+    Stop an in-progress Watering Event for the targeted zones (only zones with a
+    configured stop path).
+  target:
+    entity:
+      integration: amazing_irrigation
+    device:
+      integration: amazing_irrigation
+

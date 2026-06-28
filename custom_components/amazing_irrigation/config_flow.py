@@ -23,6 +23,16 @@ from homeassistant.core import callback
 from homeassistant.helpers import selector
 
 from .const import (
+    ACTUATOR_NONE,
+    ACTUATOR_TYPES,
+    CONF_ACTUATOR_START_DATA,
+    CONF_ACTUATOR_START_SCRIPT,
+    CONF_ACTUATOR_START_SERVICE,
+    CONF_ACTUATOR_STOP_DATA,
+    CONF_ACTUATOR_STOP_SCRIPT,
+    CONF_ACTUATOR_STOP_SERVICE,
+    CONF_ACTUATOR_SWITCH,
+    CONF_ACTUATOR_TYPE,
     CONF_FORECAST_RAIN_AMOUNT,
     CONF_FORECAST_RAIN_PROBABILITY,
     CONF_GAIN_PER_LITER,
@@ -36,11 +46,15 @@ from .const import (
     CONF_SEASON_END,
     CONF_SEASON_START,
     CONF_TARGET_MOISTURE,
+    CONF_VOLUME_FIELD,
+    CONF_VOLUME_SENSOR,
+    CONF_WATERING_SENSOR,
     CONF_ZONES,
     DEFAULT_MAX_LITERS,
     DEFAULT_RAIN_SKIP_MM,
     DEFAULT_RAIN_SKIP_PROBABILITY,
     DEFAULT_TARGET_MOISTURE,
+    DEFAULT_VOLUME_FIELD,
     DOMAIN,
     INTEGRATION_TITLE,
 )
@@ -101,6 +115,35 @@ def _zone_schema() -> vol.Schema:
             ),
             vol.Optional(CONF_SEASON_START): selector.TextSelector(),
             vol.Optional(CONF_SEASON_END): selector.TextSelector(),
+            vol.Optional(
+                CONF_ACTUATOR_TYPE, default=ACTUATOR_NONE
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=ACTUATOR_TYPES, translation_key="actuator_type"
+                )
+            ),
+            vol.Optional(CONF_ACTUATOR_SWITCH): selector.EntitySelector(
+                selector.EntitySelectorConfig(domain="switch")
+            ),
+            vol.Optional(CONF_ACTUATOR_START_SERVICE): selector.TextSelector(),
+            vol.Optional(CONF_ACTUATOR_START_DATA): selector.ObjectSelector(),
+            vol.Optional(CONF_ACTUATOR_STOP_SERVICE): selector.TextSelector(),
+            vol.Optional(CONF_ACTUATOR_STOP_DATA): selector.ObjectSelector(),
+            vol.Optional(CONF_ACTUATOR_START_SCRIPT): selector.EntitySelector(
+                selector.EntitySelectorConfig(domain="script")
+            ),
+            vol.Optional(CONF_ACTUATOR_STOP_SCRIPT): selector.EntitySelector(
+                selector.EntitySelectorConfig(domain="script")
+            ),
+            vol.Optional(
+                CONF_VOLUME_FIELD, default=DEFAULT_VOLUME_FIELD
+            ): selector.TextSelector(),
+            vol.Optional(CONF_WATERING_SENSOR): selector.EntitySelector(
+                selector.EntitySelectorConfig(domain="binary_sensor")
+            ),
+            vol.Optional(CONF_VOLUME_SENSOR): selector.EntitySelector(
+                selector.EntitySelectorConfig(domain="sensor")
+            ),
         }
     )
 
