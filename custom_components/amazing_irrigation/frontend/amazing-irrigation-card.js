@@ -4,29 +4,29 @@ function e(e,t,i,r){var n,s=arguments.length,o=s<3?t:null===r?r=Object.getOwnPro
  * Copyright 2019 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const t=globalThis,i=t.ShadowRoot&&(void 0===t.ShadyCSS||t.ShadyCSS.nativeShadow)&&"adoptedStyleSheets"in Document.prototype&&"replace"in CSSStyleSheet.prototype,r=Symbol(),n=new WeakMap;let s=class{constructor(e,t,i){if(this._$cssResult$=!0,i!==r)throw Error("CSSResult is not constructable. Use `unsafeCSS` or `css` instead.");this.cssText=e,this.t=t}get styleSheet(){let e=this.o;const t=this.t;if(i&&void 0===e){const i=void 0!==t&&1===t.length;i&&(e=n.get(t)),void 0===e&&((this.o=e=new CSSStyleSheet).replaceSync(this.cssText),i&&n.set(t,e))}return e}toString(){return this.cssText}};const o=(e,...t)=>{const i=1===e.length?e[0]:t.reduce((t,i,r)=>t+(e=>{if(!0===e._$cssResult$)return e.cssText;if("number"==typeof e)return e;throw Error("Value passed to 'css' function must be a 'css' function result: "+e+". Use 'unsafeCSS' to pass non-literal values, but take care to ensure page security.")})(i)+e[r+1],e[0]);return new s(i,e,r)},a=i?e=>e:e=>e instanceof CSSStyleSheet?(e=>{let t="";for(const i of e.cssRules)t+=i.cssText;return(e=>new s("string"==typeof e?e:e+"",void 0,r))(t)})(e):e,{is:l,defineProperty:c,getOwnPropertyDescriptor:d,getOwnPropertyNames:p,getOwnPropertySymbols:h,getPrototypeOf:u}=Object,g=globalThis,m=g.trustedTypes,v=m?m.emptyScript:"",f=g.reactiveElementPolyfillSupport,_=(e,t)=>e,y={toAttribute(e,t){switch(t){case Boolean:e=e?v:null;break;case Object:case Array:e=null==e?e:JSON.stringify(e)}return e},fromAttribute(e,t){let i=e;switch(t){case Boolean:i=null!==e;break;case Number:i=null===e?null:Number(e);break;case Object:case Array:try{i=JSON.parse(e)}catch(e){i=null}}return i}},$=(e,t)=>!l(e,t),b={attribute:!0,type:String,converter:y,reflect:!1,useDefault:!1,hasChanged:$};
+const t=globalThis,i=t.ShadowRoot&&(void 0===t.ShadyCSS||t.ShadyCSS.nativeShadow)&&"adoptedStyleSheets"in Document.prototype&&"replace"in CSSStyleSheet.prototype,r=Symbol(),n=new WeakMap;let s=class{constructor(e,t,i){if(this._$cssResult$=!0,i!==r)throw Error("CSSResult is not constructable. Use `unsafeCSS` or `css` instead.");this.cssText=e,this.t=t}get styleSheet(){let e=this.o;const t=this.t;if(i&&void 0===e){const i=void 0!==t&&1===t.length;i&&(e=n.get(t)),void 0===e&&((this.o=e=new CSSStyleSheet).replaceSync(this.cssText),i&&n.set(t,e))}return e}toString(){return this.cssText}};const o=(e,...t)=>{const i=1===e.length?e[0]:t.reduce((t,i,r)=>t+(e=>{if(!0===e._$cssResult$)return e.cssText;if("number"==typeof e)return e;throw Error("Value passed to 'css' function must be a 'css' function result: "+e+". Use 'unsafeCSS' to pass non-literal values, but take care to ensure page security.")})(i)+e[r+1],e[0]);return new s(i,e,r)},a=i?e=>e:e=>e instanceof CSSStyleSheet?(e=>{let t="";for(const i of e.cssRules)t+=i.cssText;return(e=>new s("string"==typeof e?e:e+"",void 0,r))(t)})(e):e,{is:l,defineProperty:c,getOwnPropertyDescriptor:d,getOwnPropertyNames:p,getOwnPropertySymbols:h,getPrototypeOf:u}=Object,g=globalThis,m=g.trustedTypes,v=m?m.emptyScript:"",f=g.reactiveElementPolyfillSupport,y=(e,t)=>e,$={toAttribute(e,t){switch(t){case Boolean:e=e?v:null;break;case Object:case Array:e=null==e?e:JSON.stringify(e)}return e},fromAttribute(e,t){let i=e;switch(t){case Boolean:i=null!==e;break;case Number:i=null===e?null:Number(e);break;case Object:case Array:try{i=JSON.parse(e)}catch(e){i=null}}return i}},_=(e,t)=>!l(e,t),b={attribute:!0,type:String,converter:$,reflect:!1,useDefault:!1,hasChanged:_};
 /**
  * @license
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
- */Symbol.metadata??=Symbol("metadata"),g.litPropertyMetadata??=new WeakMap;let x=class extends HTMLElement{static addInitializer(e){this._$Ei(),(this.l??=[]).push(e)}static get observedAttributes(){return this.finalize(),this._$Eh&&[...this._$Eh.keys()]}static createProperty(e,t=b){if(t.state&&(t.attribute=!1),this._$Ei(),this.prototype.hasOwnProperty(e)&&((t=Object.create(t)).wrapped=!0),this.elementProperties.set(e,t),!t.noAccessor){const i=Symbol(),r=this.getPropertyDescriptor(e,i,t);void 0!==r&&c(this.prototype,e,r)}}static getPropertyDescriptor(e,t,i){const{get:r,set:n}=d(this.prototype,e)??{get(){return this[t]},set(e){this[t]=e}};return{get:r,set(t){const s=r?.call(this);n?.call(this,t),this.requestUpdate(e,s,i)},configurable:!0,enumerable:!0}}static getPropertyOptions(e){return this.elementProperties.get(e)??b}static _$Ei(){if(this.hasOwnProperty(_("elementProperties")))return;const e=u(this);e.finalize(),void 0!==e.l&&(this.l=[...e.l]),this.elementProperties=new Map(e.elementProperties)}static finalize(){if(this.hasOwnProperty(_("finalized")))return;if(this.finalized=!0,this._$Ei(),this.hasOwnProperty(_("properties"))){const e=this.properties,t=[...p(e),...h(e)];for(const i of t)this.createProperty(i,e[i])}const e=this[Symbol.metadata];if(null!==e){const t=litPropertyMetadata.get(e);if(void 0!==t)for(const[e,i]of t)this.elementProperties.set(e,i)}this._$Eh=new Map;for(const[e,t]of this.elementProperties){const i=this._$Eu(e,t);void 0!==i&&this._$Eh.set(i,e)}this.elementStyles=this.finalizeStyles(this.styles)}static finalizeStyles(e){const t=[];if(Array.isArray(e)){const i=new Set(e.flat(1/0).reverse());for(const e of i)t.unshift(a(e))}else void 0!==e&&t.push(a(e));return t}static _$Eu(e,t){const i=t.attribute;return!1===i?void 0:"string"==typeof i?i:"string"==typeof e?e.toLowerCase():void 0}constructor(){super(),this._$Ep=void 0,this.isUpdatePending=!1,this.hasUpdated=!1,this._$Em=null,this._$Ev()}_$Ev(){this._$ES=new Promise(e=>this.enableUpdating=e),this._$AL=new Map,this._$E_(),this.requestUpdate(),this.constructor.l?.forEach(e=>e(this))}addController(e){(this._$EO??=new Set).add(e),void 0!==this.renderRoot&&this.isConnected&&e.hostConnected?.()}removeController(e){this._$EO?.delete(e)}_$E_(){const e=new Map,t=this.constructor.elementProperties;for(const i of t.keys())this.hasOwnProperty(i)&&(e.set(i,this[i]),delete this[i]);e.size>0&&(this._$Ep=e)}createRenderRoot(){const e=this.shadowRoot??this.attachShadow(this.constructor.shadowRootOptions);return((e,r)=>{if(i)e.adoptedStyleSheets=r.map(e=>e instanceof CSSStyleSheet?e:e.styleSheet);else for(const i of r){const r=document.createElement("style"),n=t.litNonce;void 0!==n&&r.setAttribute("nonce",n),r.textContent=i.cssText,e.appendChild(r)}})(e,this.constructor.elementStyles),e}connectedCallback(){this.renderRoot??=this.createRenderRoot(),this.enableUpdating(!0),this._$EO?.forEach(e=>e.hostConnected?.())}enableUpdating(e){}disconnectedCallback(){this._$EO?.forEach(e=>e.hostDisconnected?.())}attributeChangedCallback(e,t,i){this._$AK(e,i)}_$ET(e,t){const i=this.constructor.elementProperties.get(e),r=this.constructor._$Eu(e,i);if(void 0!==r&&!0===i.reflect){const n=(void 0!==i.converter?.toAttribute?i.converter:y).toAttribute(t,i.type);this._$Em=e,null==n?this.removeAttribute(r):this.setAttribute(r,n),this._$Em=null}}_$AK(e,t){const i=this.constructor,r=i._$Eh.get(e);if(void 0!==r&&this._$Em!==r){const e=i.getPropertyOptions(r),n="function"==typeof e.converter?{fromAttribute:e.converter}:void 0!==e.converter?.fromAttribute?e.converter:y;this._$Em=r;const s=n.fromAttribute(t,e.type);this[r]=s??this._$Ej?.get(r)??s,this._$Em=null}}requestUpdate(e,t,i,r=!1,n){if(void 0!==e){const s=this.constructor;if(!1===r&&(n=this[e]),i??=s.getPropertyOptions(e),!((i.hasChanged??$)(n,t)||i.useDefault&&i.reflect&&n===this._$Ej?.get(e)&&!this.hasAttribute(s._$Eu(e,i))))return;this.C(e,t,i)}!1===this.isUpdatePending&&(this._$ES=this._$EP())}C(e,t,{useDefault:i,reflect:r,wrapped:n},s){i&&!(this._$Ej??=new Map).has(e)&&(this._$Ej.set(e,s??t??this[e]),!0!==n||void 0!==s)||(this._$AL.has(e)||(this.hasUpdated||i||(t=void 0),this._$AL.set(e,t)),!0===r&&this._$Em!==e&&(this._$Eq??=new Set).add(e))}async _$EP(){this.isUpdatePending=!0;try{await this._$ES}catch(e){Promise.reject(e)}const e=this.scheduleUpdate();return null!=e&&await e,!this.isUpdatePending}scheduleUpdate(){return this.performUpdate()}performUpdate(){if(!this.isUpdatePending)return;if(!this.hasUpdated){if(this.renderRoot??=this.createRenderRoot(),this._$Ep){for(const[e,t]of this._$Ep)this[e]=t;this._$Ep=void 0}const e=this.constructor.elementProperties;if(e.size>0)for(const[t,i]of e){const{wrapped:e}=i,r=this[t];!0!==e||this._$AL.has(t)||void 0===r||this.C(t,void 0,i,r)}}let e=!1;const t=this._$AL;try{e=this.shouldUpdate(t),e?(this.willUpdate(t),this._$EO?.forEach(e=>e.hostUpdate?.()),this.update(t)):this._$EM()}catch(t){throw e=!1,this._$EM(),t}e&&this._$AE(t)}willUpdate(e){}_$AE(e){this._$EO?.forEach(e=>e.hostUpdated?.()),this.hasUpdated||(this.hasUpdated=!0,this.firstUpdated(e)),this.updated(e)}_$EM(){this._$AL=new Map,this.isUpdatePending=!1}get updateComplete(){return this.getUpdateComplete()}getUpdateComplete(){return this._$ES}shouldUpdate(e){return!0}update(e){this._$Eq&&=this._$Eq.forEach(e=>this._$ET(e,this[e])),this._$EM()}updated(e){}firstUpdated(e){}};x.elementStyles=[],x.shadowRootOptions={mode:"open"},x[_("elementProperties")]=new Map,x[_("finalized")]=new Map,f?.({ReactiveElement:x}),(g.reactiveElementVersions??=[]).push("2.1.2");
-/**
- * @license
- * Copyright 2017 Google LLC
- * SPDX-License-Identifier: BSD-3-Clause
- */
-const w=globalThis,k=e=>e,A=w.trustedTypes,z=A?A.createPolicy("lit-html",{createHTML:e=>e}):void 0,S="$lit$",E=`lit$${Math.random().toFixed(9).slice(2)}$`,C="?"+E,P=`<${C}>`,M=document,R=()=>M.createComment(""),T=e=>null===e||"object"!=typeof e&&"function"!=typeof e,O=Array.isArray,H="[ \t\n\f\r]",L=/<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g,I=/-->/g,U=/>/g,j=RegExp(`>|${H}(?:([^\\s"'>=/]+)(${H}*=${H}*(?:[^ \t\n\f\r"'\`<>=]|("|')|))|$)`,"g"),D=/'/g,B=/"/g,Z=/^(?:script|style|textarea|title)$/i,N=(e=>(t,...i)=>({_$litType$:e,strings:t,values:i}))(1),W=Symbol.for("lit-noChange"),q=Symbol.for("lit-nothing"),V=new WeakMap,F=M.createTreeWalker(M,129);function G(e,t){if(!O(e)||!e.hasOwnProperty("raw"))throw Error("invalid template strings array");return void 0!==z?z.createHTML(t):t}const K=(e,t)=>{const i=e.length-1,r=[];let n,s=2===t?"<svg>":3===t?"<math>":"",o=L;for(let t=0;t<i;t++){const i=e[t];let a,l,c=-1,d=0;for(;d<i.length&&(o.lastIndex=d,l=o.exec(i),null!==l);)d=o.lastIndex,o===L?"!--"===l[1]?o=I:void 0!==l[1]?o=U:void 0!==l[2]?(Z.test(l[2])&&(n=RegExp("</"+l[2],"g")),o=j):void 0!==l[3]&&(o=j):o===j?">"===l[0]?(o=n??L,c=-1):void 0===l[1]?c=-2:(c=o.lastIndex-l[2].length,a=l[1],o=void 0===l[3]?j:'"'===l[3]?B:D):o===B||o===D?o=j:o===I||o===U?o=L:(o=j,n=void 0);const p=o===j&&e[t+1].startsWith("/>")?" ":"";s+=o===L?i+P:c>=0?(r.push(a),i.slice(0,c)+S+i.slice(c)+E+p):i+E+(-2===c?t:p)}return[G(e,s+(e[i]||"<?>")+(2===t?"</svg>":3===t?"</math>":"")),r]};class J{constructor({strings:e,_$litType$:t},i){let r;this.parts=[];let n=0,s=0;const o=e.length-1,a=this.parts,[l,c]=K(e,t);if(this.el=J.createElement(l,i),F.currentNode=this.el.content,2===t||3===t){const e=this.el.content.firstChild;e.replaceWith(...e.childNodes)}for(;null!==(r=F.nextNode())&&a.length<o;){if(1===r.nodeType){if(r.hasAttributes())for(const e of r.getAttributeNames())if(e.endsWith(S)){const t=c[s++],i=r.getAttribute(e).split(E),o=/([.?@])?(.*)/.exec(t);a.push({type:1,index:n,name:o[2],strings:i,ctor:"."===o[1]?te:"?"===o[1]?ie:"@"===o[1]?re:ee}),r.removeAttribute(e)}else e.startsWith(E)&&(a.push({type:6,index:n}),r.removeAttribute(e));if(Z.test(r.tagName)){const e=r.textContent.split(E),t=e.length-1;if(t>0){r.textContent=A?A.emptyScript:"";for(let i=0;i<t;i++)r.append(e[i],R()),F.nextNode(),a.push({type:2,index:++n});r.append(e[t],R())}}}else if(8===r.nodeType)if(r.data===C)a.push({type:2,index:n});else{let e=-1;for(;-1!==(e=r.data.indexOf(E,e+1));)a.push({type:7,index:n}),e+=E.length-1}n++}}static createElement(e,t){const i=M.createElement("template");return i.innerHTML=e,i}}function X(e,t,i=e,r){if(t===W)return t;let n=void 0!==r?i._$Co?.[r]:i._$Cl;const s=T(t)?void 0:t._$litDirective$;return n?.constructor!==s&&(n?._$AO?.(!1),void 0===s?n=void 0:(n=new s(e),n._$AT(e,i,r)),void 0!==r?(i._$Co??=[])[r]=n:i._$Cl=n),void 0!==n&&(t=X(e,n._$AS(e,t.values),n,r)),t}class Q{constructor(e,t){this._$AV=[],this._$AN=void 0,this._$AD=e,this._$AM=t}get parentNode(){return this._$AM.parentNode}get _$AU(){return this._$AM._$AU}u(e){const{el:{content:t},parts:i}=this._$AD,r=(e?.creationScope??M).importNode(t,!0);F.currentNode=r;let n=F.nextNode(),s=0,o=0,a=i[0];for(;void 0!==a;){if(s===a.index){let t;2===a.type?t=new Y(n,n.nextSibling,this,e):1===a.type?t=new a.ctor(n,a.name,a.strings,this,e):6===a.type&&(t=new ne(n,this,e)),this._$AV.push(t),a=i[++o]}s!==a?.index&&(n=F.nextNode(),s++)}return F.currentNode=M,r}p(e){let t=0;for(const i of this._$AV)void 0!==i&&(void 0!==i.strings?(i._$AI(e,i,t),t+=i.strings.length-2):i._$AI(e[t])),t++}}class Y{get _$AU(){return this._$AM?._$AU??this._$Cv}constructor(e,t,i,r){this.type=2,this._$AH=q,this._$AN=void 0,this._$AA=e,this._$AB=t,this._$AM=i,this.options=r,this._$Cv=r?.isConnected??!0}get parentNode(){let e=this._$AA.parentNode;const t=this._$AM;return void 0!==t&&11===e?.nodeType&&(e=t.parentNode),e}get startNode(){return this._$AA}get endNode(){return this._$AB}_$AI(e,t=this){e=X(this,e,t),T(e)?e===q||null==e||""===e?(this._$AH!==q&&this._$AR(),this._$AH=q):e!==this._$AH&&e!==W&&this._(e):void 0!==e._$litType$?this.$(e):void 0!==e.nodeType?this.T(e):(e=>O(e)||"function"==typeof e?.[Symbol.iterator])(e)?this.k(e):this._(e)}O(e){return this._$AA.parentNode.insertBefore(e,this._$AB)}T(e){this._$AH!==e&&(this._$AR(),this._$AH=this.O(e))}_(e){this._$AH!==q&&T(this._$AH)?this._$AA.nextSibling.data=e:this.T(M.createTextNode(e)),this._$AH=e}$(e){const{values:t,_$litType$:i}=e,r="number"==typeof i?this._$AC(e):(void 0===i.el&&(i.el=J.createElement(G(i.h,i.h[0]),this.options)),i);if(this._$AH?._$AD===r)this._$AH.p(t);else{const e=new Q(r,this),i=e.u(this.options);e.p(t),this.T(i),this._$AH=e}}_$AC(e){let t=V.get(e.strings);return void 0===t&&V.set(e.strings,t=new J(e)),t}k(e){O(this._$AH)||(this._$AH=[],this._$AR());const t=this._$AH;let i,r=0;for(const n of e)r===t.length?t.push(i=new Y(this.O(R()),this.O(R()),this,this.options)):i=t[r],i._$AI(n),r++;r<t.length&&(this._$AR(i&&i._$AB.nextSibling,r),t.length=r)}_$AR(e=this._$AA.nextSibling,t){for(this._$AP?.(!1,!0,t);e!==this._$AB;){const t=k(e).nextSibling;k(e).remove(),e=t}}setConnected(e){void 0===this._$AM&&(this._$Cv=e,this._$AP?.(e))}}class ee{get tagName(){return this.element.tagName}get _$AU(){return this._$AM._$AU}constructor(e,t,i,r,n){this.type=1,this._$AH=q,this._$AN=void 0,this.element=e,this.name=t,this._$AM=r,this.options=n,i.length>2||""!==i[0]||""!==i[1]?(this._$AH=Array(i.length-1).fill(new String),this.strings=i):this._$AH=q}_$AI(e,t=this,i,r){const n=this.strings;let s=!1;if(void 0===n)e=X(this,e,t,0),s=!T(e)||e!==this._$AH&&e!==W,s&&(this._$AH=e);else{const r=e;let o,a;for(e=n[0],o=0;o<n.length-1;o++)a=X(this,r[i+o],t,o),a===W&&(a=this._$AH[o]),s||=!T(a)||a!==this._$AH[o],a===q?e=q:e!==q&&(e+=(a??"")+n[o+1]),this._$AH[o]=a}s&&!r&&this.j(e)}j(e){e===q?this.element.removeAttribute(this.name):this.element.setAttribute(this.name,e??"")}}class te extends ee{constructor(){super(...arguments),this.type=3}j(e){this.element[this.name]=e===q?void 0:e}}class ie extends ee{constructor(){super(...arguments),this.type=4}j(e){this.element.toggleAttribute(this.name,!!e&&e!==q)}}class re extends ee{constructor(e,t,i,r,n){super(e,t,i,r,n),this.type=5}_$AI(e,t=this){if((e=X(this,e,t,0)??q)===W)return;const i=this._$AH,r=e===q&&i!==q||e.capture!==i.capture||e.once!==i.once||e.passive!==i.passive,n=e!==q&&(i===q||r);r&&this.element.removeEventListener(this.name,this,i),n&&this.element.addEventListener(this.name,this,e),this._$AH=e}handleEvent(e){"function"==typeof this._$AH?this._$AH.call(this.options?.host??this.element,e):this._$AH.handleEvent(e)}}class ne{constructor(e,t,i){this.element=e,this.type=6,this._$AN=void 0,this._$AM=t,this.options=i}get _$AU(){return this._$AM._$AU}_$AI(e){X(this,e)}}const se=w.litHtmlPolyfillSupport;se?.(J,Y),(w.litHtmlVersions??=[]).push("3.3.3");const oe=globalThis;
-/**
- * @license
- * Copyright 2017 Google LLC
- * SPDX-License-Identifier: BSD-3-Clause
- */class ae extends x{constructor(){super(...arguments),this.renderOptions={host:this},this._$Do=void 0}createRenderRoot(){const e=super.createRenderRoot();return this.renderOptions.renderBefore??=e.firstChild,e}update(e){const t=this.render();this.hasUpdated||(this.renderOptions.isConnected=this.isConnected),super.update(e),this._$Do=((e,t,i)=>{const r=i?.renderBefore??t;let n=r._$litPart$;if(void 0===n){const e=i?.renderBefore??null;r._$litPart$=n=new Y(t.insertBefore(R(),e),e,void 0,i??{})}return n._$AI(e),n})(t,this.renderRoot,this.renderOptions)}connectedCallback(){super.connectedCallback(),this._$Do?.setConnected(!0)}disconnectedCallback(){super.disconnectedCallback(),this._$Do?.setConnected(!1)}render(){return W}}ae._$litElement$=!0,ae.finalized=!0,oe.litElementHydrateSupport?.({LitElement:ae});const le=oe.litElementPolyfillSupport;le?.({LitElement:ae}),(oe.litElementVersions??=[]).push("4.2.2");
+ */Symbol.metadata??=Symbol("metadata"),g.litPropertyMetadata??=new WeakMap;let x=class extends HTMLElement{static addInitializer(e){this._$Ei(),(this.l??=[]).push(e)}static get observedAttributes(){return this.finalize(),this._$Eh&&[...this._$Eh.keys()]}static createProperty(e,t=b){if(t.state&&(t.attribute=!1),this._$Ei(),this.prototype.hasOwnProperty(e)&&((t=Object.create(t)).wrapped=!0),this.elementProperties.set(e,t),!t.noAccessor){const i=Symbol(),r=this.getPropertyDescriptor(e,i,t);void 0!==r&&c(this.prototype,e,r)}}static getPropertyDescriptor(e,t,i){const{get:r,set:n}=d(this.prototype,e)??{get(){return this[t]},set(e){this[t]=e}};return{get:r,set(t){const s=r?.call(this);n?.call(this,t),this.requestUpdate(e,s,i)},configurable:!0,enumerable:!0}}static getPropertyOptions(e){return this.elementProperties.get(e)??b}static _$Ei(){if(this.hasOwnProperty(y("elementProperties")))return;const e=u(this);e.finalize(),void 0!==e.l&&(this.l=[...e.l]),this.elementProperties=new Map(e.elementProperties)}static finalize(){if(this.hasOwnProperty(y("finalized")))return;if(this.finalized=!0,this._$Ei(),this.hasOwnProperty(y("properties"))){const e=this.properties,t=[...p(e),...h(e)];for(const i of t)this.createProperty(i,e[i])}const e=this[Symbol.metadata];if(null!==e){const t=litPropertyMetadata.get(e);if(void 0!==t)for(const[e,i]of t)this.elementProperties.set(e,i)}this._$Eh=new Map;for(const[e,t]of this.elementProperties){const i=this._$Eu(e,t);void 0!==i&&this._$Eh.set(i,e)}this.elementStyles=this.finalizeStyles(this.styles)}static finalizeStyles(e){const t=[];if(Array.isArray(e)){const i=new Set(e.flat(1/0).reverse());for(const e of i)t.unshift(a(e))}else void 0!==e&&t.push(a(e));return t}static _$Eu(e,t){const i=t.attribute;return!1===i?void 0:"string"==typeof i?i:"string"==typeof e?e.toLowerCase():void 0}constructor(){super(),this._$Ep=void 0,this.isUpdatePending=!1,this.hasUpdated=!1,this._$Em=null,this._$Ev()}_$Ev(){this._$ES=new Promise(e=>this.enableUpdating=e),this._$AL=new Map,this._$E_(),this.requestUpdate(),this.constructor.l?.forEach(e=>e(this))}addController(e){(this._$EO??=new Set).add(e),void 0!==this.renderRoot&&this.isConnected&&e.hostConnected?.()}removeController(e){this._$EO?.delete(e)}_$E_(){const e=new Map,t=this.constructor.elementProperties;for(const i of t.keys())this.hasOwnProperty(i)&&(e.set(i,this[i]),delete this[i]);e.size>0&&(this._$Ep=e)}createRenderRoot(){const e=this.shadowRoot??this.attachShadow(this.constructor.shadowRootOptions);return((e,r)=>{if(i)e.adoptedStyleSheets=r.map(e=>e instanceof CSSStyleSheet?e:e.styleSheet);else for(const i of r){const r=document.createElement("style"),n=t.litNonce;void 0!==n&&r.setAttribute("nonce",n),r.textContent=i.cssText,e.appendChild(r)}})(e,this.constructor.elementStyles),e}connectedCallback(){this.renderRoot??=this.createRenderRoot(),this.enableUpdating(!0),this._$EO?.forEach(e=>e.hostConnected?.())}enableUpdating(e){}disconnectedCallback(){this._$EO?.forEach(e=>e.hostDisconnected?.())}attributeChangedCallback(e,t,i){this._$AK(e,i)}_$ET(e,t){const i=this.constructor.elementProperties.get(e),r=this.constructor._$Eu(e,i);if(void 0!==r&&!0===i.reflect){const n=(void 0!==i.converter?.toAttribute?i.converter:$).toAttribute(t,i.type);this._$Em=e,null==n?this.removeAttribute(r):this.setAttribute(r,n),this._$Em=null}}_$AK(e,t){const i=this.constructor,r=i._$Eh.get(e);if(void 0!==r&&this._$Em!==r){const e=i.getPropertyOptions(r),n="function"==typeof e.converter?{fromAttribute:e.converter}:void 0!==e.converter?.fromAttribute?e.converter:$;this._$Em=r;const s=n.fromAttribute(t,e.type);this[r]=s??this._$Ej?.get(r)??s,this._$Em=null}}requestUpdate(e,t,i,r=!1,n){if(void 0!==e){const s=this.constructor;if(!1===r&&(n=this[e]),i??=s.getPropertyOptions(e),!((i.hasChanged??_)(n,t)||i.useDefault&&i.reflect&&n===this._$Ej?.get(e)&&!this.hasAttribute(s._$Eu(e,i))))return;this.C(e,t,i)}!1===this.isUpdatePending&&(this._$ES=this._$EP())}C(e,t,{useDefault:i,reflect:r,wrapped:n},s){i&&!(this._$Ej??=new Map).has(e)&&(this._$Ej.set(e,s??t??this[e]),!0!==n||void 0!==s)||(this._$AL.has(e)||(this.hasUpdated||i||(t=void 0),this._$AL.set(e,t)),!0===r&&this._$Em!==e&&(this._$Eq??=new Set).add(e))}async _$EP(){this.isUpdatePending=!0;try{await this._$ES}catch(e){Promise.reject(e)}const e=this.scheduleUpdate();return null!=e&&await e,!this.isUpdatePending}scheduleUpdate(){return this.performUpdate()}performUpdate(){if(!this.isUpdatePending)return;if(!this.hasUpdated){if(this.renderRoot??=this.createRenderRoot(),this._$Ep){for(const[e,t]of this._$Ep)this[e]=t;this._$Ep=void 0}const e=this.constructor.elementProperties;if(e.size>0)for(const[t,i]of e){const{wrapped:e}=i,r=this[t];!0!==e||this._$AL.has(t)||void 0===r||this.C(t,void 0,i,r)}}let e=!1;const t=this._$AL;try{e=this.shouldUpdate(t),e?(this.willUpdate(t),this._$EO?.forEach(e=>e.hostUpdate?.()),this.update(t)):this._$EM()}catch(t){throw e=!1,this._$EM(),t}e&&this._$AE(t)}willUpdate(e){}_$AE(e){this._$EO?.forEach(e=>e.hostUpdated?.()),this.hasUpdated||(this.hasUpdated=!0,this.firstUpdated(e)),this.updated(e)}_$EM(){this._$AL=new Map,this.isUpdatePending=!1}get updateComplete(){return this.getUpdateComplete()}getUpdateComplete(){return this._$ES}shouldUpdate(e){return!0}update(e){this._$Eq&&=this._$Eq.forEach(e=>this._$ET(e,this[e])),this._$EM()}updated(e){}firstUpdated(e){}};x.elementStyles=[],x.shadowRootOptions={mode:"open"},x[y("elementProperties")]=new Map,x[y("finalized")]=new Map,f?.({ReactiveElement:x}),(g.reactiveElementVersions??=[]).push("2.1.2");
 /**
  * @license
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const ce=e=>(t,i)=>{void 0!==i?i.addInitializer(()=>{customElements.define(e,t)}):customElements.define(e,t)},de={attribute:!0,type:String,converter:y,reflect:!1,hasChanged:$},pe=(e=de,t,i)=>{const{kind:r,metadata:n}=i;let s=globalThis.litPropertyMetadata.get(n);if(void 0===s&&globalThis.litPropertyMetadata.set(n,s=new Map),"setter"===r&&((e=Object.create(e)).wrapped=!0),s.set(i.name,e),"accessor"===r){const{name:r}=i;return{set(i){const n=t.get.call(this);t.set.call(this,i),this.requestUpdate(r,n,e,!0,i)},init(t){return void 0!==t&&this.C(r,void 0,e,t),t}}}if("setter"===r){const{name:r}=i;return function(i){const n=this[r];t.call(this,i),this.requestUpdate(r,n,e,!0,i)}}throw Error("Unsupported decorator location: "+r)};
+const w=globalThis,k=e=>e,A=w.trustedTypes,z=A?A.createPolicy("lit-html",{createHTML:e=>e}):void 0,S="$lit$",E=`lit$${Math.random().toFixed(9).slice(2)}$`,C="?"+E,M=`<${C}>`,P=document,R=()=>P.createComment(""),T=e=>null===e||"object"!=typeof e&&"function"!=typeof e,O=Array.isArray,L="[ \t\n\f\r]",H=/<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g,I=/-->/g,U=/>/g,j=RegExp(`>|${L}(?:([^\\s"'>=/]+)(${L}*=${L}*(?:[^ \t\n\f\r"'\`<>=]|("|')|))|$)`,"g"),D=/'/g,B=/"/g,Z=/^(?:script|style|textarea|title)$/i,N=(e=>(t,...i)=>({_$litType$:e,strings:t,values:i}))(1),W=Symbol.for("lit-noChange"),q=Symbol.for("lit-nothing"),V=new WeakMap,F=P.createTreeWalker(P,129);function G(e,t){if(!O(e)||!e.hasOwnProperty("raw"))throw Error("invalid template strings array");return void 0!==z?z.createHTML(t):t}const K=(e,t)=>{const i=e.length-1,r=[];let n,s=2===t?"<svg>":3===t?"<math>":"",o=H;for(let t=0;t<i;t++){const i=e[t];let a,l,c=-1,d=0;for(;d<i.length&&(o.lastIndex=d,l=o.exec(i),null!==l);)d=o.lastIndex,o===H?"!--"===l[1]?o=I:void 0!==l[1]?o=U:void 0!==l[2]?(Z.test(l[2])&&(n=RegExp("</"+l[2],"g")),o=j):void 0!==l[3]&&(o=j):o===j?">"===l[0]?(o=n??H,c=-1):void 0===l[1]?c=-2:(c=o.lastIndex-l[2].length,a=l[1],o=void 0===l[3]?j:'"'===l[3]?B:D):o===B||o===D?o=j:o===I||o===U?o=H:(o=j,n=void 0);const p=o===j&&e[t+1].startsWith("/>")?" ":"";s+=o===H?i+M:c>=0?(r.push(a),i.slice(0,c)+S+i.slice(c)+E+p):i+E+(-2===c?t:p)}return[G(e,s+(e[i]||"<?>")+(2===t?"</svg>":3===t?"</math>":"")),r]};class X{constructor({strings:e,_$litType$:t},i){let r;this.parts=[];let n=0,s=0;const o=e.length-1,a=this.parts,[l,c]=K(e,t);if(this.el=X.createElement(l,i),F.currentNode=this.el.content,2===t||3===t){const e=this.el.content.firstChild;e.replaceWith(...e.childNodes)}for(;null!==(r=F.nextNode())&&a.length<o;){if(1===r.nodeType){if(r.hasAttributes())for(const e of r.getAttributeNames())if(e.endsWith(S)){const t=c[s++],i=r.getAttribute(e).split(E),o=/([.?@])?(.*)/.exec(t);a.push({type:1,index:n,name:o[2],strings:i,ctor:"."===o[1]?te:"?"===o[1]?ie:"@"===o[1]?re:ee}),r.removeAttribute(e)}else e.startsWith(E)&&(a.push({type:6,index:n}),r.removeAttribute(e));if(Z.test(r.tagName)){const e=r.textContent.split(E),t=e.length-1;if(t>0){r.textContent=A?A.emptyScript:"";for(let i=0;i<t;i++)r.append(e[i],R()),F.nextNode(),a.push({type:2,index:++n});r.append(e[t],R())}}}else if(8===r.nodeType)if(r.data===C)a.push({type:2,index:n});else{let e=-1;for(;-1!==(e=r.data.indexOf(E,e+1));)a.push({type:7,index:n}),e+=E.length-1}n++}}static createElement(e,t){const i=P.createElement("template");return i.innerHTML=e,i}}function J(e,t,i=e,r){if(t===W)return t;let n=void 0!==r?i._$Co?.[r]:i._$Cl;const s=T(t)?void 0:t._$litDirective$;return n?.constructor!==s&&(n?._$AO?.(!1),void 0===s?n=void 0:(n=new s(e),n._$AT(e,i,r)),void 0!==r?(i._$Co??=[])[r]=n:i._$Cl=n),void 0!==n&&(t=J(e,n._$AS(e,t.values),n,r)),t}class Y{constructor(e,t){this._$AV=[],this._$AN=void 0,this._$AD=e,this._$AM=t}get parentNode(){return this._$AM.parentNode}get _$AU(){return this._$AM._$AU}u(e){const{el:{content:t},parts:i}=this._$AD,r=(e?.creationScope??P).importNode(t,!0);F.currentNode=r;let n=F.nextNode(),s=0,o=0,a=i[0];for(;void 0!==a;){if(s===a.index){let t;2===a.type?t=new Q(n,n.nextSibling,this,e):1===a.type?t=new a.ctor(n,a.name,a.strings,this,e):6===a.type&&(t=new ne(n,this,e)),this._$AV.push(t),a=i[++o]}s!==a?.index&&(n=F.nextNode(),s++)}return F.currentNode=P,r}p(e){let t=0;for(const i of this._$AV)void 0!==i&&(void 0!==i.strings?(i._$AI(e,i,t),t+=i.strings.length-2):i._$AI(e[t])),t++}}class Q{get _$AU(){return this._$AM?._$AU??this._$Cv}constructor(e,t,i,r){this.type=2,this._$AH=q,this._$AN=void 0,this._$AA=e,this._$AB=t,this._$AM=i,this.options=r,this._$Cv=r?.isConnected??!0}get parentNode(){let e=this._$AA.parentNode;const t=this._$AM;return void 0!==t&&11===e?.nodeType&&(e=t.parentNode),e}get startNode(){return this._$AA}get endNode(){return this._$AB}_$AI(e,t=this){e=J(this,e,t),T(e)?e===q||null==e||""===e?(this._$AH!==q&&this._$AR(),this._$AH=q):e!==this._$AH&&e!==W&&this._(e):void 0!==e._$litType$?this.$(e):void 0!==e.nodeType?this.T(e):(e=>O(e)||"function"==typeof e?.[Symbol.iterator])(e)?this.k(e):this._(e)}O(e){return this._$AA.parentNode.insertBefore(e,this._$AB)}T(e){this._$AH!==e&&(this._$AR(),this._$AH=this.O(e))}_(e){this._$AH!==q&&T(this._$AH)?this._$AA.nextSibling.data=e:this.T(P.createTextNode(e)),this._$AH=e}$(e){const{values:t,_$litType$:i}=e,r="number"==typeof i?this._$AC(e):(void 0===i.el&&(i.el=X.createElement(G(i.h,i.h[0]),this.options)),i);if(this._$AH?._$AD===r)this._$AH.p(t);else{const e=new Y(r,this),i=e.u(this.options);e.p(t),this.T(i),this._$AH=e}}_$AC(e){let t=V.get(e.strings);return void 0===t&&V.set(e.strings,t=new X(e)),t}k(e){O(this._$AH)||(this._$AH=[],this._$AR());const t=this._$AH;let i,r=0;for(const n of e)r===t.length?t.push(i=new Q(this.O(R()),this.O(R()),this,this.options)):i=t[r],i._$AI(n),r++;r<t.length&&(this._$AR(i&&i._$AB.nextSibling,r),t.length=r)}_$AR(e=this._$AA.nextSibling,t){for(this._$AP?.(!1,!0,t);e!==this._$AB;){const t=k(e).nextSibling;k(e).remove(),e=t}}setConnected(e){void 0===this._$AM&&(this._$Cv=e,this._$AP?.(e))}}class ee{get tagName(){return this.element.tagName}get _$AU(){return this._$AM._$AU}constructor(e,t,i,r,n){this.type=1,this._$AH=q,this._$AN=void 0,this.element=e,this.name=t,this._$AM=r,this.options=n,i.length>2||""!==i[0]||""!==i[1]?(this._$AH=Array(i.length-1).fill(new String),this.strings=i):this._$AH=q}_$AI(e,t=this,i,r){const n=this.strings;let s=!1;if(void 0===n)e=J(this,e,t,0),s=!T(e)||e!==this._$AH&&e!==W,s&&(this._$AH=e);else{const r=e;let o,a;for(e=n[0],o=0;o<n.length-1;o++)a=J(this,r[i+o],t,o),a===W&&(a=this._$AH[o]),s||=!T(a)||a!==this._$AH[o],a===q?e=q:e!==q&&(e+=(a??"")+n[o+1]),this._$AH[o]=a}s&&!r&&this.j(e)}j(e){e===q?this.element.removeAttribute(this.name):this.element.setAttribute(this.name,e??"")}}class te extends ee{constructor(){super(...arguments),this.type=3}j(e){this.element[this.name]=e===q?void 0:e}}class ie extends ee{constructor(){super(...arguments),this.type=4}j(e){this.element.toggleAttribute(this.name,!!e&&e!==q)}}class re extends ee{constructor(e,t,i,r,n){super(e,t,i,r,n),this.type=5}_$AI(e,t=this){if((e=J(this,e,t,0)??q)===W)return;const i=this._$AH,r=e===q&&i!==q||e.capture!==i.capture||e.once!==i.once||e.passive!==i.passive,n=e!==q&&(i===q||r);r&&this.element.removeEventListener(this.name,this,i),n&&this.element.addEventListener(this.name,this,e),this._$AH=e}handleEvent(e){"function"==typeof this._$AH?this._$AH.call(this.options?.host??this.element,e):this._$AH.handleEvent(e)}}class ne{constructor(e,t,i){this.element=e,this.type=6,this._$AN=void 0,this._$AM=t,this.options=i}get _$AU(){return this._$AM._$AU}_$AI(e){J(this,e)}}const se=w.litHtmlPolyfillSupport;se?.(X,Q),(w.litHtmlVersions??=[]).push("3.3.3");const oe=globalThis;
+/**
+ * @license
+ * Copyright 2017 Google LLC
+ * SPDX-License-Identifier: BSD-3-Clause
+ */class ae extends x{constructor(){super(...arguments),this.renderOptions={host:this},this._$Do=void 0}createRenderRoot(){const e=super.createRenderRoot();return this.renderOptions.renderBefore??=e.firstChild,e}update(e){const t=this.render();this.hasUpdated||(this.renderOptions.isConnected=this.isConnected),super.update(e),this._$Do=((e,t,i)=>{const r=i?.renderBefore??t;let n=r._$litPart$;if(void 0===n){const e=i?.renderBefore??null;r._$litPart$=n=new Q(t.insertBefore(R(),e),e,void 0,i??{})}return n._$AI(e),n})(t,this.renderRoot,this.renderOptions)}connectedCallback(){super.connectedCallback(),this._$Do?.setConnected(!0)}disconnectedCallback(){super.disconnectedCallback(),this._$Do?.setConnected(!1)}render(){return W}}ae._$litElement$=!0,ae.finalized=!0,oe.litElementHydrateSupport?.({LitElement:ae});const le=oe.litElementPolyfillSupport;le?.({LitElement:ae}),(oe.litElementVersions??=[]).push("4.2.2");
+/**
+ * @license
+ * Copyright 2017 Google LLC
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
+const ce=e=>(t,i)=>{void 0!==i?i.addInitializer(()=>{customElements.define(e,t)}):customElements.define(e,t)},de={attribute:!0,type:String,converter:$,reflect:!1,hasChanged:_},pe=(e=de,t,i)=>{const{kind:r,metadata:n}=i;let s=globalThis.litPropertyMetadata.get(n);if(void 0===s&&globalThis.litPropertyMetadata.set(n,s=new Map),"setter"===r&&((e=Object.create(e)).wrapped=!0),s.set(i.name,e),"accessor"===r){const{name:r}=i;return{set(i){const n=t.get.call(this);t.set.call(this,i),this.requestUpdate(r,n,e,!0,i)},init(t){return void 0!==t&&this.C(r,void 0,e,t),t}}}if("setter"===r){const{name:r}=i;return function(i){const n=this[r];t.call(this,i),this.requestUpdate(r,n,e,!0,i)}}throw Error("Unsupported decorator location: "+r)};
 /**
  * @license
  * Copyright 2017 Google LLC
@@ -36,14 +36,14 @@ const ce=e=>(t,i)=>{void 0!==i?i.addInitializer(()=>{customElements.define(e,t)}
  * @license
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
- */function ue(e){return he({...e,state:!0,attribute:!1})}function ge(e){if(null==e||""===e)return null;const t="number"==typeof e?e:Number(e);return Number.isFinite(t)?t:null}function me(e){return void 0===e||"unavailable"===e.state||"unknown"===e.state}function ve(e,t){return e[t]}function fe(e){const t=e?.attributes?.unit_of_measurement;return"string"==typeof t?t:null}function _e(e,t){const i=e?.attributes?.friendly_name;return"string"==typeof i&&i.length>0?i:t}function ye(e,t,i){const r=ve(e,t);return r?{entityId:t,label:i,name:_e(r,t),state:me(r)?null:r.state,unit:fe(r),available:!me(r)}:null}function $e(e,t){const i=[],r=[["forecast_rain_amount","Rain forecast"],["forecast_rain_probability","Rain chance"],["weather_forecast_entity","Weather forecast"],["observed_rain_amount","Observed rain"],["temperature_sensor","Temperature"],["humidity_sensor","Humidity"],["observed_air_temperature","Air temperature"],["observed_air_humidity","Air humidity"],["forecast_air_temperature","Forecast air temp"],["forecast_air_humidity","Forecast air humidity"],["wind_speed","Wind speed"],["solar_radiation","Solar"]],n=Array.isArray(e.moisture_sensors)?e.moisture_sensors:[];for(const e of n){const r=ye(t,e,"Moisture sensor");r&&i.push(r)}for(const[n,s]of r){const r=e[n];if("string"==typeof r&&r){const e=ye(t,r,s);e&&i.push(e)}}const s=Array.isArray(e.safety_blockers)?e.safety_blockers:[];for(const e of s){const r=ye(t,e,"Safety blocker");r&&i.push(r)}return i}const be=[{key:"learned_moisture_gain_per_liter",label:"Moisture Gain per Liter"},{key:"learned_daily_drying_rate",label:"Daily Drying Rate"},{key:"learned_rain_efficiency",label:"Rain Efficiency"},{key:"learned_field_capacity",label:"Field Capacity"},{key:"learned_wilting_point",label:"Wilting Point"}],xe=[{key:"eta_irr",label:"Irrigation Efficiency"},{key:"eta_rain",label:"Rain Efficiency"},{key:"k_et",label:"ET Coefficient"},{key:"drain_rate",label:"Drainage Rate"},{key:"field_capacity",label:"Field Capacity"},{key:"wilting_point",label:"Wilting Point"}],we={irrigation:"Irrigation added",rain:"Rain added",et:"Evapotranspiration loss",drainage:"Drainage loss"};function ke(e){return null===e||"object"!=typeof e||Array.isArray(e)?null:e}function Ae(e,t){const i=[];for(const r of be){const n=`sensor.${e}_${r.key}`,s=ve(t,n);if(!s)continue;const o=s.attributes?.samples;i.push({key:r.key,label:r.label,entityId:n,value:me(s)?null:ge(s.state),unit:fe(s),samples:"number"==typeof o?o:null})}return i}function ze(e){return Array.isArray(e)?e.map(ge).filter(e=>null!==e):[]}function Se(e,t){const i=ke(e.decision_explanation)??ke(t.explanation),r=function(e){const t=ke(e?.water_balance_terms)??ke(e?.terms);return t?Object.entries(t).map(([e,t])=>{const i=ge(t);return null===i?null:{key:e,label:we[e]??e.replace(/_/g," "),value:i,unit:"%"}}).filter(e=>null!==e):[]}({...i??{},...e}),n=ze(e.predicted_trajectory).length>0?ze(e.predicted_trajectory):ze(t.predicted_trajectory).length>0?ze(t.predicted_trajectory):ze(i?.predicted_trajectory),s=ge(e.horizon_hours)??ge(t.horizon_hours)??ge(i?.horizon_hours),o=ge(e.chosen_liters)??ge(i?.chosen_liters)??ge(t.recommended_liters),a=ge(e.predicted_critical_theta)??ge(i?.predicted_critical_theta_with_water)??ge(i?.predicted_critical_theta_without_water),l=ge(e.predicted_peak_theta)??ge(i?.predicted_peak_theta);return r.length||n.length||null!==s||null!==o?{terms:r,predictedTrajectory:n,horizonHours:s,predictiveReason:t.reason??null,chosenLiters:o,predictedCriticalTheta:a,predictedPeakTheta:l}:null}function Ee(e,t,i){const r=`sensor.${e}_model_insight`,n=ve(t,r),s=n?.attributes??{},o=function(e){const t=ke(e.parameters),i=ke(e.confidence);return t?xe.map(e=>{const r=ke(t[e.key]);return r?{key:e.key,label:"string"==typeof r.name?r.name:e.label,value:ge(r.value),unit:"string"==typeof r.unit?r.unit:null,confidence:ge(r.confidence)??ge(i?.[e.key])}:null}).filter(e=>null!==e&&(null!==e.value||null!==e.confidence)):[]}(s),a=Se(s,i),l=ge(s.bootstrapped_days),c="string"==typeof s.bootstrap_summary?s.bootstrap_summary:null;return o.length||null!==a||null!==l?{entityId:r,status:me(n)?null:n?.state??null,parameters:o,overallConfidence:ge(s.overall_confidence),bootstrappedDays:l,bootstrapSummary:c,modelUpdated:"string"==typeof s.model_updated?s.model_updated:null,totalLiters:ge(s.total_liters),decisionExplanation:a}:null}function Ce(e,t){const i=[];for(const r of[1,2]){const n=`time.${e}_schedule_${r}_time`,s=`switch.${e}_schedule_${r}_active`,o=ve(t,n),a=ve(t,s);if(!o&&!a)continue;const l=o&&!me(o)?o.state:null;i.push({index:r,timeEntity:n,time:l?l.slice(0,5):null,activeEntity:s,active:"on"===a?.state,available:!me(o)})}return i}function Pe(e,t,i){const r=ve(e,t);return r?{entityId:t,label:i,state:me(r)?null:r.state,unit:fe(r),isOn:"on"===r.state,available:!me(r)}:null}function Me(e,t){const i=e.decision_entity?t[e.decision_entity]:void 0,r=e.moisture_entity?t[e.moisture_entity]:void 0,n=e.status_entity?t[e.status_entity]:void 0,s=e.history_entity?t[e.history_entity]:void 0,o=i?.attributes??{},a=n?.attributes??{},l=s?.attributes??{},c=r&&!me(r)?ge(r.state):ge(o.zone_moisture),d=e.decision_entity.replace(/^sensor\./,"").replace(/_irrigation_decision$/,"");const p=o.references??{},h=ve(t,`sensor.${d}_total_watering_volume`);return{name:e.name??o.friendly_name??"Irrigation Zone",moisture:c,target:ge(o.target_moisture),recommendedLiters:ge(o.recommended_liters),availableWater:ge(o.available_water),decision:me(i)?null:i?.state??null,decisionReason:o.reason??null,wateringStatus:me(n)?null:n?.state??null,isWatering:!0===a.is_watering,canStop:!0===a.can_stop,historyCount:ge(s?.state)??0,lastKind:l.last_kind??null,historyEntries:Array.isArray(l.entries)?l.entries:[],greenhouse:!0===o.greenhouse,protectedRain:!0===o.protected_rain,temperature:ge(o.temperature),humidity:ge(o.humidity),targetMode:"string"==typeof o.target_mode?o.target_mode:null,demandProfile:"string"==typeof o.demand_profile?o.demand_profile:null,targetBandLow:ge(o.target_band_low),targetBandHigh:ge(o.target_band_high),references:$e(p,t),schedule:Ce(d,t),learned:Ae(d,t),totalVolume:h&&!me(h)?ge(h.state):null,totalVolumeUnit:fe(h),targetControl:Pe(t,`number.${d}_target_moisture`,"Target Moisture"),autoTargetControl:Pe(t,`switch.${d}_target_automatic`,"Automatic Target"),maxLitersControl:Pe(t,`number.${d}_max_liters_per_run`,"Max Liters per Run"),enabledControl:Pe(t,`switch.${d}_zone_enabled`,"Zone Enabled"),learningControl:Pe(t,`switch.${d}_learning_enabled`,"Learning Enabled"),modelInsight:Ee(d,t,o)}}function Re(e){return e.canStop&&e.isWatering}function Te(e){return e?Object.keys(e).filter(e=>e.startsWith("sensor.")&&e.endsWith("_irrigation_decision")).sort():[]}const Oe={run_request:"Run requested",decision:"Decision",rain_event:"Rain",watering_event:"Watering"},He="mdi:sprinkler-variant";let Le=class extends ae{constructor(){super(...arguments),this._activeZoneIndex=null}static getStubConfig(e){return{zones:Te(e?.states).map(e=>({decision_entity:e}))}}static async getConfigElement(){return document.createElement("amazing-irrigation-overview-card-editor")}setConfig(e){if(!e||!Array.isArray(e.zones)||0===e.zones.length)throw new Error("amazing-irrigation-overview-card: 'zones' must list at least one zone");for(const t of e.zones)if(!t.decision_entity)throw new Error("amazing-irrigation-overview-card: each zone needs 'decision_entity'");this._config=e}getCardSize(){return this._config?Math.ceil(this._config.zones.length/2)+2:3}_openZone(e){this._activeZoneIndex=e}_closeZone(){this._activeZoneIndex=null}_callZoneService(e,t,i=!1){if(!this.hass)return;const r={entity_id:e};"run_zone"===t&&(r.force=i),this.hass.callService("amazing_irrigation",t,r)}_moreInfo(e){this.dispatchEvent(new CustomEvent("hass-more-info",{detail:{entityId:e},bubbles:!0,composed:!0}))}_toggleSwitch(e){this.hass&&this.hass.callService("switch","toggle",{entity_id:e})}render(){if(!this._config||!this.hass)return q;if(null!==this._activeZoneIndex){const e=this._config.zones[this._activeZoneIndex];if(!e)return this._activeZoneIndex=null,q;const t=Me(e,this.hass.states);return this._renderDetail(t,e)}return this._renderOverview()}_renderOverview(){const e=(t=this._config,i=this.hass.states,(Array.isArray(t.zones)?t.zones:[]).map(e=>Me(e,i)));var t,i;return N`
+ */function ue(e){return he({...e,state:!0,attribute:!1})}function ge(e){if(null==e||""===e)return null;const t="number"==typeof e?e:Number(e);return Number.isFinite(t)?t:null}function me(e){return void 0===e||"unavailable"===e.state||"unknown"===e.state}function ve(e,t){return e[t]}function fe(e){const t=e?.attributes?.unit_of_measurement;return"string"==typeof t?t:null}function ye(e,t){const i=e?.attributes?.friendly_name;return"string"==typeof i&&i.length>0?i:t}function $e(e,t,i){const r=ve(e,t);return r?{entityId:t,label:i,name:ye(r,t),state:me(r)?null:r.state,unit:fe(r),available:!me(r)}:null}function _e(e,t){const i=[],r=[["forecast_rain_amount","Rain forecast"],["forecast_rain_probability","Rain chance"],["weather_forecast_entity","Weather forecast"],["observed_rain_amount","Observed rain"],["temperature_sensor","Temperature"],["humidity_sensor","Humidity"],["observed_air_temperature","Air temperature"],["observed_air_humidity","Air humidity"],["forecast_air_temperature","Forecast air temp"],["forecast_air_humidity","Forecast air humidity"],["wind_speed","Wind speed"],["solar_radiation","Solar"]],n=Array.isArray(e.moisture_sensors)?e.moisture_sensors:[];for(const e of n){const r=$e(t,e,"Moisture sensor");r&&i.push(r)}for(const[n,s]of r){const r=e[n];if("string"==typeof r&&r){const e=$e(t,r,s);e&&i.push(e)}}const s=Array.isArray(e.safety_blockers)?e.safety_blockers:[];for(const e of s){const r=$e(t,e,"Safety blocker");r&&i.push(r)}return i}const be=[{key:"learned_moisture_gain_per_liter",label:"Moisture Gain per Liter"},{key:"learned_daily_drying_rate",label:"Daily Drying Rate"},{key:"learned_rain_efficiency",label:"Rain Efficiency"},{key:"learned_field_capacity",label:"Field Capacity"},{key:"learned_wilting_point",label:"Wilting Point"}],xe=[{key:"eta_irr",label:"Irrigation Efficiency"},{key:"eta_rain",label:"Rain Efficiency"},{key:"k_et",label:"ET Coefficient"},{key:"drain_rate",label:"Drainage Rate"},{key:"field_capacity",label:"Field Capacity"},{key:"wilting_point",label:"Wilting Point"}],we={irrigation:"Irrigation added",rain:"Rain added",et:"Evapotranspiration loss",drainage:"Drainage loss"};function ke(e){return null===e||"object"!=typeof e||Array.isArray(e)?null:e}function Ae(e,t){const i=[];for(const r of be){const n=`sensor.${e}_${r.key}`,s=ve(t,n);if(!s)continue;const o=s.attributes?.samples;i.push({key:r.key,label:r.label,entityId:n,value:me(s)?null:ge(s.state),unit:fe(s),samples:"number"==typeof o?o:null})}return i}function ze(e){return Array.isArray(e)?e.map(ge).filter(e=>null!==e):[]}function Se(e,t){const i=ke(e.decision_explanation)??ke(t.explanation),r=function(e){const t=ke(e?.water_balance_terms)??ke(e?.terms);return t?Object.entries(t).map(([e,t])=>{const i=ge(t);return null===i?null:{key:e,label:we[e]??e.replace(/_/g," "),value:i,unit:"%"}}).filter(e=>null!==e):[]}({...i??{},...e}),n=ze(e.predicted_trajectory).length>0?ze(e.predicted_trajectory):ze(t.predicted_trajectory).length>0?ze(t.predicted_trajectory):ze(i?.predicted_trajectory),s=ge(e.horizon_hours)??ge(t.horizon_hours)??ge(i?.horizon_hours),o=ge(e.chosen_liters)??ge(i?.chosen_liters)??ge(t.recommended_liters),a=ge(e.predicted_critical_theta)??ge(i?.predicted_critical_theta_with_water)??ge(i?.predicted_critical_theta_without_water),l=ge(e.predicted_peak_theta)??ge(i?.predicted_peak_theta);return r.length||n.length||null!==s||null!==o?{terms:r,predictedTrajectory:n,horizonHours:s,predictiveReason:t.reason??null,chosenLiters:o,predictedCriticalTheta:a,predictedPeakTheta:l}:null}function Ee(e,t,i){const r=`sensor.${e}_model_insight`,n=ve(t,r),s=n?.attributes??{},o=function(e){const t=ke(e.parameters),i=ke(e.confidence);return t?xe.map(e=>{const r=ke(t[e.key]);return r?{key:e.key,label:"string"==typeof r.name?r.name:e.label,value:ge(r.value),unit:"string"==typeof r.unit?r.unit:null,confidence:ge(r.confidence)??ge(i?.[e.key])}:null}).filter(e=>null!==e&&(null!==e.value||null!==e.confidence)):[]}(s),a=Se(s,i),l=ge(s.bootstrapped_days),c="string"==typeof s.bootstrap_summary?s.bootstrap_summary:null;return o.length||null!==a||null!==l?{entityId:r,status:me(n)?null:n?.state??null,parameters:o,overallConfidence:ge(s.overall_confidence),bootstrappedDays:l,bootstrapSummary:c,modelUpdated:"string"==typeof s.model_updated?s.model_updated:null,totalLiters:ge(s.total_liters),decisionExplanation:a}:null}function Ce(e,t){const i=[];for(const r of[1,2]){const n=`time.${e}_schedule_${r}_time`,s=`switch.${e}_schedule_${r}_active`,o=ve(t,n),a=ve(t,s);if(!o&&!a)continue;const l=o&&!me(o)?o.state:null;i.push({index:r,timeEntity:n,time:l?l.slice(0,5):null,activeEntity:s,active:"on"===a?.state,available:!me(o)})}return i}function Me(e,t,i){const r=ve(e,t);return r?{entityId:t,label:i,state:me(r)?null:r.state,unit:fe(r),isOn:"on"===r.state,available:!me(r)}:null}function Pe(e,t){const i=e.decision_entity?t[e.decision_entity]:void 0,r=e.moisture_entity?t[e.moisture_entity]:void 0,n=e.status_entity?t[e.status_entity]:void 0,s=e.history_entity?t[e.history_entity]:void 0,o=i?.attributes??{},a=n?.attributes??{},l=s?.attributes??{},c=r&&!me(r)?ge(r.state):ge(o.zone_moisture),d=e.decision_entity.replace(/^sensor\./,"").replace(/_irrigation_decision$/,"");const p=o.references??{},h=ve(t,`sensor.${d}_total_watering_volume`);return{name:e.name??o.friendly_name??"Irrigation Zone",moisture:c,target:ge(o.target_moisture),recommendedLiters:ge(o.recommended_liters),availableWater:ge(o.available_water),decision:me(i)?null:i?.state??null,decisionReason:o.reason??null,wateringStatus:me(n)?null:n?.state??null,isWatering:!0===a.is_watering,canStop:!0===a.can_stop,historyCount:ge(s?.state)??0,lastKind:l.last_kind??null,historyEntries:Array.isArray(l.entries)?l.entries:[],greenhouse:!0===o.greenhouse,protectedRain:!0===o.protected_rain,temperature:ge(o.temperature),humidity:ge(o.humidity),targetMode:"string"==typeof o.target_mode?o.target_mode:null,demandProfile:"string"==typeof o.demand_profile?o.demand_profile:null,targetBandLow:ge(o.target_band_low),targetBandHigh:ge(o.target_band_high),references:_e(p,t),schedule:Ce(d,t),learned:Ae(d,t),totalVolume:h&&!me(h)?ge(h.state):null,totalVolumeUnit:fe(h),targetControl:Me(t,`number.${d}_target_moisture`,"Target Moisture"),autoTargetControl:Me(t,`switch.${d}_target_automatic`,"Automatic Target"),maxLitersControl:Me(t,`number.${d}_max_liters_per_run`,"Max Liters per Run"),enabledControl:Me(t,`switch.${d}_zone_enabled`,"Zone Enabled"),learningControl:Me(t,`switch.${d}_learning_enabled`,"Learning Enabled"),modelInsight:Ee(d,t,o)}}function Re(e){return e.canStop&&e.isWatering}function Te(e){return e?Object.keys(e).filter(e=>e.startsWith("sensor.")&&e.endsWith("_irrigation_decision")).sort():[]}const Oe={run_request:"Run requested",decision:"Decision",rain_event:"Rain",watering_event:"Watering"},Le="mdi:sprinkler-variant";let He=class extends ae{constructor(){super(...arguments),this._activeZoneIndex=null}static getStubConfig(e){return{zones:Te(e?.states).map(e=>({decision_entity:e}))}}static async getConfigElement(){return document.createElement("amazing-irrigation-overview-card-editor")}setConfig(e){if(!e||!Array.isArray(e.zones)||0===e.zones.length)throw new Error("amazing-irrigation-overview-card: 'zones' must list at least one zone");for(const t of e.zones)if(!t.decision_entity)throw new Error("amazing-irrigation-overview-card: each zone needs 'decision_entity'");this._config=e}getCardSize(){return this._config?Math.ceil(this._config.zones.length/2)+2:3}_openZone(e){this._activeZoneIndex=e}_closeZone(){this._activeZoneIndex=null}_callZoneService(e,t,i=!1){if(!this.hass)return;const r={entity_id:e};"run_zone"===t&&(r.force=i),this.hass.callService("amazing_irrigation",t,r)}_moreInfo(e){this.dispatchEvent(new CustomEvent("hass-more-info",{detail:{entityId:e},bubbles:!0,composed:!0}))}_toggleSwitch(e){this.hass&&this.hass.callService("switch","toggle",{entity_id:e})}render(){if(!this._config||!this.hass)return q;if(null!==this._activeZoneIndex){const e=this._config.zones[this._activeZoneIndex];if(!e)return this._activeZoneIndex=null,q;const t=Pe(e,this.hass.states);return this._renderDetail(t,e)}return this._renderOverview()}_renderOverview(){const e=(t=this._config,i=this.hass.states,(Array.isArray(t.zones)?t.zones:[]).map(e=>Pe(e,i)));var t,i;return N`
       <ha-card>
         ${this._config.title?N`<div class="card-header">${this._config.title}</div>`:q}
         <div class="zone-grid">
           ${e.map((e,t)=>this._renderZoneTile(e,t))}
         </div>
       </ha-card>
-    `}_renderZoneTile(e,t){const i=this._config.zones[t].icon||He,r=null!==e.moisture&&null!==e.target&&e.target>0?Math.min(100,Math.round(e.moisture/e.target*100)):e.moisture??0,n=e.isWatering?"watering":"skip"===e.decision?"skip":"water"===e.decision?"pending-water":"";return N`
+    `}_renderZoneTile(e,t){const i=this._config.zones[t].icon||Le,r=null!==e.moisture&&null!==e.target&&e.target>0?Math.min(100,Math.round(e.moisture/e.target*100)):e.moisture??0,n=e.isWatering?"watering":"skip"===e.decision?"skip":"water"===e.decision?"pending-water":"";return N`
       <button
         class="zone-tile ${n}"
         @click=${()=>this._openZone(t)}
@@ -78,7 +78,7 @@ const ce=e=>(t,i)=>{void 0!==i?i.addInitializer(()=>{customElements.define(e,t)}
           </button>
           <ha-icon
             class="detail-icon"
-            .icon=${t.icon||He}
+            .icon=${t.icon||Le}
           ></ha-icon>
           <div class="detail-title">
             <span class="detail-name">${e.name}</span>
@@ -165,30 +165,119 @@ const ce=e=>(t,i)=>{void 0!==i?i.addInitializer(()=>{customElements.define(e,t)}
               >${e.decisionReason.replace(/_/g," ")}</span
             >`:q}
       </div>
-    `}_renderPrediction(e){const t=e.modelInsight?.decisionExplanation;if(!t||!t.predictedTrajectory.length)return q;const i=t.predictedTrajectory,r=Math.max(...i,e.targetBandHigh??e.target??60),n=Math.min(...i,e.targetBandLow??20),s=r-n||1,o=i.map((e,t)=>`${t/(i.length-1)*100},${60-(e-n)/s*60}`).join(" "),a=null!==e.target?60-(e.target-n)/s*60:null;return N`
+    `}_renderPrediction(e){const t=e.modelInsight?.decisionExplanation;if(!t||!t.predictedTrajectory.length)return q;const i=t.predictedTrajectory,r=t.horizonHours??i.length,n=i.length>1?r/(i.length-1):1,s=e.targetBandLow??(null!==e.target?e.target-2:null),o=e.targetBandHigh??(null!==e.target?e.target+2:null),a=Math.min(...i),l=Math.max(...i),c=5*Math.floor(Math.min(a,s??a,0)/5),d=5*Math.ceil(Math.max(l,o??l,e.target??0)/5)+5,p=d-c||1,h=32,u=300,g=100,m=e=>h+e/(i.length-1)*u,v=e=>112-(e-c)/p*g,f=i.map((e,t)=>`${0===t?"M":"L"}${m(t).toFixed(1)},${v(e).toFixed(1)}`).join(" "),y=f+` L${m(i.length-1).toFixed(1)},${v(c).toFixed(1)}`+` L${m(0).toFixed(1)},${v(c).toFixed(1)} Z`,$=[],_=p<=30?5:p<=60?10:20;for(let e=c;e<=d;e+=_)$.push(e);const b=[],x=i.length<=8?1:i.length<=16?2:Math.ceil(i.length/8);for(let e=0;e<i.length;e+=x)b.push({i:e,label:`+${Math.round(e*n)}h`});b[b.length-1]?.i!==i.length-1&&b.push({i:i.length-1,label:`+${Math.round(r)}h`});const w=t.predictedCriticalTheta,k=t.predictedPeakTheta,A=null!==w?i.indexOf(Math.min(...i)):null,z=null!==k?i.indexOf(Math.max(...i)):null;return N`
       <div class="prediction-section">
         <div class="section-label">
-          Predicted Trajectory
+          Moisture Prediction
           ${null!==t.horizonHours?N`<span class="sublabel">${t.horizonHours}h horizon</span>`:q}
         </div>
+
         <svg
-          class="sparkline"
-          viewBox="0 0 ${100} ${60}"
-          preserveAspectRatio="none"
+          class="prediction-chart"
+          viewBox="0 0 ${340} ${136}"
+          preserveAspectRatio="xMidYMid meet"
         >
-          ${null!==a?N`<line
-                x1="0"
-                y1="${a}"
-                x2="${100}"
-                y2="${a}"
-                class="spark-target"
+          <defs>
+            <linearGradient id="pred-fill-grad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="var(--primary-color)" stop-opacity="0.18" />
+              <stop offset="100%" stop-color="var(--primary-color)" stop-opacity="0.02" />
+            </linearGradient>
+          </defs>
+
+          <!-- Y-axis gridlines + labels -->
+          ${$.map(e=>N`
+              <line
+                x1="${h}" y1="${v(e)}" x2="${332}" y2="${v(e)}"
+                class="pred-grid"
+              />
+              <text x="${28}" y="${v(e)+3}" class="pred-y-label">${e}</text>
+            `)}
+
+          <!-- Target band shading -->
+          ${null!==s&&null!==o?N`<rect
+                x="${h}" y="${v(o)}"
+                width="${u}" height="${Math.abs(v(s)-v(o))}"
+                class="pred-target-band"
               />`:q}
-          <polyline points="${o}" class="spark-line" />
+
+          <!-- Target line -->
+          ${null!==e.target?N`<line
+                x1="${h}" y1="${v(e.target)}"
+                x2="${332}" y2="${v(e.target)}"
+                class="pred-target-line"
+              />`:q}
+
+          <!-- Area fill -->
+          <path d="${y}" class="pred-area" />
+
+          <!-- Line -->
+          <path d="${f}" class="pred-line" />
+
+          <!-- Data points -->
+          ${i.map((e,t)=>N`
+              <circle
+                cx="${m(t)}" cy="${v(e)}" r="2.5"
+                class="pred-dot"
+              />
+            `)}
+
+          <!-- Critical / Peak markers -->
+          ${null!==A&&null!==w?N`<circle
+                cx="${m(A)}" cy="${v(i[A])}" r="4"
+                class="pred-marker-critical"
+              />`:q}
+          ${null!==z&&null!==k?N`<circle
+                cx="${m(z)}" cy="${v(i[z])}" r="4"
+                class="pred-marker-peak"
+              />`:q}
+
+          <!-- X-axis labels -->
+          ${b.map(({i:e,label:t})=>N`
+              <text
+                x="${m(e)}" y="${128}"
+                class="pred-x-label"
+              >${t}</text>
+            `)}
+
+          <!-- Current moisture marker (first point) -->
+          <text
+            x="${m(0)+4}" y="${v(i[0])-6}"
+            class="pred-value-label"
+          >${Math.round(i[0])}%</text>
+
+          <!-- End value label -->
+          <text
+            x="${m(i.length-1)-4}" y="${v(i[i.length-1])-6}"
+            class="pred-value-label end"
+          >${Math.round(i[i.length-1])}%</text>
         </svg>
-        ${null!==t.chosenLiters?N`<div class="prediction-note">
-              Chosen: ${t.chosenLiters} L
-              ${null!==t.predictedCriticalTheta?N` · Low: ${t.predictedCriticalTheta}%`:q}
-              ${null!==t.predictedPeakTheta?N` · Peak: ${t.predictedPeakTheta}%`:q}
+
+        <div class="pred-legend">
+          ${null!==e.target?N`<span class="pred-legend-item">
+                <span class="pred-swatch target"></span>Target ${e.target}%
+              </span>`:q}
+          ${null!==w?N`<span class="pred-legend-item">
+                <span class="pred-swatch critical"></span>Low ${w}%
+              </span>`:q}
+          ${null!==k?N`<span class="pred-legend-item">
+                <span class="pred-swatch peak"></span>Peak ${k}%
+              </span>`:q}
+          ${null!==t.chosenLiters?N`<span class="pred-legend-item">
+                <ha-icon icon="mdi:water" style="--mdc-icon-size:14px"></ha-icon>
+                ${t.chosenLiters} L
+              </span>`:q}
+        </div>
+
+        <!-- Water balance terms breakdown -->
+        ${t.terms.length?N`<div class="pred-terms">
+              ${t.terms.map(e=>N`
+                  <div class="pred-term">
+                    <span class="pred-term-label">${e.label}</span>
+                    <span class="pred-term-value ${e.value>=0?"positive":"negative"}">
+                      ${e.value>=0?"+":""}${e.value.toFixed(1)}${e.unit}
+                    </span>
+                  </div>
+                `)}
             </div>`:q}
       </div>
     `}_renderGreenhouse(e){return e.greenhouse?N`
@@ -326,7 +415,7 @@ const ce=e=>(t,i)=>{void 0!==i?i.addInitializer(()=>{customElements.define(e,t)}
     `}_historyDetail(e){if(e.action)return`${e.action} (${e.reason??""})`;if(e.status){const t=e.measured_liters??e.requested_liters;return null==t?String(e.status):`${e.status} · ${t} L`}return void 0!==e.delta_mm?`+${e.delta_mm} mm`:""}_metric(e,t){return N`<div class="metric">
       <span class="metric-value">${t}</span>
       <span class="metric-label">${e}</span>
-    </div>`}};Le.styles=o`
+    </div>`}};He.styles=o`
     /* ── Card base ──────────────────────────────────── */
     ha-card {
       padding: 16px;
@@ -621,31 +710,138 @@ const ce=e=>(t,i)=>{void 0!==i?i.addInitializer(()=>{customElements.define(e,t)}
       font-size: 0.8rem;
     }
 
-    /* ── Prediction Sparkline ──────────────────────── */
+    /* ── Prediction Chart ─────────────────────────── */
     .prediction-section {
       padding: 8px 16px 12px;
     }
-    .sparkline {
+    .prediction-chart {
       width: 100%;
-      height: 48px;
+      height: auto;
+      max-height: 160px;
       display: block;
     }
-    .spark-line {
+    .pred-grid {
+      stroke: var(--divider-color, rgba(255,255,255,0.08));
+      stroke-width: 0.5;
+      vector-effect: non-scaling-stroke;
+    }
+    .pred-y-label {
+      font-size: 7px;
+      fill: var(--secondary-text-color);
+      text-anchor: end;
+      dominant-baseline: middle;
+    }
+    .pred-x-label {
+      font-size: 7px;
+      fill: var(--secondary-text-color);
+      text-anchor: middle;
+    }
+    .pred-target-band {
+      fill: var(--primary-color);
+      opacity: 0.08;
+    }
+    .pred-target-line {
+      stroke: var(--primary-color);
+      stroke-width: 0.8;
+      stroke-dasharray: 4 2;
+      vector-effect: non-scaling-stroke;
+      opacity: 0.5;
+    }
+    .pred-area {
+      fill: url(#pred-fill-grad);
+    }
+    .pred-line {
       fill: none;
       stroke: var(--primary-color);
+      stroke-width: 1.8;
+      stroke-linejoin: round;
+      stroke-linecap: round;
+      vector-effect: non-scaling-stroke;
+    }
+    .pred-dot {
+      fill: var(--card-background-color, var(--primary-background-color));
+      stroke: var(--primary-color);
+      stroke-width: 1;
+      vector-effect: non-scaling-stroke;
+    }
+    .pred-marker-critical {
+      fill: none;
+      stroke: var(--error-color, #db4437);
       stroke-width: 1.5;
       vector-effect: non-scaling-stroke;
     }
-    .spark-target {
-      stroke: var(--secondary-text-color);
-      stroke-width: 0.5;
-      stroke-dasharray: 3 2;
+    .pred-marker-peak {
+      fill: none;
+      stroke: var(--success-color, #43a047);
+      stroke-width: 1.5;
       vector-effect: non-scaling-stroke;
     }
-    .prediction-note {
-      font-size: 0.75rem;
+    .pred-value-label {
+      font-size: 7px;
+      font-weight: 600;
+      fill: var(--primary-text-color);
+      text-anchor: start;
+    }
+    .pred-value-label.end {
+      text-anchor: end;
+    }
+
+    .pred-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      padding: 4px 0 0;
+      font-size: 0.72rem;
       color: var(--secondary-text-color);
-      margin-top: 4px;
+    }
+    .pred-legend-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .pred-swatch {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+    .pred-swatch.target {
+      background: var(--primary-color);
+      opacity: 0.5;
+    }
+    .pred-swatch.critical {
+      border: 1.5px solid var(--error-color, #db4437);
+      background: none;
+    }
+    .pred-swatch.peak {
+      border: 1.5px solid var(--success-color, #43a047);
+      background: none;
+    }
+
+    .pred-terms {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 4px 12px;
+      padding: 8px 0 0;
+      font-size: 0.75rem;
+    }
+    .pred-term {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .pred-term-label {
+      color: var(--secondary-text-color);
+    }
+    .pred-term-value {
+      font-weight: 500;
+      font-variant-numeric: tabular-nums;
+    }
+    .pred-term-value.positive {
+      color: var(--success-color, #43a047);
+    }
+    .pred-term-value.negative {
+      color: var(--error-color, #db4437);
     }
 
     /* ── Sections ──────────────────────────────────── */
@@ -813,7 +1009,7 @@ const ce=e=>(t,i)=>{void 0!==i?i.addInitializer(()=>{customElements.define(e,t)}
     .stop-btn {
       --mdc-theme-primary: var(--error-color);
     }
-  `,e([he({attribute:!1})],Le.prototype,"hass",void 0),e([ue()],Le.prototype,"_config",void 0),e([ue()],Le.prototype,"_activeZoneIndex",void 0),Le=e([ce("amazing-irrigation-overview-card")],Le),window.customCards=window.customCards||[],window.customCards.push({type:"amazing-irrigation-overview-card",name:"Amazing Irrigation",description:"Professional irrigation dashboard with zone overview and detail drill-down."});const Ie="amazing_irrigation",Ue=[{name:"decision_entity",required:!0,selector:{entity:{integration:Ie,domain:"sensor"}}},{name:"name",selector:{text:{}}},{name:"icon",selector:{icon:{}}},{name:"moisture_entity",selector:{entity:{domain:"sensor"}}},{name:"status_entity",selector:{entity:{integration:Ie,domain:"sensor"}}},{name:"history_entity",selector:{entity:{integration:Ie,domain:"sensor"}}}],je=[{name:"title",selector:{text:{}}}],De={decision_entity:"Decision sensor (required)",name:"Zone name (optional)",icon:"Zone icon (optional)",moisture_entity:"Soil moisture sensor (optional)",status_entity:"Status sensor (optional)",history_entity:"History sensor (optional)",title:"Card title (optional)"},Be=e=>De[e.name]??e.name;function Ze(e,t){e.dispatchEvent(new CustomEvent("config-changed",{detail:{config:t},bubbles:!0,composed:!0}))}let Ne=class extends ae{setConfig(e){this._config=e}render(){return this.hass&&this._config?N`
+  `,e([he({attribute:!1})],He.prototype,"hass",void 0),e([ue()],He.prototype,"_config",void 0),e([ue()],He.prototype,"_activeZoneIndex",void 0),He=e([ce("amazing-irrigation-overview-card")],He),window.customCards=window.customCards||[],window.customCards.push({type:"amazing-irrigation-overview-card",name:"Amazing Irrigation",description:"Professional irrigation dashboard with zone overview and detail drill-down."});const Ie="amazing_irrigation",Ue=[{name:"decision_entity",required:!0,selector:{entity:{integration:Ie,domain:"sensor"}}},{name:"name",selector:{text:{}}},{name:"icon",selector:{icon:{}}},{name:"moisture_entity",selector:{entity:{domain:"sensor"}}},{name:"status_entity",selector:{entity:{integration:Ie,domain:"sensor"}}},{name:"history_entity",selector:{entity:{integration:Ie,domain:"sensor"}}}],je=[{name:"title",selector:{text:{}}}],De={decision_entity:"Decision sensor (required)",name:"Zone name (optional)",icon:"Zone icon (optional)",moisture_entity:"Soil moisture sensor (optional)",status_entity:"Status sensor (optional)",history_entity:"History sensor (optional)",title:"Card title (optional)"},Be=e=>De[e.name]??e.name;function Ze(e,t){e.dispatchEvent(new CustomEvent("config-changed",{detail:{config:t},bubbles:!0,composed:!0}))}let Ne=class extends ae{setConfig(e){this._config=e}render(){return this.hass&&this._config?N`
       <ha-form
         .hass=${this.hass}
         .data=${this._config}
@@ -889,7 +1085,7 @@ const ce=e=>(t,i)=>{void 0!==i?i.addInitializer(()=>{customElements.define(e,t)}
     mwc-button {
       align-self: flex-start;
     }
-  `,e([he({attribute:!1})],We.prototype,"hass",void 0),e([ue()],We.prototype,"_config",void 0),We=e([ce("amazing-irrigation-overview-card-editor")],We);const qe={run_request:"Run requested",decision:"Decision",rain_event:"Rain",watering_event:"Watering"};let Ve=class extends ae{static getStubConfig(e){const[t]=Te(e?.states);return{decision_entity:t??""}}static async getConfigElement(){return document.createElement("amazing-irrigation-card-editor")}setConfig(e){if(!e||!e.decision_entity)throw new Error("amazing-irrigation-card: 'decision_entity' is required");this._config=e}getCardSize(){return 4}get _view(){if(this._config&&this.hass)return Me(this._config,this.hass.states)}_callZoneService(e,t=!1){if(!this.hass||!this._config)return;const i={entity_id:this._config.decision_entity};"run_zone"===e&&(i.force=t),this.hass.callService("amazing_irrigation",e,i)}_moreInfo(e){this.dispatchEvent(new CustomEvent("hass-more-info",{detail:{entityId:e},bubbles:!0,composed:!0}))}_toggleSwitch(e){this.hass&&this.hass.callService("switch","toggle",{entity_id:e})}render(){const e=this._view;return this._config?e?N`
+  `,e([he({attribute:!1})],We.prototype,"hass",void 0),e([ue()],We.prototype,"_config",void 0),We=e([ce("amazing-irrigation-overview-card-editor")],We);const qe={run_request:"Run requested",decision:"Decision",rain_event:"Rain",watering_event:"Watering"};let Ve=class extends ae{static getStubConfig(e){const[t]=Te(e?.states);return{decision_entity:t??""}}static async getConfigElement(){return document.createElement("amazing-irrigation-card-editor")}setConfig(e){if(!e||!e.decision_entity)throw new Error("amazing-irrigation-card: 'decision_entity' is required");this._config=e}getCardSize(){return 4}get _view(){if(this._config&&this.hass)return Pe(this._config,this.hass.states)}_callZoneService(e,t=!1){if(!this.hass||!this._config)return;const i={entity_id:this._config.decision_entity};"run_zone"===e&&(i.force=t),this.hass.callService("amazing_irrigation",e,i)}_moreInfo(e){this.dispatchEvent(new CustomEvent("hass-more-info",{detail:{entityId:e},bubbles:!0,composed:!0}))}_toggleSwitch(e){this.hass&&this.hass.callService("switch","toggle",{entity_id:e})}render(){const e=this._view;return this._config?e?N`
       <ha-card>
         <div class="header">
           <span class="name">${e.name}</span>
