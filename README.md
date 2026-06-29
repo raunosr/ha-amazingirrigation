@@ -87,6 +87,9 @@ always override learned ones, and every value stays inside safe bounds.
   learned Wilting Point / Field Capacity and the profile (with an automatic
   hot-day margin); **Manual** keeps your fixed Target Moisture. Explicit low/high
   bounds always win, and the soil water-balance physics is unchanged.
+- **Bed area & root depth (optional).** Enter a zone's area and rooting depth to seed
+  irrigation/rain gains physically for faster, more accurate cold-start; learning
+  refines them and manual parameters override. See *Scientific background* below.
 - **History Bootstrap.** Every new zone with moisture sensors learns fast by replaying
   history at setup — over a selectable window (default 2 months), drawing on Home
   Assistant long-term statistics beyond the recorder's ~10-day raw retention. Re-run it
@@ -100,6 +103,41 @@ always override learned ones, and every value stays inside safe bounds.
 See [`docs/usage.md`](./docs/usage.md) for the full field reference and
 [`docs/adr/0003-physics-informed-water-balance-learning.md`](./docs/adr/0003-physics-informed-water-balance-learning.md)
 for the design rationale.
+
+## Scientific background
+
+The model treats each zone's root zone as a single bucket of volumetric soil
+moisture θ (percent) and advances it over each interval with a mass balance:
+
+```
+θ_next = θ + η_irr·L + η_rain·R − ET − drainage
+```
+
+| Term | Meaning | Units |
+|------|---------|-------|
+| `η_irr·L` | gain from `L` litres of irrigation | %·L⁻¹ |
+| `η_rain·R` | gain from `R` mm of effective rain | %·mm⁻¹ |
+| `ET` | evapotranspiration loss over the interval | % |
+| `drainage` | loss above field capacity | % |
+
+**Area / root-depth coupling (optional).** Irrigation and rain gains are the same
+physics: applying a depth `D` mm raises moisture by `D / root_depth · 100`, and 1 L
+over `A` m² equals `1/A` mm. So `η_rain = 100·eff/root_depth` and `η_irr = η_rain/A`
+— their ratio is just the bed area. Supplying optional **Bed area** and **Root depth**
+seeds both gains physically (efficiency ≈ 0.8) instead of soil-blind defaults, fixing
+cold-start error; steady-state learning still overrides them.
+
+**Evapotranspiration.** With root depth set, ET₀ uses the FAO-56 Penman-Monteith
+reference equation (net radiation approximated from solar, with a temperature/humidity
+fallback) scaled by a crop coefficient Kc from the demand profile (low 0.55 / med 0.85
+/ high 1.1) and converted mm·day⁻¹ → %·h⁻¹ via root depth. Without root depth the
+legacy VPD heuristic is used. A learned `k_et` corrects residual bias.
+
+**Learning and confidence.** A recursive least-squares estimator with forgetting
+updates the four coefficients online; per-parameter confidence comes from posterior
+covariance, and a fit-based confidence tracks one-step residual RMSE so persistent
+drift lowers trust. All values stay inside safe bounds (η_irr 0.01–25, η_rain 0.01–30,
+Kc 0.2–1.5, root depth 20–2000 mm) and manual entries always win.
 
 ## Development
 

@@ -14,6 +14,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from .const import (
+    CONF_AREA_M2,
     CONF_DEMAND_PROFILE,
     CONF_ENABLED,
     CONF_ET_SOURCE,
@@ -36,6 +37,7 @@ from .const import (
     CONF_PROTECTED_RAIN,
     CONF_RAIN_SKIP_MM,
     CONF_RAIN_SKIP_PROBABILITY,
+    CONF_ROOT_DEPTH_MM,
     CONF_SAFETY_BLOCKERS,
     CONF_SCHEDULE_TIMES,
     CONF_SCHEDULE_WEEKDAYS,
@@ -133,6 +135,8 @@ class ZoneConfig:
     target_mode: str = "manual"
     et_source: str = "auto"
     soil_type: str = "loam"
+    area_m2: float | None = None
+    root_depth_mm: float | None = None
     greenhouse: bool = False
     protected_rain: bool = False
     temperature_sensor: str | None = None
@@ -182,6 +186,8 @@ class ZoneConfig:
             ),
             et_source=_select(record.get(CONF_ET_SOURCE), {"auto", "weather", "greenhouse"}, "auto"),
             soil_type=_select(record.get(CONF_SOIL_TYPE), {"loam", "sand", "clay"}, "loam"),
+            area_m2=_as_float(record.get(CONF_AREA_M2), None),
+            root_depth_mm=_as_float(record.get(CONF_ROOT_DEPTH_MM), None),
             greenhouse=bool(record.get(CONF_GREENHOUSE, False)),
             protected_rain=bool(record.get(CONF_PROTECTED_RAIN, False)),
             temperature_sensor=record.get(CONF_TEMPERATURE_SENSOR) or None,

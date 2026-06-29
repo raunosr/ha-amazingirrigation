@@ -336,10 +336,20 @@ def apply_model_to_state(
 
 
 def params_from_state(
-    state: ZoneState, *, soil_type: str = "loam"
+    state: ZoneState,
+    *,
+    soil_type: str = "loam",
+    area_m2: float | None = None,
+    root_depth_mm: float | None = None,
+    demand_profile: str | None = None,
 ) -> WaterBalanceParams | None:
     """Reconstruct water-balance params from persisted model or legacy mirrors."""
-    prior = default_params(soil_type)
+    prior = default_params(
+        soil_type,
+        area_m2=area_m2,
+        root_depth_mm=root_depth_mm,
+        demand_profile=demand_profile,
+    )
     source = state.model_params if isinstance(state.model_params, Mapping) else {}
 
     eta_irr = _finite(source.get("eta_irr"))
@@ -372,6 +382,8 @@ def params_from_state(
         wilting_point=(
             wilting_point if wilting_point is not None else prior.wilting_point
         ),
+        root_depth_mm=prior.root_depth_mm,
+        crop_coefficient=prior.crop_coefficient,
     ).clamped()
 
 

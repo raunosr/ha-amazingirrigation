@@ -35,6 +35,12 @@ CONF_SEASON_END = "season_end"
 CONF_ET_SOURCE = "et_source"
 CONF_SOIL_TYPE = "soil_type"
 
+# Optional physical zone geometry: irrigated area (m^2) and effective root-zone
+# depth (mm). When provided they seed physical eta priors and couple irrigation
+# and rain efficiency (eta_rain ~= eta_irr * area). Both are optional.
+CONF_AREA_M2 = "area_m2"
+CONF_ROOT_DEPTH_MM = "root_depth_mm"
+
 # Advanced per-zone calibration keys (visible, manually set in this slice).
 CONF_FIELD_CAPACITY = "field_capacity"
 CONF_WILTING_POINT = "wilting_point"
@@ -114,6 +120,9 @@ DEFAULT_TARGET_MOISTURE = 40.0
 DEFAULT_MAX_LITERS = 30.0
 DEFAULT_RAIN_SKIP_MM = 3.0
 DEFAULT_RAIN_SKIP_PROBABILITY = 60.0
+
+# Default effective root-zone depth (mm) used when area is set without a depth.
+DEFAULT_ROOT_DEPTH_MM = 200.0
 
 # Services.
 SERVICE_EVALUATE_ZONE = "evaluate_zone"
