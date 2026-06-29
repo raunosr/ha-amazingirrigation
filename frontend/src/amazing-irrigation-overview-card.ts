@@ -33,6 +33,39 @@ const KIND_LABELS: Record<string, string> = {
   watering_event: "Watering",
 };
 
+/** Plain-language rewrites for machine decision reasons. */
+const REASON_LABELS: Record<string, string> = {
+  predicted_sufficient_moisture: "Soil moisture is on track",
+  sufficient_moisture: "Soil moisture is on track",
+  rain_expected: "Rain expected, holding off",
+  rain_protected: "Sheltered from rain",
+  below_target: "Below target, watering needed",
+  schedule: "On schedule",
+  manual: "Manual run",
+  forced: "Forced by you",
+  learning: "Still learning this zone",
+};
+
+function humanizeReason(reason: string): string {
+  return REASON_LABELS[reason] ?? reason.replace(/_/g, " ");
+}
+
+/** Turn a timestamp into a short relative label ("2h ago"). */
+function relativeTime(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  const ms = typeof value === "number" ? value * (value < 1e12 ? 1000 : 1) : Date.parse(String(value));
+  if (!Number.isFinite(ms)) return null;
+  const diff = Date.now() - ms;
+  if (diff < 0) return "soon";
+  const m = Math.round(diff / 60000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m}m ago`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.round(h / 24);
+  return d < 7 ? `${d}d ago` : new Date(ms).toLocaleDateString();
+}
+
 const DEFAULT_ZONE_ICON = "mdi:sprinkler-variant";
 
 @customElement("amazing-irrigation-overview-card")
@@ -41,6 +74,14 @@ export class AmazingIrrigationOverviewCard extends LitElement {
 
   @state() private _config?: OverviewCardConfig;
   @state() private _activeZoneIndex: number | null = null;
+  @state() private _actionPending: string | null = null;
+  @state() private _actionResult: { kind: "ok" | "error"; text: string } | null =
+    null;
+  @state() private _forceArmed = false;
+
+  private _actionResultTimer?: ReturnType<typeof setTimeout>;
+  private _forceArmTimer?: ReturnType<typeof setTimeout>;
+  private _lastFailed?: { entity: string; service: "run_zone" | "stop_zone"; force: boolean };
 
   public static getStubConfig(hass?: {
     states?: Record<string, HassState>;
@@ -77,21 +118,115 @@ export class AmazingIrrigationOverviewCard extends LitElement {
 
   private _openZone(index: number): void {
     this._activeZoneIndex = index;
+    this._disarmForce();
+    this._actionResult = null;
   }
 
   private _closeZone(): void {
     this._activeZoneIndex = null;
+    this._disarmForce();
   }
 
-  private _callZoneService(
+  private _disarmForce(): void {
+    this._forceArmed = false;
+    if (this._forceArmTimer) clearTimeout(this._forceArmTimer);
+  }
+
+  private _armForce(): void {
+    this._forceArmed = true;
+    if (this._forceArmTimer) clearTimeout(this._forceArmTimer);
+    this._forceArmTimer = setTimeout(() => {
+      this._forceArmed = false;
+    }, 5000);
+  }
+
+  private async _callZoneService(
     decisionEntity: string,
     service: "run_zone" | "stop_zone",
     force = false,
   ) {
-    if (!this.hass) return;
+    if (!this.hass || this._actionPending) return;
+    const actionKey =
+      service === "stop_zone" ? "stop" : force ? "force" : "run";
+    this._actionPending = actionKey;
+    this._actionResult = null;
+    this._disarmForce();
+    if (this._actionResultTimer) clearTimeout(this._actionResultTimer);
+
     const data: Record<string, unknown> = { entity_id: decisionEntity };
     if (service === "run_zone") data.force = force;
-    this.hass.callService("amazing_irrigation", service, data);
+
+    try {
+      await this.hass.callService("amazing_irrigation", service, data);
+      const label =
+        actionKey === "stop"
+          ? "Stop sent"
+          : force
+            ? "Force sent"
+            : "Run sent";
+      this._actionResult = { kind: "ok", text: label };
+      this._lastFailed = undefined;
+      this._actionResultTimer = setTimeout(() => {
+        this._actionResult = null;
+      }, 4000);
+    } catch (err) {
+      const detail =
+        err instanceof Error && err.message ? err.message : "Service unavailable";
+      this._actionResult = { kind: "error", text: detail };
+      this._lastFailed = { entity: decisionEntity, service, force };
+      this._actionResultTimer = setTimeout(() => {
+        this._actionResult = null;
+      }, 8000);
+    } finally {
+      this._actionPending = null;
+    }
+  }
+
+  private _retryLast(): void {
+    if (this._lastFailed) {
+      const { entity, service, force } = this._lastFailed;
+      this._callZoneService(entity, service, force);
+    }
+  }
+
+  private async _runAll(): Promise<void> {
+    if (!this.hass || !this._config || this._actionPending) return;
+    this._actionPending = "all";
+    this._actionResult = null;
+    if (this._actionResultTimer) clearTimeout(this._actionResultTimer);
+    let ok = 0;
+    let fail = 0;
+    for (const zone of this._config.zones) {
+      try {
+        await this.hass.callService("amazing_irrigation", "run_zone", {
+          entity_id: zone.decision_entity,
+          force: false,
+        });
+        ok += 1;
+      } catch {
+        fail += 1;
+      }
+    }
+    this._actionResult = {
+      kind: fail ? "error" : "ok",
+      text: fail ? `${ok} run, ${fail} failed` : `Run sent to ${ok} zones`,
+    };
+    this._actionPending = null;
+    this._actionResultTimer = setTimeout(() => {
+      this._actionResult = null;
+    }, fail ? 8000 : 4000);
+  }
+
+  private _quickRun(e: Event, index: number): void {
+    e.stopPropagation();
+    const zone = this._config?.zones[index];
+    if (zone) this._callZoneService(zone.decision_entity, "run_zone");
+  }
+
+  public disconnectedCallback(): void {
+    super.disconnectedCallback();
+    if (this._actionResultTimer) clearTimeout(this._actionResultTimer);
+    if (this._forceArmTimer) clearTimeout(this._forceArmTimer);
   }
 
   private _moreInfo(entityId: string) {
@@ -129,10 +264,39 @@ export class AmazingIrrigationOverviewCard extends LitElement {
 
   private _renderOverview(): TemplateResult {
     const views = buildOverview(this._config!, this.hass!.states);
+    const multi = views.length > 1;
     return html`
       <ha-card>
-        ${this._config!.title
-          ? html`<div class="card-header">${this._config!.title}</div>`
+        <div class="overview-header">
+          ${this._config!.title
+            ? html`<div class="card-header">${this._config!.title}</div>`
+            : html`<span></span>`}
+          ${multi
+            ? html`<button
+                class="run-all-btn"
+                title="Run every zone the model allows"
+                ?disabled=${!!this._actionPending}
+                @click=${this._runAll}
+              >
+                ${this._actionPending === "all"
+                  ? html`<ha-circular-progress
+                      indeterminate
+                      size="small"
+                    ></ha-circular-progress>`
+                  : html`<ha-icon icon="mdi:play-circle-outline"></ha-icon>`}
+                Run all
+              </button>`
+            : nothing}
+        </div>
+        ${this._actionResult
+          ? html`<div class="action-feedback overview ${this._actionResult.kind}">
+              <ha-icon
+                icon=${this._actionResult.kind === "ok"
+                  ? "mdi:check-circle-outline"
+                  : "mdi:alert-circle-outline"}
+              ></ha-icon>
+              ${this._actionResult.text}
+            </div>`
           : nothing}
         <div class="zone-grid">
           ${views.map((view, i) => this._renderZoneTile(view, i))}
@@ -144,22 +308,26 @@ export class AmazingIrrigationOverviewCard extends LitElement {
   private _renderZoneTile(view: ZoneView, index: number): TemplateResult {
     const config = this._config!.zones[index];
     const icon = config.icon || DEFAULT_ZONE_ICON;
+    const noData = view.moisture === null && view.decision === null;
     const moisturePct =
       view.moisture !== null && view.target !== null && view.target > 0
         ? Math.min(100, Math.round((view.moisture / view.target) * 100))
         : view.moisture ?? 0;
 
-    const statusClass = view.isWatering
-      ? "watering"
-      : view.decision === "skip"
-        ? "skip"
-        : view.decision === "water"
-          ? "pending-water"
-          : "";
+    const statusClass = noData
+      ? "setup"
+      : view.isWatering
+        ? "watering"
+        : view.decision === "skip"
+          ? "skip"
+          : view.decision === "water"
+            ? "pending-water"
+            : "";
 
     return html`
       <button
         class="zone-tile ${statusClass}"
+        title="Open ${view.name}"
         @click=${() => this._openZone(index)}
       >
         <div class="tile-icon-wrap">
@@ -169,26 +337,37 @@ export class AmazingIrrigationOverviewCard extends LitElement {
             : nothing}
         </div>
         <span class="tile-name">${view.name}</span>
-        <div class="tile-bar-track">
-          <div
-            class="tile-bar-fill"
-            style="width: ${moisturePct}%"
-          ></div>
-          ${view.target !== null
-            ? html`<div
-                class="tile-bar-target"
-                style="left: ${Math.min(100, view.target)}%"
-              ></div>`
-            : nothing}
-        </div>
-        <div class="tile-stats">
-          <span class="tile-moisture"
-            >${view.moisture !== null ? `${view.moisture}%` : "–"}</span
-          >
-          ${view.target !== null
-            ? html`<span class="tile-target">/ ${view.target}%</span>`
-            : nothing}
-        </div>
+        ${noData
+          ? html`<span class="tile-setup">Setting up…</span>`
+          : html`
+              <div class="tile-bar-track">
+                <div class="tile-bar-fill" style="width: ${moisturePct}%"></div>
+                ${view.target !== null
+                  ? html`<div
+                      class="tile-bar-target"
+                      style="left: ${Math.min(100, view.target)}%"
+                    ></div>`
+                  : nothing}
+              </div>
+              <div class="tile-stats">
+                <span class="tile-moisture"
+                  >${view.moisture !== null ? `${view.moisture}%` : "–"}</span
+                >
+                ${view.target !== null
+                  ? html`<span class="tile-target">/ ${view.target}%</span>`
+                  : nothing}
+              </div>
+            `}
+        ${noData
+          ? nothing
+          : html`<span
+              class="tile-run"
+              title="Run ${view.name} now"
+              ?disabled=${!!this._actionPending}
+              @click=${(e: Event) => this._quickRun(e, index)}
+            >
+              <ha-icon icon="mdi:play"></ha-icon>
+            </span>`}
       </button>
     `;
   }
@@ -199,10 +378,14 @@ export class AmazingIrrigationOverviewCard extends LitElement {
     view: ZoneView,
     config: ZoneCardConfig,
   ): TemplateResult {
+    const noData =
+      view.moisture === null &&
+      view.decision === null &&
+      !view.modelInsight?.decisionExplanation?.predictedTrajectory.length;
     return html`
       <ha-card class="detail-card">
         <div class="detail-header">
-          <button class="back-btn" @click=${this._closeZone}>
+          <button class="back-btn" title="Back to all zones" @click=${this._closeZone}>
             <ha-icon icon="mdi:arrow-left"></ha-icon>
           </button>
           <ha-icon
@@ -217,6 +400,20 @@ export class AmazingIrrigationOverviewCard extends LitElement {
           </div>
         </div>
 
+        ${noData
+          ? html`<div class="onboarding">
+              <ha-icon icon="mdi:leaf-circle-outline"></ha-icon>
+              <div class="onboarding-text">
+                <strong>Getting to know this zone</strong>
+                <span
+                  >No moisture data yet. The model needs a few days of readings
+                  before it can predict and schedule. You can still
+                  <em>Run</em> the zone manually below.</span
+                >
+              </div>
+            </div>`
+          : nothing}
+
         ${this._renderMoistureSection(view)}
         ${this._renderDecisionBanner(view)}
         ${this._renderPrediction(view)}
@@ -230,30 +427,64 @@ export class AmazingIrrigationOverviewCard extends LitElement {
         <div class="detail-actions">
           <mwc-button
             raised
-            ?disabled=${!canRun(view)}
+            title="Water now, respecting the model's recommended amount"
+            ?disabled=${!canRun(view) || !!this._actionPending}
             @click=${() =>
               this._callZoneService(config.decision_entity, "run_zone")}
           >
-            <ha-icon icon="mdi:play" slot="icon"></ha-icon>
+            ${this._actionPending === "run"
+              ? html`<ha-circular-progress indeterminate size="small"></ha-circular-progress>`
+              : html`<ha-icon icon="mdi:play" slot="icon"></ha-icon>`}
             Run
           </mwc-button>
           <mwc-button
-            ?disabled=${!canRun(view)}
-            @click=${() =>
-              this._callZoneService(config.decision_entity, "run_zone", true)}
+            class="force-btn ${this._forceArmed ? "armed" : ""}"
+            title="Override the model and water regardless of conditions"
+            ?disabled=${!canRun(view) || !!this._actionPending}
+            @click=${() => {
+              if (this._forceArmed) {
+                this._callZoneService(config.decision_entity, "run_zone", true);
+              } else {
+                this._armForce();
+              }
+            }}
           >
-            <ha-icon icon="mdi:water" slot="icon"></ha-icon>
-            Force
+            ${this._actionPending === "force"
+              ? html`<ha-circular-progress indeterminate size="small"></ha-circular-progress>`
+              : html`<ha-icon
+                  icon=${this._forceArmed ? "mdi:alert" : "mdi:water"}
+                  slot="icon"
+                ></ha-icon>`}
+            ${this._forceArmed ? "Confirm Force" : "Force"}
           </mwc-button>
           ${canStop(view)
             ? html`<mwc-button
                 class="stop-btn"
+                title="Stop the current watering run"
+                ?disabled=${!!this._actionPending}
                 @click=${() =>
                   this._callZoneService(config.decision_entity, "stop_zone")}
               >
-                <ha-icon icon="mdi:stop" slot="icon"></ha-icon>
+                ${this._actionPending === "stop"
+                  ? html`<ha-circular-progress indeterminate size="small"></ha-circular-progress>`
+                  : html`<ha-icon icon="mdi:stop" slot="icon"></ha-icon>`}
                 Stop
               </mwc-button>`
+            : nothing}
+          ${this._actionResult
+            ? html`<span class="action-feedback ${this._actionResult.kind}">
+                <ha-icon
+                  icon=${this._actionResult.kind === "ok"
+                    ? "mdi:check-circle-outline"
+                    : "mdi:alert-circle-outline"}
+                ></ha-icon>
+                ${this._actionResult.text}
+                ${this._actionResult.kind === "error" && this._lastFailed
+                  ? html`<button class="retry-btn" @click=${this._retryLast}>
+                      Retry
+                    </button>`
+                  : nothing}
+              </span>`
             : nothing}
         </div>
       </ha-card>
@@ -333,7 +564,7 @@ export class AmazingIrrigationOverviewCard extends LitElement {
         <span class="decision-label">${view.decision}</span>
         ${view.decisionReason
           ? html`<span class="decision-reason"
-              >${view.decisionReason.replace(/_/g, " ")}</span
+              >${humanizeReason(view.decisionReason)}</span
             >`
           : nothing}
       </div>
@@ -404,6 +635,11 @@ export class AmazingIrrigationOverviewCard extends LitElement {
       <div class="prediction-section">
         <div class="section-label">
           Moisture Prediction
+          <ha-icon
+            class="help-dot"
+            icon="mdi:help-circle-outline"
+            title="Forecast soil moisture over the coming hours. Shaded band is the target range; dots are the critical low and peak."
+          ></ha-icon>
           ${explanation.horizonHours !== null
             ? html`<span class="sublabel">${explanation.horizonHours}h horizon</span>`
             : nothing}
@@ -654,7 +890,9 @@ export class AmazingIrrigationOverviewCard extends LitElement {
         <summary class="section-label">
           <span>Model Insight</span>
           ${insight.overallConfidence !== null
-            ? html`<span class="confidence-badge"
+            ? html`<span
+                class="confidence-badge"
+                title="How confident the model is in its prediction for this zone"
                 >${Math.round(insight.overallConfidence * 100)}%</span
               >`
             : nothing}
@@ -746,10 +984,16 @@ export class AmazingIrrigationOverviewCard extends LitElement {
         <div class="history-list">
           ${recent.map((entry) => {
             const kind = String(entry["kind"] ?? "");
+            const when = relativeTime(
+              entry["timestamp"] ?? entry["ts"] ?? entry["time"] ?? entry["when"],
+            );
             return html`
               <div class="history-entry">
                 <span class="history-kind">${KIND_LABELS[kind] ?? kind}</span>
                 <span class="history-detail">${this._historyDetail(entry)}</span>
+                ${when
+                  ? html`<span class="history-time">${when}</span>`
+                  : nothing}
               </div>
             `;
           })}
@@ -760,7 +1004,7 @@ export class AmazingIrrigationOverviewCard extends LitElement {
 
   private _historyDetail(entry: Record<string, unknown>): string {
     if (entry["action"]) {
-      return `${entry["action"]} (${entry["reason"] ?? ""})`;
+      return `${entry["action"]} (${humanizeReason(String(entry["reason"] ?? ""))})`;
     }
     if (entry["status"]) {
       const liters = entry["measured_liters"] ?? entry["requested_liters"];
@@ -1371,9 +1615,125 @@ export class AmazingIrrigationOverviewCard extends LitElement {
       gap: 8px;
       padding: 12px 16px;
       border-top: 1px solid var(--divider-color);
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .detail-actions mwc-button[disabled] {
+      opacity: 0.5;
+      pointer-events: none;
+    }
+    .detail-actions ha-circular-progress {
+      --mdc-theme-primary: currentColor;
+      margin-inline-end: 4px;
     }
     .stop-btn {
       --mdc-theme-primary: var(--error-color);
+    }
+    .action-feedback {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.82rem;
+      font-weight: 500;
+      padding: 2px 8px;
+      border-radius: 12px;
+      animation: feedback-in 200ms ease-out;
+    }
+    .action-feedback.ok {
+      color: var(--success-color, #4caf50);
+    }
+    .action-feedback.error {
+      color: var(--error-color, #f44336);
+    }
+    .action-feedback ha-icon {
+      --mdc-icon-size: 16px;
+    }
+    @keyframes feedback-in {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .action-feedback { animation: none; }
+    }
+    .action-feedback.overview {
+      margin-top: 12px;
+    }
+    .retry-btn {
+      --mdc-theme-primary: var(--error-color);
+    }
+
+    /* ── Overview header / Run-All ──────────────────── */
+    .overview-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding-bottom: 12px;
+    }
+    .run-all-btn {
+      --mdc-theme-primary: var(--primary-color);
+    }
+    .run-all-btn ha-circular-progress {
+      --mdc-theme-primary: currentColor;
+      margin-inline-end: 4px;
+    }
+
+    /* ── Tile quick-run ─────────────────────────────── */
+    .tile-run {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      --mdc-icon-button-size: 28px;
+      --mdc-icon-size: 18px;
+      color: var(--secondary-text-color);
+      opacity: 0;
+      transition: opacity 0.15s ease, color 0.15s ease;
+    }
+    .zone-tile:hover .tile-run,
+    .zone-tile:focus-within .tile-run {
+      opacity: 1;
+    }
+    .tile-run:hover {
+      color: var(--primary-color);
+    }
+    .tile-setup {
+      font-size: 0.72rem;
+      color: var(--secondary-text-color);
+    }
+
+    /* ── Onboarding banner ──────────────────────────── */
+    .onboarding {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      padding: 12px 14px;
+      margin: 12px 16px;
+      border-radius: 12px;
+      border: 1px solid var(--divider-color);
+      background: rgba(var(--rgb-primary-color, 3, 169, 244), 0.06);
+      font-size: 0.85rem;
+      line-height: 1.4;
+    }
+    .onboarding ha-icon {
+      color: var(--primary-color);
+      flex-shrink: 0;
+    }
+    .onboarding b { font-weight: 600; }
+
+    /* ── Force two-tap ──────────────────────────────── */
+    .force-btn.armed {
+      --mdc-theme-primary: var(--warning-color, #ff9800);
+    }
+    .help-dot {
+      --mdc-icon-size: 15px;
+      color: var(--secondary-text-color);
+      cursor: help;
+      margin-inline-start: 4px;
+      vertical-align: middle;
+    }
+    .history-time {
+      color: var(--secondary-text-color);
+      font-variant-numeric: tabular-nums;
     }
   `;
 }

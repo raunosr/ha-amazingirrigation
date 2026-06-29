@@ -1,0 +1,182 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-06-29T12:50:00.000Z",
+  "title": "Design System: Amazing Irrigation",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "HA Primary",
+        "canonical": "#03a9f4",
+        "tonalRamp": ["#012a3e", "#014466", "#026a9e", "#0389cc", "#03a9f4", "#39bbf7", "#6fcefa", "#a5e0fc"]
+      },
+      "success": {
+        "role": "semantic",
+        "displayName": "Success Green",
+        "canonical": "#43a047",
+        "tonalRamp": ["#1b3d1c", "#2a5e2c", "#357e38", "#43a047", "#66b369", "#8ac68c", "#add9af", "#d1ecd2"]
+      },
+      "error": {
+        "role": "semantic",
+        "displayName": "Error Red",
+        "canonical": "#db4437",
+        "tonalRamp": ["#3d1210", "#6e221c", "#9e3228", "#db4437", "#e26b61", "#e9928b", "#f0b9b5", "#f7dfdd"]
+      },
+      "warning": {
+        "role": "semantic",
+        "displayName": "Warning Amber",
+        "canonical": "#ff9800",
+        "tonalRamp": ["#3d2400", "#7a4900", "#b86d00", "#ff9800", "#ffad33", "#ffc266", "#ffd799", "#ffebcc"]
+      }
+    },
+    "typographyMeta": {
+      "metric": {
+        "displayName": "Metric Display",
+        "purpose": "Current moisture percentage in the gauge section. The single largest text element."
+      },
+      "label": {
+        "displayName": "Section Label",
+        "purpose": "Section headers like 'Predicted Trajectory', 'Controls', 'Schedule'. Quiet signposts."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Info rows, schedule rows, history entries, control labels."
+      },
+      "small": {
+        "displayName": "Small / Sublabel",
+        "purpose": "Chip text, legend items, prediction notes, axis labels."
+      }
+    },
+    "shadows": [
+      {
+        "name": "tile-hover",
+        "value": "0 2px 8px rgba(var(--rgb-primary-color, 3, 169, 244), 0.12)",
+        "purpose": "Subtle primary-tinted lift when hovering over a zone tile."
+      },
+      {
+        "name": "gauge-marker",
+        "value": "0 1px 3px rgba(0, 0, 0, 0.2)",
+        "purpose": "Current-moisture dot on the gauge track."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-standard",
+        "value": "ease",
+        "purpose": "Default easing for state transitions (bar fills, border color, background)."
+      },
+      {
+        "name": "duration-fast",
+        "value": "0.15s",
+        "purpose": "Hover/focus transitions on tiles, toggles, buttons."
+      },
+      {
+        "name": "duration-medium",
+        "value": "0.4s-0.5s",
+        "purpose": "Moisture bar fill animations."
+      },
+      {
+        "name": "pulse-animation",
+        "value": "1.5s ease-out infinite",
+        "purpose": "Active watering indicator ring. Degrades to static 0.5 opacity under prefers-reduced-motion."
+      }
+    ],
+    "breakpoints": []
+  },
+  "components": [
+    {
+      "name": "Zone Tile",
+      "kind": "button",
+      "refersTo": "zone-tile",
+      "description": "Interactive tile in the overview grid. Shows zone icon, name, moisture bar, and stats.",
+      "html": "<button class=\"ds-zone-tile\"><span class=\"ds-tile-icon\">💧</span><span class=\"ds-tile-name\">Front Lawn</span><div class=\"ds-tile-bar-track\"><div class=\"ds-tile-bar-fill\" style=\"width: 72%\"></div></div><div class=\"ds-tile-stats\"><span class=\"ds-tile-moisture\">36%</span><span class=\"ds-tile-target\">/ 50%</span></div></button>",
+      "css": ".ds-zone-tile { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 16px 12px 12px; border-radius: 12px; border: 1px solid rgba(0,0,0,0.12); background: #fff; cursor: pointer; transition: border-color 0.15s ease, box-shadow 0.15s ease; font-family: inherit; font-size: inherit; color: inherit; text-align: center; } .ds-zone-tile:hover { border-color: #03a9f4; box-shadow: 0 2px 8px rgba(3, 169, 244, 0.12); } .ds-zone-tile:focus-visible { outline: 2px solid #03a9f4; outline-offset: 2px; } .ds-tile-icon { font-size: 28px; } .ds-tile-name { font-size: 0.8rem; font-weight: 600; line-height: 1.2; } .ds-tile-bar-track { width: 100%; height: 4px; border-radius: 2px; background: rgba(0,0,0,0.12); position: relative; } .ds-tile-bar-fill { height: 100%; border-radius: 2px; background: #03a9f4; transition: width 0.4s ease; } .ds-tile-stats { display: flex; gap: 3px; font-size: 0.75rem; color: rgba(0,0,0,0.54); } .ds-tile-moisture { font-weight: 600; color: rgba(0,0,0,0.87); }"
+    },
+    {
+      "name": "Chip",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "Status chip used in info rows for greenhouse state, rain protection, temperature.",
+      "html": "<span class=\"ds-chip\">Rain protected</span><span class=\"ds-chip ds-chip-on\">Open to rain</span>",
+      "css": ".ds-chip { font-size: 0.72rem; padding: 2px 8px; border-radius: 10px; background: rgba(0,0,0,0.04); color: rgba(0,0,0,0.54); } .ds-chip-on { color: #03a9f4; font-weight: 600; }"
+    },
+    {
+      "name": "Toggle Button",
+      "kind": "button",
+      "refersTo": "toggle",
+      "description": "Small toggle for on/off controls like auto-target and schedule enable.",
+      "html": "<button class=\"ds-toggle\">OFF</button><button class=\"ds-toggle ds-toggle-on\">ON</button>",
+      "css": ".ds-toggle { border: 1px solid rgba(0,0,0,0.12); background: rgba(0,0,0,0.04); color: rgba(0,0,0,0.54); border-radius: 12px; padding: 2px 10px; font-size: 0.72rem; cursor: pointer; transition: background 0.15s, border-color 0.15s; font-family: inherit; } .ds-toggle:hover { background: rgba(0,0,0,0.08); } .ds-toggle:focus-visible { outline: 2px solid #03a9f4; outline-offset: 2px; } .ds-toggle-on { background: #03a9f4; color: #fff; border-color: #03a9f4; }"
+    },
+    {
+      "name": "Confidence Badge",
+      "kind": "chip",
+      "refersTo": "confidence-badge",
+      "description": "Inline badge showing model confidence percentage.",
+      "html": "<span class=\"ds-confidence-badge\">87%</span>",
+      "css": ".ds-confidence-badge { font-size: 0.72rem; font-weight: 600; padding: 1px 6px; border-radius: 8px; background: #03a9f4; color: #fff; }"
+    },
+    {
+      "name": "Decision Banner",
+      "kind": "custom",
+      "refersTo": "decision-banner",
+      "description": "Full-width banner showing the model's irrigation decision (water or skip) with reason.",
+      "html": "<div class=\"ds-decision-banner ds-decision-water\"><span class=\"ds-decision-label\">Water</span><span class=\"ds-decision-reason\">Moisture below target, no rain forecast</span></div>",
+      "css": ".ds-decision-banner { display: flex; align-items: center; gap: 8px; padding: 8px 16px; font-size: 0.85rem; } .ds-decision-water { background: rgba(3, 169, 244, 0.08); } .ds-decision-skip { background: rgba(0,0,0,0.04); } .ds-decision-label { font-weight: 600; text-transform: capitalize; } .ds-decision-reason { color: rgba(0,0,0,0.54); font-size: 0.8rem; }"
+    },
+    {
+      "name": "Back Button",
+      "kind": "nav",
+      "refersTo": "back-button",
+      "description": "Circular back navigation button in the detail view header.",
+      "html": "<button class=\"ds-back-btn\">←</button>",
+      "css": ".ds-back-btn { background: none; border: none; cursor: pointer; color: rgba(0,0,0,0.87); padding: 4px; border-radius: 50%; display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; font-size: 16px; transition: background 0.15s; } .ds-back-btn:hover { background: rgba(0,0,0,0.04); } .ds-back-btn:focus-visible { outline: 2px solid #03a9f4; outline-offset: 2px; }"
+    },
+    {
+      "name": "Metric Card",
+      "kind": "card",
+      "refersTo": "metric-card",
+      "description": "Compact metric display within the moisture section showing target, band, deficit values.",
+      "html": "<div class=\"ds-metric\"><span class=\"ds-metric-value\">50%</span><span class=\"ds-metric-label\">Target</span></div>",
+      "css": ".ds-metric { display: flex; flex-direction: column; align-items: center; flex: 1; min-width: 70px; padding: 8px 6px; background: rgba(0,0,0,0.04); border-radius: 8px; } .ds-metric-value { font-size: 0.9rem; font-weight: 600; } .ds-metric-label { font-size: 0.7rem; color: rgba(0,0,0,0.54); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Soil Intelligence Dashboard",
+    "overview": "This system renders soil-water-balance data as a confident, readable instrument panel. It inherits Home Assistant's visual vocabulary completely -- ha-card containers, CSS custom properties for theming, MDI icon set, standard interactive patterns -- and layers a domain-specific information hierarchy on top. The personality is scientific without being clinical: every data readout earns its space, every control conveys what the model is doing and why.\n\nThe system explicitly rejects generic IoT dashboards with oversized colorful gauges, decorative 'smart garden' apps with leaf animations and cartoon imagery, dense spreadsheet tables with no visual hierarchy, and default HA entity lists with no grouping or context. It is not playful. It is not flashy. It is the calm readout of a system that understands your soil.",
+    "keyCharacteristics": [
+      "Theme-native: all colors reference HA CSS custom properties, adapting automatically to any user theme and dark/light mode",
+      "Progressive disclosure: overview tile grid answers 'is everything OK?' in under 2 seconds; detail is one tap away, never forced",
+      "Data-dense but uncluttered: every number shown helps the user make a decision or build confidence; no decorative metrics",
+      "Semantic color only: color is reserved for state communication (active/watering, error, success), never decoration",
+      "Responsive within ha-card: adapts to card widths from narrow mobile columns to wide desktop panels via CSS grid auto-fit"
+    ],
+    "rules": [
+      { "name": "The Inheritance Rule", "body": "No color is hardcoded except fallback values. Every color token references a HA CSS custom property.", "section": "colors" },
+      { "name": "The No-Import Rule", "body": "The card never imports external fonts. It inherits from HA's cascade.", "section": "typography" },
+      { "name": "The Flat-By-Default Rule", "body": "Surfaces are flat at rest. Shadows appear only as a response to state (hover, active).", "section": "elevation" }
+    ],
+    "dos": [
+      "Do use HA CSS custom properties for every color value; hardcode only as fallbacks.",
+      "Do inherit typography from HA's cascade; express hierarchy through weight and size alone.",
+      "Do use ha-icon with MDI icon set for all icons; never inline raw SVGs for UI chrome.",
+      "Do respect prefers-reduced-motion: reduce for every animation.",
+      "Do add :focus-visible outlines on all interactive elements for keyboard navigation.",
+      "Do use semantic color for state: primary for active/selected, error for critical/negative, success for peak/positive.",
+      "Do keep the overview answerable in under 2 seconds.",
+      "Do use font-variant-numeric: tabular-nums for any numeric column."
+    ],
+    "donts": [
+      "Don't import external fonts or override font-family on any element.",
+      "Don't use large colorful gauges, circular meters, or toy-like iconography.",
+      "Don't add leaf animations, plant graphics, or cartoon nature imagery.",
+      "Don't present raw entity lists without grouping, hierarchy, or context.",
+      "Don't use border-left/right stripes greater than 1px as colored accents.",
+      "Don't use gradient text (background-clip: text) anywhere.",
+      "Don't hardcode light or dark theme values; always reference CSS custom properties.",
+      "Don't use decorative motion or choreographed entrances; motion is for state feedback only.",
+      "Don't add shadows to resting surfaces; only hover and active states earn elevation.",
+      "Don't use z-index values above 10 within the card."
+    ]
+  }
+}
