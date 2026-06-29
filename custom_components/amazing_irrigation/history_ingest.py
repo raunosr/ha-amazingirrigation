@@ -309,8 +309,16 @@ async def async_bootstrap_zone(
         )
         return None
 
+    # The expensive recorder fetch above has now run. Record the attempt so the
+    # automatic setup-time bootstrap does not repeat it on every reload (e.g.
+    # when the user edits a zone's configuration), regardless of whether the fit
+    # below succeeds. The manual Bootstrap button/service call this function
+    # directly and so always force a fresh attempt.
+    state.bootstrap_attempted = end_time.isoformat()
+
     moisture = _aggregate_moisture_history(zone.moisture_sensors, history)
     if len(moisture.points) < 2:
+        await store.async_save()
         return None
 
     rain = _series_for(history, zone.observed_rain_amount)
@@ -344,6 +352,7 @@ async def async_bootstrap_zone(
     )
     result = replace(result, summary=_enriched_summary(result))
     if not result.success:
+        await store.async_save()
         return result
 
     apply_model_to_state(

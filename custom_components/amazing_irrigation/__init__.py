@@ -139,8 +139,11 @@ async def _async_bootstrap_missing_models(
 
     Runs once per zone that has moisture sensors but no model or bootstrap yet,
     independent of whether live learning is enabled, so a useful prior exists
-    right after first configuration. The ``bootstrapped_days`` marker prevents
-    re-running on every reload.
+    right after first configuration. The ``bootstrapped_days`` (success) and
+    ``bootstrap_attempted`` (any completed attempt, including unsuccessful fits)
+    markers prevent re-running the costly recorder fetch on every reload, e.g.
+    when the user edits a zone's configuration. The manual Bootstrap button and
+    service bypass this guard to force a re-run on demand.
     """
     for zone_id, record in zones.items():
         state = zone_state.get(zone_id)
@@ -148,6 +151,7 @@ async def _async_bootstrap_missing_models(
             state is None
             or state.model_params is not None
             or state.bootstrapped_days is not None
+            or state.bootstrap_attempted is not None
         ):
             continue
         zone = ZoneConfig.from_record(zone_id, record)

@@ -316,6 +316,48 @@ async def test_async_bootstrap_zone_uses_configured_history_window(
     assert span_days == 90
 
 
+async def test_async_bootstrap_zone_marks_attempt_after_fetch(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A completed recorder fetch records the attempt even without a fit.
+
+    This is what stops the costly fetch from repeating on every config-edit
+    reload: once the expensive history pull has run, ``bootstrap_attempted`` is
+    persisted regardless of whether enough data existed to fit a model.
+    """
+    async def _history(*args) -> tuple[dict, str]:
+        return {}, "none"
+
+    monkeypatch.setattr(history_ingest, "_async_fetch_zone_history", _history)
+    state = ZoneState("zone1")
+    store = _FakeStore(state)
+    zone = ZoneConfig("zone1", "Zone 1", moisture_sensors=["sensor.moisture"])
+
+    result = await history_ingest.async_bootstrap_zone(hass, zone, store)
+
+    assert result is None
+    assert store.saved is True
+    assert state.bootstrap_attempted is not None
+    assert state.model_params is None
+
+
+async def test_async_bootstrap_zone_skips_attempt_when_fetch_fails(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A recorder failure must not record an attempt, so it can retry later."""
+    async def _raise(*args) -> dict[str, TimeSeries]:
+        raise RuntimeError("recorder unavailable")
+
+    monkeypatch.setattr(history_ingest, "_async_fetch_zone_history", _raise)
+    state = ZoneState("zone1")
+    store = _FakeStore(state)
+    zone = ZoneConfig("zone1", "Zone 1", moisture_sensors=["sensor.moisture"])
+
+    await history_ingest.async_bootstrap_zone(hass, zone, store)
+
+    assert state.bootstrap_attempted is None
+
+
 async def test_async_bootstrap_zone_returns_none_when_history_unavailable(
     hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
 ) -> None:
