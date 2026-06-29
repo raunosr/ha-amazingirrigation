@@ -20,6 +20,7 @@ export interface ZoneCardConfig {
   status_entity?: string;
   history_entity?: string;
   name?: string;
+  icon?: string;
 }
 
 /** A referenced source entity (moisture, rain, climate, safety) for display. */

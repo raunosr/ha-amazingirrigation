@@ -36,6 +36,11 @@ const KIND_LABELS: Record<string, string> = {
   watering_event: "Watering",
 };
 
+/**
+ * Single-zone detail card. Kept for backward compatibility — users who prefer
+ * one card per zone can still use this. The overview card is now the primary
+ * surface with built-in drill-down.
+ */
 @customElement("amazing-irrigation-card")
 export class AmazingIrrigationCard extends LitElement {
   @property({ attribute: false }) public hass?: HomeAssistant;

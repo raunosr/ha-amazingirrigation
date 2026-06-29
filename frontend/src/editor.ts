@@ -28,6 +28,7 @@ const ZONE_SCHEMA: HaFormSchema[] = [
     selector: { entity: { integration: INTEGRATION, domain: "sensor" } },
   },
   { name: "name", selector: { text: {} } },
+  { name: "icon", selector: { icon: {} } },
   { name: "moisture_entity", selector: { entity: { domain: "sensor" } } },
   {
     name: "status_entity",
@@ -46,6 +47,7 @@ const TITLE_SCHEMA: HaFormSchema[] = [
 const LABELS: Record<string, string> = {
   decision_entity: "Decision sensor (required)",
   name: "Zone name (optional)",
+  icon: "Zone icon (optional)",
   moisture_entity: "Soil moisture sensor (optional)",
   status_entity: "Status sensor (optional)",
   history_entity: "History sensor (optional)",
