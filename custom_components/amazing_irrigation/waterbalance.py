@@ -30,6 +30,14 @@ MISSING_CLIMATE_ET_PER_HOUR = 0.04
 ET_MAX_PER_HOUR = 3.0
 DEFAULT_HUMIDITY_PCT = 65.0
 
+# Optional FAO-56 reference-ET grounding. When a root-zone depth is known the ET0
+# in mm/day is converted to moisture-%/h via depth; a crop coefficient (Kc) scales
+# it. Both default to "unset" so the legacy VPD heuristic stays the fallback.
+KC_MIN, KC_MAX = 0.2, 1.5
+ROOT_DEPTH_MIN, ROOT_DEPTH_MAX = 20.0, 2000.0  # mm
+DEFAULT_IRRIG_EFFICIENCY = 0.8  # fraction of applied water reaching the root zone
+KC_BY_PROFILE = {"low": 0.55, "medium": 0.85, "high": 1.1}
+
 
 @dataclass(frozen=True)
 class Climate:
@@ -51,6 +59,8 @@ class WaterBalanceParams:
     drain_rate: float
     field_capacity: float
     wilting_point: float
+    root_depth_mm: float | None = None
+    crop_coefficient: float | None = None
 
     def clamped(self) -> WaterBalanceParams:
         """Return a copy with every parameter inside its safe range."""
@@ -78,6 +88,16 @@ class WaterBalanceParams:
             drain_rate=_clamp(self.drain_rate, DRAIN_RATE_MIN, DRAIN_RATE_MAX),
             field_capacity=field_capacity,
             wilting_point=wilting_point,
+            root_depth_mm=(
+                _clamp(self.root_depth_mm, ROOT_DEPTH_MIN, ROOT_DEPTH_MAX)
+                if self.root_depth_mm is not None
+                else None
+            ),
+            crop_coefficient=(
+                _clamp(self.crop_coefficient, KC_MIN, KC_MAX)
+                if self.crop_coefficient is not None
+                else None
+            ),
         )
 
 
@@ -118,12 +138,44 @@ def _nonnegative(value: float | None) -> float:
     return max(0.0, _clamp(value, 0.0, float("inf")))
 
 
-def default_params(soil_type: str = "loam") -> WaterBalanceParams:
+def area_eta(
+    area_m2: float, root_depth_mm: float, efficiency: float = DEFAULT_IRRIG_EFFICIENCY
+) -> tuple[float, float]:
+    """Derive physical (eta_irr, eta_rain) from zone geometry.
+
+    Moisture is volumetric percent of the root zone. Applying ``D`` mm of water
+    raises moisture by ``D / root_depth_mm * 100``. One litre over ``A`` m^2 equals
+    ``1/A`` mm, and 1 mm of rain equals one full mm. Hence:
+
+    - ``eta_rain = 100 * eff / root_depth_mm`` (%/mm)
+    - ``eta_irr  = 100 * eff / (area * root_depth_mm)`` (%/litre)
+
+    so ``eta_rain / eta_irr = area`` -- the two efficiencies are one coupled value.
+    Bounds keep degenerate geometry safe.
+    """
+    area = max(0.1, float(area_m2))
+    depth = _clamp(root_depth_mm, ROOT_DEPTH_MIN, ROOT_DEPTH_MAX)
+    eff = _clamp(efficiency, 0.1, 1.0)
+    eta_rain = _clamp(100.0 * eff / depth, ETA_RAIN_MIN, ETA_RAIN_MAX)
+    eta_irr = _clamp(100.0 * eff / (area * depth), ETA_IRR_MIN, ETA_IRR_MAX)
+    return eta_irr, eta_rain
+
+
+def default_params(
+    soil_type: str = "loam",
+    *,
+    area_m2: float | None = None,
+    root_depth_mm: float | None = None,
+    demand_profile: str | None = None,
+) -> WaterBalanceParams:
     """Return conservative soil-type priors for a new zone.
 
     Sandy soils have lower field capacity and faster drainage, loam is the
     balanced default, and clay retains more water while draining slowly.
-    Unknown soil types fall back to loam.
+    Unknown soil types fall back to loam. When ``area_m2`` is given, the
+    eta priors are replaced by geometry-derived values (using ``root_depth_mm``
+    or a 200 mm default), coupling irrigation and rain efficiency. A demand
+    profile attaches a crop coefficient for FAO-56 reference ET.
     """
     priors = {
         "sand": WaterBalanceParams(
@@ -151,7 +203,21 @@ def default_params(soil_type: str = "loam") -> WaterBalanceParams:
             wilting_point=28.0,
         ),
     }
-    return priors.get(soil_type.strip().lower(), priors["loam"]).clamped()
+    base = priors.get(soil_type.strip().lower(), priors["loam"])
+    depth = root_depth_mm if root_depth_mm is not None else 200.0
+    kc = KC_BY_PROFILE.get((demand_profile or "").strip().lower())
+    if area_m2 is not None and area_m2 > 0:
+        eta_irr, eta_rain = area_eta(area_m2, depth)
+        base = replace(
+            base,
+            eta_irr=eta_irr,
+            eta_rain=eta_rain,
+            root_depth_mm=depth,
+            crop_coefficient=kc,
+        )
+    elif kc is not None:
+        base = replace(base, crop_coefficient=kc)
+    return base.clamped()
 
 
 def et_demand(
@@ -183,6 +249,17 @@ def et_demand(
 
     svp_kpa = 0.6108 * float(np.exp((17.27 * temp_c) / (temp_c + 237.3)))
     vpd_kpa = max(0.0, svp_kpa * (1.0 - humidity_pct / 100.0))
+
+    # FAO-56 grounding: with a known root depth, convert reference ET0 (mm/day)
+    # to moisture-%/h via depth and crop coefficient. The depth conversion also
+    # couples ET to the same geometry as irrigation/rain efficiency.
+    if bounded.root_depth_mm is not None:
+        et0_mm_day = _et0_fao56(temp_c, vpd_kpa, svp_kpa, climate.wind_ms, climate.solar)
+        kc = bounded.crop_coefficient if bounded.crop_coefficient is not None else 0.85
+        pct_per_hour = (et0_mm_day * kc) * 100.0 / bounded.root_depth_mm / 24.0
+        loss = bounded.k_et * pct_per_hour * hours
+        return _clamp(loss, 0.0, ET_MAX_PER_HOUR * hours)
+
     hourly = 0.03 + 0.18 * vpd_kpa + 0.004 * max(0.0, temp_c)
 
     wind_factor = 1.0
@@ -195,6 +272,35 @@ def et_demand(
 
     loss = bounded.k_et * hourly * wind_factor * solar_factor * hours
     return _clamp(loss, 0.0, ET_MAX_PER_HOUR * hours)
+
+
+def _et0_fao56(
+    temp_c: float,
+    vpd_kpa: float,
+    svp_kpa: float,
+    wind_ms: float | None,
+    solar: float | None,
+) -> float:
+    """FAO-56 Penman-Monteith reference ET0 (mm/day), Hargreaves-style fallback.
+
+    Uses the standard short-grass formulation. Net radiation is approximated from
+    measured solar (W/m^2 -> MJ/m^2/day, 77% net); when solar is missing it is
+    estimated from temperature so the term degrades gracefully. Wind defaults to a
+    light 2 m/s breeze. Result is bounded to a sane 0-15 mm/day band.
+    """
+    gamma = 0.066  # psychrometric constant, kPa/C
+    delta = 4098.0 * svp_kpa / ((temp_c + 237.3) ** 2)  # slope of SVP curve
+    u2 = _clamp(wind_ms if wind_ms is not None else 2.0, 0.1, 15.0)
+    if solar is not None:
+        rs_mj = _clamp(solar, 0.0, 1200.0) * 0.0864  # W/m^2 -> MJ/m^2/day
+        rn = 0.77 * rs_mj
+    else:
+        rn = max(0.0, 0.1 * max(0.0, temp_c) + 4.0 * vpd_kpa)
+    numerator = 0.408 * delta * rn + gamma * (900.0 / (temp_c + 273.0)) * u2 * vpd_kpa
+    denominator = delta + gamma * (1.0 + 0.34 * u2)
+    if denominator <= 0:
+        return 0.0
+    return _clamp(numerator / denominator, 0.0, 15.0)
 
 
 def _drainage(params: WaterBalanceParams, theta: float, dt: float) -> float:

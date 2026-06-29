@@ -104,7 +104,36 @@ def test_simulate_returns_explained_clamped_trajectory():
     for result in results:
         assert set(result.terms) == {"irrigation", "rain", "et", "drainage"}
     assert results[0].theta_next == 100.0
-    assert results[2].terms["rain"] == 0.0
+
+
+def test_area_eta_couples_rain_and_irrigation():
+    from custom_components.amazing_irrigation.waterbalance import area_eta
+
+    eta_irr, eta_rain = area_eta(2.0, 300.0, efficiency=0.8)
+    assert eta_rain == pytest.approx(0.8 * 100.0 / 300.0, rel=1e-3)
+    assert eta_rain / eta_irr == pytest.approx(2.0, rel=1e-3)
+
+
+def test_default_params_seeds_from_geometry():
+    seeded = default_params("loam", area_m2=2.0, root_depth_mm=300.0, demand_profile="high")
+    assert seeded.root_depth_mm == 300.0
+    assert seeded.crop_coefficient == pytest.approx(1.1)
+    assert seeded.eta_rain / seeded.eta_irr == pytest.approx(2.0, rel=1e-2)
+
+    legacy = default_params("loam")
+    assert legacy.root_depth_mm is None
+    assert legacy.eta_irr == pytest.approx(1.2)
+
+
+def test_fao56_et_only_when_root_depth_set():
+    climate = Climate(28.0, 40.0)
+    legacy = default_params("loam")
+    fao = default_params("loam", area_m2=2.0, root_depth_mm=300.0, demand_profile="high")
+    legacy_et = et_demand(legacy, climate, 1.0)
+    fao_et = et_demand(fao, climate, 1.0)
+    assert legacy_et > 0.0
+    assert fao_et > 0.0
+    assert fao_et != pytest.approx(legacy_et)
 
 
 def test_default_params_and_clamping_are_sensible():

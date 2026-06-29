@@ -37,6 +37,7 @@ from .const import (
     CONF_ACTUATOR_STOP_SERVICE,
     CONF_ACTUATOR_SWITCH,
     CONF_ACTUATOR_TYPE,
+    CONF_AREA_M2,
     CONF_DEMAND_PROFILE,
     CONF_ENABLED,
     CONF_ET_SOURCE,
@@ -63,6 +64,7 @@ from .const import (
     CONF_PROTECTED_RAIN,
     CONF_RAIN_SKIP_MM,
     CONF_RAIN_SKIP_PROBABILITY,
+    CONF_ROOT_DEPTH_MM,
     CONF_SAFETY_BLOCKERS,
     CONF_SCHEDULE_TIMES,
     CONF_SCHEDULE_WEEKDAYS,
@@ -267,6 +269,24 @@ def _zone_basics_schema() -> vol.Schema:
             vol.Optional(CONF_SOIL_TYPE, default="loam"): selector.SelectSelector(
                 selector.SelectSelectorConfig(
                     options=list(SOIL_TYPE_OPTIONS), translation_key="soil_type"
+                )
+            ),
+            vol.Optional(CONF_AREA_M2): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=0.1,
+                    max=1000.0,
+                    step=0.1,
+                    unit_of_measurement="m²",
+                    mode=selector.NumberSelectorMode.BOX,
+                )
+            ),
+            vol.Optional(CONF_ROOT_DEPTH_MM): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=20.0,
+                    max=2000.0,
+                    step=10.0,
+                    unit_of_measurement="mm",
+                    mode=selector.NumberSelectorMode.BOX,
                 )
             ),
             vol.Optional(

@@ -132,8 +132,17 @@ class ZoneLearner:
     def _ensure_estimator(self, state: ZoneState) -> JointEstimator:
         """Create the per-zone estimator from persisted params/covariance."""
         if self._estimator is None:
-            prior = params_from_state(state, soil_type=self.zone.soil_type) or default_params(
-                self.zone.soil_type
+            prior = params_from_state(
+                state,
+                soil_type=self.zone.soil_type,
+                area_m2=self.zone.area_m2,
+                root_depth_mm=self.zone.root_depth_mm,
+                demand_profile=self.zone.demand_profile,
+            ) or default_params(
+                self.zone.soil_type,
+                area_m2=self.zone.area_m2,
+                root_depth_mm=self.zone.root_depth_mm,
+                demand_profile=self.zone.demand_profile,
             )
             self._estimator = JointEstimator(
                 prior_params=prior,

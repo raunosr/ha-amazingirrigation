@@ -136,6 +136,10 @@ class JointEstimator:
         self._envelope_alpha = _finite_clamped(envelope_alpha, 0.0, 1.0, 0.05)
         self._field_capacity = bounded.field_capacity
         self._wilting_point = bounded.wilting_point
+        self._root_depth_mm = bounded.root_depth_mm
+        self._crop_coefficient = bounded.crop_coefficient
+        self._resid_var = 0.0
+        self._fit_count = 0
         self._observed_high = bounded.field_capacity
         self._observed_low = bounded.wilting_point
         self._overrides: dict[str, float] = {}
@@ -157,6 +161,8 @@ class JointEstimator:
             drain_rate=values[3],
             field_capacity=field_capacity,
             wilting_point=wilting_point,
+            root_depth_mm=self._root_depth_mm,
+            crop_coefficient=self._crop_coefficient,
         ).clamped()
 
     @property
@@ -178,6 +184,22 @@ class JointEstimator:
     def covariance(self) -> np.ndarray:
         """A defensive copy of the 4x4 posterior covariance matrix."""
         return self._cov.copy()
+
+    @property
+    def residual_rmse(self) -> float:
+        """Root-mean-square one-step prediction error (moisture %), 0 until fit."""
+        return float(np.sqrt(max(0.0, self._resid_var)))
+
+    @property
+    def prediction_confidence(self) -> float:
+        """0..1 fit-based confidence from residuals: small error -> high, drift -> low.
+
+        A 1.5%-moisture step error roughly halves confidence. Stays 0 before any
+        observation so a brand-new model reads as unproven, not overconfident.
+        """
+        if self._fit_count <= 0:
+            return 0.0
+        return _finite_clamped(1.5 / (1.5 + self.residual_rmse), 0.0, 1.0, 0.0)
 
     def set_override(self, name: str, value: float) -> None:
         """Fix a parameter at ``value`` for future updates and exposed params."""
@@ -346,6 +368,8 @@ class JointEstimator:
 
         residual_after = y_free - float(np.dot(x_free, self._b[free]))
         if np.isfinite(residual_after):
+            self._resid_var = 0.9 * self._resid_var + 0.1 * (residual_after**2)
+            self._fit_count += 1
             excess = max(0.0, residual_after * residual_after - self._measurement_noise)
             if excess > 0.0:
                 p_next += min(excess, MOISTURE_MAX**2) * np.outer(gain, gain) * 0.05

@@ -325,8 +325,17 @@ async def async_bootstrap_zone(
         irrigation_events=detect_irrigation_events(moisture, rain_series=rain),
         protected_rain=protected,
     )
-    prior = params_from_state(state, soil_type=zone.soil_type) or default_params(
-        zone.soil_type
+    prior = params_from_state(
+        state,
+        soil_type=zone.soil_type,
+        area_m2=zone.area_m2,
+        root_depth_mm=zone.root_depth_mm,
+        demand_profile=zone.demand_profile,
+    ) or default_params(
+        zone.soil_type,
+        area_m2=zone.area_m2,
+        root_depth_mm=zone.root_depth_mm,
+        demand_profile=zone.demand_profile,
     )
     result = replace(
         bootstrap_from_series(prior, observations, overrides=_zone_overrides(zone)),
