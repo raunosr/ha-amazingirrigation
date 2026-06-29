@@ -46,6 +46,11 @@ export class AmazingIrrigationCard extends LitElement {
   @property({ attribute: false }) public hass?: HomeAssistant;
 
   @state() private _config?: ZoneCardConfig;
+  @state() private _actionPending: string | null = null;
+  @state() private _actionResult: { kind: "ok" | "error"; text: string } | null =
+    null;
+
+  private _actionResultTimer?: ReturnType<typeof setTimeout>;
 
   public static getStubConfig(hass?: {
     states?: Record<string, HassState>;
@@ -76,17 +81,48 @@ export class AmazingIrrigationCard extends LitElement {
     return buildZoneView(this._config, this.hass.states);
   }
 
-  private _callZoneService(service: "run_zone" | "stop_zone", force = false) {
-    if (!this.hass || !this._config) {
+  private async _callZoneService(
+    service: "run_zone" | "stop_zone",
+    force = false,
+  ) {
+    if (!this.hass || !this._config || this._actionPending) {
       return;
     }
+    const actionKey =
+      service === "stop_zone" ? "stop" : force ? "force" : "run";
+    this._actionPending = actionKey;
+    this._actionResult = null;
+    if (this._actionResultTimer) clearTimeout(this._actionResultTimer);
+
     const data: Record<string, unknown> = {
       entity_id: this._config.decision_entity,
     };
     if (service === "run_zone") {
       data.force = force;
     }
-    this.hass.callService("amazing_irrigation", service, data);
+
+    try {
+      await this.hass.callService("amazing_irrigation", service, data);
+      const label =
+        actionKey === "stop"
+          ? "Stop sent"
+          : force
+            ? "Force sent"
+            : "Run sent";
+      this._actionResult = { kind: "ok", text: label };
+    } catch {
+      this._actionResult = { kind: "error", text: "Service call failed" };
+    } finally {
+      this._actionPending = null;
+      this._actionResultTimer = setTimeout(() => {
+        this._actionResult = null;
+      }, 4000);
+    }
+  }
+
+  public disconnectedCallback(): void {
+    super.disconnectedCallback();
+    if (this._actionResultTimer) clearTimeout(this._actionResultTimer);
   }
 
   /** Open Home Assistant's more-info dialog so the user can edit a value. */
@@ -185,21 +221,44 @@ export class AmazingIrrigationCard extends LitElement {
         <div class="actions">
           <mwc-button
             raised
-            ?disabled=${!canRun(view)}
+            ?disabled=${!canRun(view) || !!this._actionPending}
             @click=${() => this._callZoneService("run_zone")}
-            >Run</mwc-button
           >
+            ${this._actionPending === "run"
+              ? html`<ha-circular-progress indeterminate size="small"></ha-circular-progress>`
+              : nothing}
+            Run
+          </mwc-button>
           <mwc-button
-            ?disabled=${!canRun(view)}
+            ?disabled=${!canRun(view) || !!this._actionPending}
             @click=${() => this._callZoneService("run_zone", true)}
-            >Force Water</mwc-button
           >
+            ${this._actionPending === "force"
+              ? html`<ha-circular-progress indeterminate size="small"></ha-circular-progress>`
+              : nothing}
+            Force Water
+          </mwc-button>
           ${canStop(view)
             ? html`<mwc-button
                 class="stop"
+                ?disabled=${!!this._actionPending}
                 @click=${() => this._callZoneService("stop_zone")}
-                >Stop</mwc-button
-              >`
+              >
+                ${this._actionPending === "stop"
+                  ? html`<ha-circular-progress indeterminate size="small"></ha-circular-progress>`
+                  : nothing}
+                Stop
+              </mwc-button>`
+            : nothing}
+          ${this._actionResult
+            ? html`<span class="action-feedback ${this._actionResult.kind}">
+                <ha-icon
+                  icon=${this._actionResult.kind === "ok"
+                    ? "mdi:check-circle-outline"
+                    : "mdi:alert-circle-outline"}
+                ></ha-icon>
+                ${this._actionResult.text}
+              </span>`
             : nothing}
         </div>
       </ha-card>
@@ -722,9 +781,45 @@ export class AmazingIrrigationCard extends LitElement {
     .actions {
       display: flex;
       gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .actions mwc-button[disabled] {
+      opacity: 0.5;
+      pointer-events: none;
+    }
+    .actions ha-circular-progress {
+      --mdc-theme-primary: currentColor;
+      margin-inline-end: 4px;
     }
     .stop {
       --mdc-theme-primary: var(--error-color);
+    }
+    .action-feedback {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.82rem;
+      font-weight: 500;
+      padding: 2px 8px;
+      border-radius: 12px;
+      animation: feedback-in 200ms ease-out;
+    }
+    .action-feedback.ok {
+      color: var(--success-color, #4caf50);
+    }
+    .action-feedback.error {
+      color: var(--error-color, #f44336);
+    }
+    .action-feedback ha-icon {
+      --mdc-icon-size: 16px;
+    }
+    @keyframes feedback-in {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .action-feedback { animation: none; }
     }
     .empty {
       padding: 16px;

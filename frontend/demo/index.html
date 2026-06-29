@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Amazing Irrigation - demo</title>
+    <style>
+      :root {
+        --primary-color: #0288d1;
+        --rgb-primary-color: 2, 136, 209;
+        --primary-text-color: #1b2733;
+        --secondary-text-color: #5a6b7b;
+        --divider-color: #d7dee6;
+        --card-background-color: #ffffff;
+        --ha-card-background: #ffffff;
+        --success-color: #2e7d32;
+        --error-color: #c62828;
+        --warning-color: #ef6c00;
+        --state-active-color: #0288d1;
+      }
+      body {
+        margin: 0;
+        font-family: "Segoe UI", Roboto, system-ui, sans-serif;
+        background: #eef1f4;
+        color: var(--primary-text-color);
+        padding: 28px;
+        display: flex;
+        justify-content: center;
+      }
+      .stage { width: 100%; max-width: 460px; }
+      h1 { font-size: 1rem; color: var(--secondary-text-color); font-weight: 600; margin: 0 0 14px; }
+      ha-card { display: block; background: var(--card-background-color); border-radius: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+      ha-icon { display: inline-flex; width: var(--mdc-icon-size, 24px); height: var(--mdc-icon-size, 24px); align-items: center; justify-content: center; }
+      ha-icon svg { width: 90%; height: 90%; fill: currentColor; }
+      mwc-button { display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px; border-radius: 6px; font: inherit; font-weight: 600; color: var(--mdc-theme-primary, var(--primary-color)); background: rgba(2,136,209,.1); cursor: pointer; border: none; }
+      ha-circular-progress { width: 16px; height: 16px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; display: inline-block; }
+    </style>
+  </head>
+  <body>
+    <div class="stage">
+      <h1>amazing-irrigation-overview-card</h1>
+      <amazing-irrigation-overview-card id="card"></amazing-irrigation-overview-card>
+    </div>
+    <script>
+      const P = { "mdi:sprout":"M2 22A12 12 0 0114 10H22 10A8 8 0 002 22M22 2A12 12 0 0010 14A12 12 0 0022 2", "mdi:grass":"M12 20C9 14 9 9 12 3C15 9 15 14 12 20Z", "mdi:greenhouse":"M12 3L2 9V21H22V9M12 7L18 11V19H6V11" };
+      class HaIcon extends HTMLElement { static observedAttributes=["icon"]; attributeChangedCallback(){this.render();} connectedCallback(){this.render();} render(){const i=this.getAttribute("icon")||"";this.innerHTML=`<svg viewBox="0 0 24 24"><path d="${P[i]||"M12 4a8 8 0 100 16 8 8 0 000-16z"}"/></svg>`;} }
+      class Stub extends HTMLElement {}
+      for (const t of ["ha-card","mwc-button","ha-circular-progress"]) if(!customElements.get(t)) customElements.define(t, class extends Stub {});
+      if(!customElements.get("ha-icon")) customElements.define("ha-icon", HaIcon);
+    </script>
+    <script type="module">
+      import "../../custom_components/amazing_irrigation/frontend/amazing-irrigation-card.js";
+      const traj = [38,36,33,30,28,26,25,24,23,22,22,21];
+      const mk = (name, decision, theta, target, watering, conf=0.81) => ({
+        ["sensor."+name+"_decision"]: { state: decision, attributes: {
+          friendly_name: name+" decision", reason: decision==="water"?"below_target":"soil_wet_enough",
+          recommended_liters: decision==="water"?14.2:0, target_moisture: target, target_band_low: target-5, target_band_high: target+5,
+          available_water: 0.62, zone_moisture: theta, temperature: 24.5, humidity: 41, target_mode: "balanced", demand_profile: "summer",
+          predicted_trajectory: traj.map((v)=>v-(50-theta)/4), horizon_hours: 12, predicted_critical_theta: target-6, predicted_peak_theta: theta+4,
+          overall_confidence: conf, bootstrapped_days: 9, total_liters: 268 } },
+        ["sensor."+name+"_status"]: { state: watering?"confirmed":"idle", attributes: { is_watering: watering, can_stop: watering } },
+        ["sensor."+name+"_history"]: { state: "5", attributes: { last_kind: "watering_event", entries: [
+          { kind:"watering_event", status:"confirmed", measured_liters:12, timestamp: Date.now()/1000-5400 },
+          { kind:"decision", action:"water", reason:"below_target", timestamp: Date.now()/1000-9000 },
+          { kind:"watering_event", status:"confirmed", measured_liters:9, timestamp: Date.now()/1000-90000 } ] } },
+      });
+      const hass = { states: { ...mk("herb_bed","water",31,40,true,0.86), ...mk("lawn","skip",47,42,false,0.63), ...mk("greenhouse","water",28,38,false,0.34) },
+        callService: (d,s,data)=>Promise.resolve(console.log("callService",d,s,data)), localize:(k)=>k };
+      const card = document.getElementById("card");
+      card.setConfig({ zones: [
+        { decision_entity:"sensor.herb_bed_decision", name:"Herb Bed", icon:"mdi:sprout" },
+        { decision_entity:"sensor.lawn_decision", name:"Lawn", icon:"mdi:grass" },
+        { decision_entity:"sensor.greenhouse_decision", name:"Greenhouse", icon:"mdi:greenhouse" } ] });
+      card.hass = hass;
+    </script>
+  <!-- impeccable-live-start -->
+<script src="http://localhost:8400/live.js"></script>
+<!-- impeccable-live-end -->
+</body>
+</html>
