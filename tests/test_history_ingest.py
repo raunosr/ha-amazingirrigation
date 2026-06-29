@@ -539,3 +539,112 @@ async def test_relearn_button_calls_history_bootstrap(
     )
 
     assert calls == ["zone1"]
+
+
+def test_timeseries_caches_timestamps_tuple() -> None:
+    """`timestamps` is built once and reused; `as_of` still bisects correctly."""
+    series = TimeSeries([(_t(2), 2.0), (_t(0), 1.0)])
+
+    assert series.timestamps == (_t(0), _t(2))
+    assert series.timestamps is series.timestamps
+    assert series.as_of(_t(1)) == 1.0
+    assert series.as_of(_t(2)) == 2.0
+    assert series.as_of(_t(-1)) is None
+
+
+def test_state_value_and_timestamp_parse_all_recorder_formats() -> None:
+    """Value/timestamp parsing handles LazyState, minimal, and compressed rows."""
+
+    class _LazyState:
+        state = "40.5"
+        last_changed = _t(1)
+        last_updated = _t(1)
+
+    obj = _LazyState()
+    assert history_ingest._state_value(obj) == 40.5
+    assert history_ingest._state_timestamp(obj) == _t(1)
+
+    minimal = {"state": "41.0", "last_changed": _t(2).isoformat()}
+    assert history_ingest._state_value(minimal) == 41.0
+    assert history_ingest._state_timestamp(minimal) == _t(2)
+
+    compressed = {"s": "42.0", "lu": _t(3).timestamp()}
+    assert history_ingest._state_value(compressed) == 42.0
+    assert history_ingest._state_timestamp(compressed) == _t(3)
+
+    assert history_ingest._state_value({"s": "unknown"}) is None
+    assert history_ingest._state_timestamp({"s": "42.0"}) is None
+
+
+async def test_async_fetch_zone_history_caps_raw_window(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Raw states are fetched only for the recent window, not the full span."""
+    captured: dict[str, datetime] = {}
+
+    async def _stats(_hass, _ids, _start, _end) -> dict[str, TimeSeries]:
+        return {}
+
+    async def _raw(_hass, _ids, start, end) -> dict[str, TimeSeries]:
+        captured["start"] = start
+        captured["end"] = end
+        return {}
+
+    monkeypatch.setattr(history_ingest, "_async_fetch_statistics", _stats)
+    monkeypatch.setattr(history_ingest, "_async_fetch_recorder_states", _raw)
+
+    await history_ingest._async_fetch_zone_history(
+        hass, ["sensor.x"], _t(0), _t(24 * 60)
+    )
+
+    span_days = (captured["end"] - captured["start"]).days
+    assert span_days == history_ingest.DEFAULT_RAW_HISTORY_DAYS
+    assert captured["end"] == _t(24 * 60)
+
+
+async def test_async_fetch_recorder_states_chunks_and_parses_compressed(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The raw fetch chunks the window and parses compressed state dicts."""
+    from homeassistant.components import recorder as rec_pkg
+    from homeassistant.components.recorder import history as rec_history
+
+    calls: list[dict] = []
+
+    class _FakeRecorder:
+        async def async_add_executor_job(self, func, *args):
+            return func(*args)
+
+    def _fake_states(
+        _hass, start, end, ids, _filters, include_start, sig_only, minimal,
+        no_attrs, compressed,
+    ):
+        calls.append(
+            {
+                "include_start": include_start,
+                "sig_only": sig_only,
+                "minimal": minimal,
+                "no_attrs": no_attrs,
+                "compressed": compressed,
+            }
+        )
+        return {ids[0]: [{"s": str(40.0 + len(calls)), "lu": start.timestamp()}]}
+
+    monkeypatch.setattr(rec_pkg, "get_instance", lambda _hass: _FakeRecorder())
+    monkeypatch.setattr(rec_history, "get_significant_states", _fake_states)
+
+    result = await history_ingest._async_fetch_recorder_states(
+        hass, ["sensor.x"], _t(0), _t(48)
+    )
+
+    assert len(calls) == 2
+    assert calls[0]["include_start"] is True
+    assert calls[1]["include_start"] is False
+    assert all(
+        c["sig_only"] and c["minimal"] and c["no_attrs"] and c["compressed"]
+        for c in calls
+    )
+    series = result["sensor.x"]
+    assert [p.value for p in series.points] == [41.0, 42.0]
+    assert series.points[0].timestamp == _t(0)
+    assert series.points[1].timestamp == _t(24)

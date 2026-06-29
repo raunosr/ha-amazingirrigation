@@ -30,6 +30,19 @@ DEFAULT_MIN_BOOTSTRAP_INTERVALS = 12
 DEFAULT_INFERRED_IRRIGATION_RISE = 3.0
 _RAIN_EXPLAINS_RISE_MM = 0.5
 
+# Raw recorder states are memory-heavy, so they are fetched only for the most
+# recent window (default recorder purge horizon) and the older history is filled
+# by hourly long-term statistics.  The raw window is fetched in day-sized chunks
+# so peak heap stays bounded to roughly one day of states per zone.
+DEFAULT_RAW_HISTORY_DAYS = 14
+RAW_FETCH_CHUNK_DAYS = 1
+
+# Compressed recorder-state dict keys (homeassistant.const.COMPRESSED_STATE_*).
+# Hard-coded to avoid importing Home Assistant from the pure core of this module.
+_COMPRESSED_STATE_STATE = "s"
+_COMPRESSED_STATE_LAST_CHANGED = "lc"
+_COMPRESSED_STATE_LAST_UPDATED = "lu"
+
 
 @dataclass(frozen=True, order=True)
 class SeriesPoint:
@@ -73,11 +86,14 @@ class TimeSeries:
                 parsed[timestamp] = finite
         ordered = tuple(SeriesPoint(timestamp, parsed[timestamp]) for timestamp in sorted(parsed))
         object.__setattr__(self, "points", ordered)
+        # Cache the timestamp tuple once: ``as_of`` is called many times per
+        # bootstrap and recomputing this on every call was O(N^2) churn.
+        object.__setattr__(self, "_timestamps", tuple(point.timestamp for point in ordered))
 
     @property
     def timestamps(self) -> tuple[datetime, ...]:
         """Return sample timestamps in ascending order."""
-        return tuple(point.timestamp for point in self.points)
+        return self._timestamps
 
     def __bool__(self) -> bool:
         """Whether the series has at least one sample."""
@@ -85,7 +101,7 @@ class TimeSeries:
 
     def as_of(self, timestamp: datetime) -> float | None:
         """Return the last value at or before ``timestamp``."""
-        index = bisect.bisect_right(self.timestamps, timestamp) - 1
+        index = bisect.bisect_right(self._timestamps, timestamp) - 1
         if index < 0:
             return None
         return self.points[index].value
@@ -323,14 +339,23 @@ async def async_bootstrap_zone(
 
     rain = _series_for(history, zone.observed_rain_amount)
     protected = zone.protected_rain or zone.greenhouse
+    temp_series = _first_series(history, *_temperature_candidates(zone))
+    humidity_series = _first_series(history, *_humidity_candidates(zone))
+    wind_series = _series_for(history, zone.wind_speed)
+    solar_series = _series_for(history, zone.solar_radiation)
+    irrigation_events = detect_irrigation_events(moisture, rain_series=rain)
+    # The per-entity history dict is the largest live structure; release it now
+    # that the needed series are bound so unused candidate series can be freed
+    # before the (allocation-heavy) observation assembly runs.
+    history = {}
     observations = assemble_observations(
         moisture,
         rain_series=rain,
-        temp_series=_first_series(history, *_temperature_candidates(zone)),
-        humidity_series=_first_series(history, *_humidity_candidates(zone)),
-        wind_series=_series_for(history, zone.wind_speed),
-        solar_series=_series_for(history, zone.solar_radiation),
-        irrigation_events=detect_irrigation_events(moisture, rain_series=rain),
+        temp_series=temp_series,
+        humidity_series=humidity_series,
+        wind_series=wind_series,
+        solar_series=solar_series,
+        irrigation_events=irrigation_events,
         protected_rain=protected,
     )
     prior = params_from_state(
@@ -401,7 +426,10 @@ async def _async_fetch_zone_history(
 
     unique = list(dict.fromkeys(entity_ids))
     statistics = await _async_fetch_statistics(hass, unique, start_time, end_time)
-    raw = await _async_fetch_recorder_states(hass, unique, start_time, end_time)
+    # Raw states dominate memory, so only the recent window is pulled in detail;
+    # statistics supply everything older and the merge prefers raw on overlap.
+    raw_start = max(start_time, end_time - timedelta(days=DEFAULT_RAW_HISTORY_DAYS))
+    raw = await _async_fetch_recorder_states(hass, unique, raw_start, end_time)
 
     merged: dict[str, TimeSeries] = {}
     for entity_id in unique:
@@ -431,7 +459,16 @@ async def _async_fetch_recorder_states(
     start_time: datetime,
     end_time: datetime,
 ) -> dict[str, TimeSeries]:
-    """Fetch raw recorder state history for entity ids (recent fine detail)."""
+    """Fetch raw recorder state history for entity ids (recent fine detail).
+
+    The window is pulled in day-sized chunks using the recorder's memory-frugal
+    options (``minimal_response`` + ``compressed_state_format`` + ``no_attributes``
+    + ``significant_changes_only``) so peak heap stays bounded to roughly one
+    chunk of compressed state dicts rather than the whole window of ``LazyState``
+    objects.  ``include_start_time_state`` seeds only the first chunk; subsequent
+    chunks contribute their own changes and any boundary duplicates collapse in
+    :class:`TimeSeries`.
+    """
     if not entity_ids:
         return {}
 
@@ -439,25 +476,51 @@ async def _async_fetch_recorder_states(
         from homeassistant.components.recorder import get_instance, history
 
         recorder = get_instance(hass)
-        raw = await recorder.async_add_executor_job(
-            history.get_significant_states,
-            hass,
-            start_time,
-            end_time,
-            list(dict.fromkeys(entity_ids)),
-            None,
-            True,
-            False,
-            False,
-            True,
-        )
     except Exception as err:  # noqa: BLE001 - recorder absence must never break setup
-        _LOGGER.debug("Recorder state history unavailable: %s", err)
+        _LOGGER.debug("Recorder unavailable: %s", err)
         return {}
+
+    unique = list(dict.fromkeys(entity_ids))
+    accumulated: dict[str, list[SeriesPoint]] = {}
+    chunk = timedelta(days=max(1, RAW_FETCH_CHUNK_DAYS))
+    chunk_start = start_time
+    first_chunk = True
+    while chunk_start < end_time:
+        chunk_end = min(chunk_start + chunk, end_time)
+        try:
+            raw = await recorder.async_add_executor_job(
+                history.get_significant_states,
+                hass,
+                chunk_start,
+                chunk_end,
+                unique,
+                None,  # filters
+                first_chunk,  # include_start_time_state (seed only first chunk)
+                True,  # significant_changes_only (drop duplicate states)
+                True,  # minimal_response
+                True,  # no_attributes
+                True,  # compressed_state_format
+            )
+        except Exception as err:  # noqa: BLE001 - recorder absence must never break setup
+            _LOGGER.debug("Recorder state history unavailable: %s", err)
+            return {}
+        for entity_id, states in (raw or {}).items():
+            if not states:
+                continue
+            bucket = accumulated.setdefault(entity_id, [])
+            for state in states:
+                value = _state_value(state)
+                timestamp = _state_timestamp(state)
+                if value is not None and timestamp is not None:
+                    bucket.append(SeriesPoint(timestamp, value))
+        del raw
+        chunk_start = chunk_end
+        first_chunk = False
+
     return {
-        entity_id: _states_to_series(states)
-        for entity_id, states in raw.items()
-        if states
+        entity_id: TimeSeries(points)
+        for entity_id, points in accumulated.items()
+        if points
     }
 
 
@@ -560,30 +623,50 @@ def _merge_series_prefer_raw(
     return TimeSeries((*kept, *raw_points))
 
 
-def _states_to_series(states: Iterable[Any]) -> TimeSeries:
-    points: list[SeriesPoint] = []
-    for state in states:
-        value = _state_value(state)
-        timestamp = _state_timestamp(state)
-        if value is not None and timestamp is not None:
-            points.append(SeriesPoint(timestamp, value))
-    return TimeSeries(points)
-
-
 def _state_value(state: Any) -> float | None:
     if isinstance(state, Mapping):
-        return _finite_float(state.get("state"))
+        if "state" in state:
+            return _finite_float(state.get("state"))
+        return _finite_float(state.get(_COMPRESSED_STATE_STATE))
     return _finite_float(getattr(state, "state", None))
 
 
 def _state_timestamp(state: Any) -> datetime | None:
     if isinstance(state, Mapping):
-        value = state.get("last_changed") or state.get("last_updated")
+        value = (
+            state.get("last_changed")
+            or state.get("last_updated")
+            or state.get(_COMPRESSED_STATE_LAST_CHANGED)
+            or state.get(_COMPRESSED_STATE_LAST_UPDATED)
+        )
     else:
         value = getattr(state, "last_changed", None) or getattr(
             state, "last_updated", None
         )
-    return value if isinstance(value, datetime) else None
+    return _coerce_timestamp(value)
+
+
+def _coerce_timestamp(value: Any) -> datetime | None:
+    """Normalise a recorder timestamp to an aware ``datetime``.
+
+    Handles every shape the recorder emits across its fetch options: ``datetime``
+    (``LazyState``), ISO strings (non-compressed ``minimal_response``), and float
+    epoch seconds (``compressed_state_format``).
+    """
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, str):
+        from homeassistant.util import dt as dt_util
+
+        return dt_util.parse_datetime(value)
+    if isinstance(value, (int, float)):
+        from datetime import UTC
+
+        try:
+            return datetime.fromtimestamp(float(value), tz=UTC)
+        except (OverflowError, OSError, ValueError):
+            return None
+    return None
 
 
 def _history_entity_ids(zone: ZoneConfig) -> list[str]:
