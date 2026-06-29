@@ -37,6 +37,7 @@ from .const import (
     CONF_ACTUATOR_STOP_SERVICE,
     CONF_ACTUATOR_SWITCH,
     CONF_ACTUATOR_TYPE,
+    CONF_DEMAND_PROFILE,
     CONF_ENABLED,
     CONF_ET_SOURCE,
     CONF_FIELD_CAPACITY,
@@ -69,6 +70,7 @@ from .const import (
     CONF_SEASON_START,
     CONF_SOIL_TYPE,
     CONF_SOLAR_RADIATION,
+    CONF_TARGET_MODE,
     CONF_TARGET_MOISTURE,
     CONF_TARGET_MOISTURE_HIGH,
     CONF_TARGET_MOISTURE_LOW,
@@ -88,9 +90,11 @@ from .const import (
     DEFAULT_RAIN_SKIP_PROBABILITY,
     DEFAULT_TARGET_MOISTURE,
     DEFAULT_VOLUME_FIELD,
+    DEMAND_PROFILE_OPTIONS,
     DOMAIN,
     HISTORY_DAYS_OPTIONS,
     INTEGRATION_TITLE,
+    TARGET_MODE_OPTIONS,
     WEEKDAYS,
 )
 from .linktap import (
@@ -240,6 +244,19 @@ def _zone_basics_schema() -> vol.Schema:
                 selector.SelectSelectorConfig(
                     options=list(HISTORY_DAYS_OPTIONS),
                     translation_key="history_days",
+                )
+            ),
+            vol.Optional(CONF_TARGET_MODE, default="auto"): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=list(TARGET_MODE_OPTIONS), translation_key="target_mode"
+                )
+            ),
+            vol.Optional(
+                CONF_DEMAND_PROFILE, default="medium"
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=list(DEMAND_PROFILE_OPTIONS),
+                    translation_key="demand_profile",
                 )
             ),
             vol.Optional(CONF_ET_SOURCE, default="auto"): selector.SelectSelector(

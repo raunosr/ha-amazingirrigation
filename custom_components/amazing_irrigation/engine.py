@@ -206,6 +206,8 @@ def decide(inp: DecisionInputs) -> Decision:
             "explanation": control.explanation,
             "predicted_trajectory": control.predicted_trajectory,
             "horizon_hours": control.horizon_hours,
+            "target_band_low": round(band.low, 1),
+            "target_band_high": round(band.high, 1),
         }
         if control.should_water:
             return Decision(

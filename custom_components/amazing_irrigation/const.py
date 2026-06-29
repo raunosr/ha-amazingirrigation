@@ -40,10 +40,16 @@ CONF_FIELD_CAPACITY = "field_capacity"
 CONF_WILTING_POINT = "wilting_point"
 CONF_LEARNING_ENABLED = "learning_enabled"
 CONF_HISTORY_DAYS = "history_days"
+CONF_DEMAND_PROFILE = "demand_profile"
+CONF_TARGET_MODE = "target_mode"
 
 # Lookback window options (days) for the history bootstrap selector.
 HISTORY_DAYS_OPTIONS = ("14", "30", "60", "90")
 DEFAULT_HISTORY_DAYS_OPTION = "60"
+
+# Plant water-demand profile + target-moisture mode selector options.
+DEMAND_PROFILE_OPTIONS = ("low", "medium", "high")
+TARGET_MODE_OPTIONS = ("auto", "manual")
 
 # Greenhouse Zone keys (a zone subtype with protected-environment context).
 CONF_GREENHOUSE = "greenhouse"

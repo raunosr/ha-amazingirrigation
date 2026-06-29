@@ -376,6 +376,67 @@ def test_build_inputs_uses_explicit_target_range_and_et_source(
     assert inputs.horizon[0].climate.air_temp_c == 21.0
 
 
+def test_build_inputs_auto_mode_derives_band_from_profile(
+    hass: HomeAssistant,
+) -> None:
+    """Automatic target mode builds the band from learned WP/FC + demand profile."""
+    hass.states.async_set("sensor.soil", "34.0")
+    hass.states.async_set("sensor.forecast_temp", "20.0")
+    zone = ZoneConfig(
+        zone_id="abc123",
+        name="Bed",
+        moisture_sensors=["sensor.soil"],
+        forecast_air_temperature="sensor.forecast_temp",
+        target_moisture=40.0,
+        max_liters=10.0,
+        learning_enabled=True,
+        target_mode="auto",
+        demand_profile="medium",
+    )
+    state = ZoneState(
+        zone_id="abc123",
+        target_moisture=40.0,
+        max_liters=10.0,
+        learning_enabled=True,
+    )
+    apply_model_to_state(
+        state,
+        WaterBalanceParams(2.0, 1.0, 1.0, 0.0, 50.0, 10.0),
+        {"eta_irr": 1.0},
+    )
+
+    inputs = build_inputs(hass, zone, state=state)
+
+    assert inputs.target_band is not None
+    assert inputs.target_band.low == 30.0
+    assert inputs.target_band.high == 36.0
+
+
+def test_build_inputs_auto_mode_explicit_bounds_win(hass: HomeAssistant) -> None:
+    """Explicit safety bounds still override the auto-derived demand band."""
+    hass.states.async_set("sensor.soil", "34.0")
+    hass.states.async_set("sensor.forecast_temp", "20.0")
+    zone = ZoneConfig(
+        zone_id="abc123",
+        name="Bed",
+        moisture_sensors=["sensor.soil"],
+        forecast_air_temperature="sensor.forecast_temp",
+        target_moisture=40.0,
+        target_moisture_low=33.0,
+        max_liters=10.0,
+        learning_enabled=True,
+        target_mode="auto",
+        demand_profile="medium",
+    )
+    state = ZoneState(zone_id="abc123", target_moisture=40.0, max_liters=10.0, learning_enabled=True)
+    apply_model_to_state(state, WaterBalanceParams(2.0, 1.0, 1.0, 0.0, 50.0, 10.0), {"eta_irr": 1.0})
+
+    inputs = build_inputs(hass, zone, state=state)
+
+    assert inputs.target_band is not None
+    assert inputs.target_band.low == 33.0
+
+
 def test_build_inputs_missing_model_uses_rule_based_fallback(
     hass: HomeAssistant,
 ) -> None:

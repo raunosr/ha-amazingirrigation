@@ -121,6 +121,10 @@ export interface ZoneView {
   protectedRain: boolean;
   temperature: number | null;
   humidity: number | null;
+  targetMode: string | null;
+  demandProfile: string | null;
+  targetBandLow: number | null;
+  targetBandHigh: number | null;
   references: RelatedEntity[];
   schedule: ScheduleSlot[];
   learned: LearnedValue[];
@@ -553,6 +557,16 @@ export function buildZoneView(
     protectedRain: decisionAttrs["protected_rain"] === true,
     temperature: num(decisionAttrs["temperature"]),
     humidity: num(decisionAttrs["humidity"]),
+    targetMode:
+      typeof decisionAttrs["target_mode"] === "string"
+        ? (decisionAttrs["target_mode"] as string)
+        : null,
+    demandProfile:
+      typeof decisionAttrs["demand_profile"] === "string"
+        ? (decisionAttrs["demand_profile"] as string)
+        : null,
+    targetBandLow: num(decisionAttrs["target_band_low"]),
+    targetBandHigh: num(decisionAttrs["target_band_high"]),
     references: buildReferences(refs, states),
     schedule: buildSchedule(slug, states),
     learned: buildLearned(slug, states),

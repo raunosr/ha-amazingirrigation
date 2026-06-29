@@ -80,6 +80,14 @@ _Avoid_: Moisture threshold
 A target expressed as a percentage between Wilting Point and Field Capacity for an Irrigation Zone.
 _Avoid_: Smart target, learned target
 
+**Plant Water Demand Profile**:
+A coarse low/medium/high stand-in for plant species that shapes only the predictive Target Range — trigger threshold, target available water, drought tolerance, and hot-day margin — between learned Wilting Point and Field Capacity. The Soil Water Balance physics is unchanged.
+_Avoid_: Crop type, species, Kc setting
+
+**Target Mode**:
+Whether the Target Range is owned by the model (Automatic — derived from learned WP/FC and the Demand Profile) or fixed by the user (Manual — the configured Target Moisture wins). Explicit safety bounds override either mode.
+_Avoid_: Auto target toggle
+
 **Field Capacity**:
 The moisture level an Irrigation Zone settles to after excess water has drained.
 _Avoid_: Maximum moisture

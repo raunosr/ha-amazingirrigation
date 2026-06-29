@@ -20,6 +20,7 @@ from homeassistant.util import dt as dt_util
 
 from .const import DATA_WEATHER_FORECAST, DOMAIN
 from .controller import ForecastInterval, TargetBand, band_from_target
+from .demand import target_band_for_profile
 from .engine import Decision, DecisionInputs, decide
 from .state import ZoneState, params_from_state
 from .waterbalance import Climate
@@ -251,15 +252,41 @@ def _predictive_kwargs(
         "predictive": True,
         "params": params,
         "horizon": horizon,
-        "target_band": _target_band(zone, target_moisture, params.field_capacity),
+        "target_band": _target_band(
+            hass, zone, target_moisture, params.field_capacity, params.wilting_point
+        ),
     }
 
 
 def _target_band(
-    zone: ZoneConfig, target_moisture: float | None, field_capacity: float | None
+    hass: HomeAssistant,
+    zone: ZoneConfig,
+    target_moisture: float | None,
+    field_capacity: float | None,
+    wilting_point: float | None,
 ) -> TargetBand:
-    """Return an explicit configured target range, or the derived Slice E band."""
+    """Return the active target range for the zone.
+
+    In Automatic mode the band is derived from learned WP/FC plus the zone's
+    plant demand profile (lifted on hot days); explicit user bounds still win.
+    In Manual mode the configured Target Moisture drives the band as before.
+    """
+    if zone.target_mode == "auto":
+        air_temp = _first_number(hass, _temperature_candidates(zone))
+        auto = target_band_for_profile(
+            wilting_point,
+            field_capacity,
+            zone.demand_profile,
+            air_temp_c=air_temp,
+        )
+        if auto is not None:
+            return _apply_explicit_bounds(zone, auto)
     band = band_from_target(target_moisture, field_capacity=field_capacity)
+    return _apply_explicit_bounds(zone, band)
+
+
+def _apply_explicit_bounds(zone: ZoneConfig, band: TargetBand) -> TargetBand:
+    """Override a band with any explicit user-set low/high safety bounds."""
     low = zone.target_moisture_low
     high = zone.target_moisture_high
     if low is None and high is None:

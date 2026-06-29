@@ -123,7 +123,23 @@ export class AmazingIrrigationCard extends LitElement {
 
         <div class="grid">
           ${this._metric("Moisture", this._pct(view.moisture))}
-          ${this._metric("Target", this._pct(view.target))}
+          ${view.targetMode === "auto" &&
+          view.targetBandLow !== null &&
+          view.targetBandHigh !== null
+            ? this._metric(
+                "Target band",
+                `${Math.round(view.targetBandLow)}–${Math.round(
+                  view.targetBandHigh,
+                )}%`,
+              )
+            : this._metric("Target", this._pct(view.target))}
+          ${view.demandProfile === null
+            ? nothing
+            : this._metric(
+                "Demand",
+                view.demandProfile.charAt(0).toUpperCase() +
+                  view.demandProfile.slice(1),
+              )}
           ${this._metric(
             "Recommended",
             view.recommendedLiters === null
