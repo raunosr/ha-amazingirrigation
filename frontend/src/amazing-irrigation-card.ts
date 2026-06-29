@@ -222,18 +222,37 @@ export class AmazingIrrigationCard extends LitElement {
   }
 
   private _renderControls(view: ZoneView): TemplateResult | typeof nothing {
-    const numbers = [view.targetControl, view.maxLitersControl].filter(
-      (c): c is ControlEntity => c !== null,
-    );
-    const toggles = [view.enabledControl, view.learningControl].filter(
-      (c): c is ControlEntity => c !== null,
-    );
-    if (!numbers.length && !toggles.length) {
+    const isAuto =
+      view.autoTargetControl?.isOn ?? view.targetMode === "auto";
+    const numbers = [
+      isAuto ? null : view.targetControl,
+      view.maxLitersControl,
+    ].filter((c): c is ControlEntity => c !== null);
+    const toggles = [
+      view.enabledControl,
+      view.learningControl,
+      view.autoTargetControl,
+    ].filter((c): c is ControlEntity => c !== null);
+    const hasBand =
+      isAuto && view.targetBandLow !== null && view.targetBandHigh !== null;
+    if (!numbers.length && !toggles.length && !hasBand) {
       return nothing;
     }
     return html`
       <div class="section">
         <div class="section-head">Settings</div>
+        ${hasBand
+          ? html`
+              <div class="row">
+                <span class="row-label">Target band (auto)</span>
+                <span class="row-value"
+                  >${Math.round(view.targetBandLow!)}–${Math.round(
+                    view.targetBandHigh!,
+                  )} %</span
+                >
+              </div>
+            `
+          : nothing}
         ${numbers.map(
           (c) => html`
             <div

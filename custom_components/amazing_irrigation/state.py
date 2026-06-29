@@ -81,6 +81,8 @@ class ZoneState:
     max_liters: float = DEFAULT_MAX_LITERS
     enabled: bool = True
     learning_enabled: bool = False
+    target_mode: str = "manual"
+    demand_profile: str = "medium"
     # Two schedule slots, each independently active.
     schedule_1_time: str | None = DEFAULT_SCHEDULE_TIME
     schedule_1_active: bool = True
@@ -153,6 +155,8 @@ def zone_config_signature(zone: ZoneConfig) -> dict[str, Any]:
         "learning_enabled": bool(zone.learning_enabled),
         "target_moisture": clamp_percent(zone.target_moisture),
         "max_liters": max(0.0, zone.max_liters),
+        "target_mode": zone.target_mode,
+        "demand_profile": zone.demand_profile,
         "schedule_times": _normalized_schedule_times(zone),
     }
 
@@ -183,13 +187,17 @@ def _apply_config_field(state: ZoneState, key: str, value: Any) -> None:
         state.enabled = bool(value)
     elif key == "learning_enabled":
         state.learning_enabled = bool(value)
+    elif key == "target_mode":
+        state.target_mode = value
+    elif key == "demand_profile":
+        state.demand_profile = value
 
 
 # Boolean flags re-synced from config on the first reconcile (e.g. when
 # upgrading from a build that stored no signature), so a config edit predating
 # this version takes effect without resetting numeric/schedule values that may
 # have been tuned through the live entities.
-_FIRST_RUN_CONFIG_FIELDS = ("enabled", "learning_enabled")
+_FIRST_RUN_CONFIG_FIELDS = ("enabled", "learning_enabled", "target_mode", "demand_profile")
 
 
 def reconcile_zone_state(state: ZoneState, zone: ZoneConfig) -> None:
@@ -227,6 +235,8 @@ def seed_zone_state(zone_id: str, record: dict[str, Any]) -> ZoneState:
         max_liters=max(0.0, zone.max_liters),
         enabled=zone.enabled,
         learning_enabled=zone.learning_enabled,
+        target_mode=zone.target_mode,
+        demand_profile=zone.demand_profile,
         learned_gain_per_liter=zone.gain_per_liter,
         learned_field_capacity=zone.field_capacity,
         learned_wilting_point=zone.wilting_point,

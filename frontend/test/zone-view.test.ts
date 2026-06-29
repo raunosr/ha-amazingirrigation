@@ -412,8 +412,17 @@ describe("surfaced zone entities", () => {
       },
       [`switch.${slug}_zone_enabled`]: { state: "on", attributes: {} },
       [`switch.${slug}_learning_enabled`]: { state: "off", attributes: {} },
+      [`switch.${slug}_target_automatic`]: { state: "on", attributes: {} },
     };
   }
+
+  it("maps the automatic-target switch control", () => {
+    const view = buildZoneView(cfg, fullStates());
+    expect(view.autoTargetControl?.entityId).toBe(
+      `switch.${slug}_target_automatic`,
+    );
+    expect(view.autoTargetControl?.isOn).toBe(true);
+  });
 
   it("lists referenced source sensors with live states", () => {
     const view = buildZoneView(cfg, fullStates());

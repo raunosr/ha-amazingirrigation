@@ -131,6 +131,7 @@ export interface ZoneView {
   totalVolume: number | null;
   totalVolumeUnit: string | null;
   targetControl: ControlEntity | null;
+  autoTargetControl: ControlEntity | null;
   maxLitersControl: ControlEntity | null;
   enabledControl: ControlEntity | null;
   learningControl: ControlEntity | null;
@@ -579,6 +580,11 @@ export function buildZoneView(
       states,
       `number.${slug}_target_moisture`,
       "Target Moisture",
+    ),
+    autoTargetControl: controlEntity(
+      states,
+      `switch.${slug}_target_automatic`,
+      "Automatic Target",
     ),
     maxLitersControl: controlEntity(
       states,

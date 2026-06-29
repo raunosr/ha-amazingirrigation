@@ -70,7 +70,7 @@ Rain inputs are typed rather than arbitrary entities:
 | Season start / end | Optional active watering season; out-of-season zones never run. |
 | Field capacity / wilting point | Advanced per-zone calibration that explains Target Available Water and learning. |
 | Target moisture low / high | Optional **Target Range** for Predictive Control. When set, the controller keeps predicted moisture within `[low, high]`; when unset, a band is derived from the single Target Moisture (unchanged behaviour). These act as explicit safety bounds and override the Automatic target band. |
-| Target moisture mode | `Automatic` lets the model own the Target Range, deriving it from learned Wilting Point / Field Capacity and the Plant Water Demand profile (lifted on hot days); `Manual` keeps your single Target Moisture fixed. Explicit low/high bounds always win. New zones default to Automatic. |
+| Target moisture mode | `Automatic` lets the model own the Target Range, deriving it from learned Wilting Point / Field Capacity and the Plant Water Demand profile (lifted on hot days); `Manual` keeps your single Target Moisture fixed. Explicit low/high bounds always win. New zones default to Automatic, and the mode is also toggleable live via the **Automatic Target** switch on the device/card. |
 | Plant water demand | `Low` (drought-tolerant, e.g. lavender/sedum), `Medium` (typical, e.g. tomatoes/lawn), or `High` (thirsty, e.g. leafy greens/cucumbers). Shapes trigger threshold, target available water, drought tolerance and hot-day margin only — the Soil Water Balance physics is unchanged. Default `Medium`. |
 | ET source | Which climate inputs drive Evapotranspiration: `auto` (greenhouse sensors for greenhouse zones, otherwise weather), `weather`, or `greenhouse`. |
 | Soil type | Prior preset (`loam`, `sand`, `clay`) used to seed a new or freshly bootstrapped Learned Model. |
@@ -275,8 +275,11 @@ You can still switch to **Show code editor** for raw YAML if you prefer.
 The zone card surfaces the whole zone at a glance, discovering the zone's
 sibling entities from the Decision sensor (no extra config needed):
 
-- **Settings** — Target Moisture and Max Liters per Run (click to edit), plus
-  Zone Enabled / Learning Enabled toggles.
+- **Settings** — In **Manual** target mode: Target Moisture and Max Liters per
+  Run (click to edit). In **Automatic** mode the Target Moisture slider is hidden
+  and the live model-chosen **Target band (auto)** range is shown instead. The
+  **Automatic Target** toggle switches between modes from the card, plus Zone
+  Enabled / Learning Enabled toggles.
 - **Schedule** — both daily slots with their time and an independent Active
   toggle each.
 - **Learned model** — the five learned parameters, shown as `learning…` until

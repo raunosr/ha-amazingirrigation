@@ -253,7 +253,7 @@ def _predictive_kwargs(
         "params": params,
         "horizon": horizon,
         "target_band": _target_band(
-            hass, zone, target_moisture, params.field_capacity, params.wilting_point
+            hass, zone, state, target_moisture, params.field_capacity, params.wilting_point
         ),
     }
 
@@ -261,6 +261,7 @@ def _predictive_kwargs(
 def _target_band(
     hass: HomeAssistant,
     zone: ZoneConfig,
+    state: ZoneState | None,
     target_moisture: float | None,
     field_capacity: float | None,
     wilting_point: float | None,
@@ -270,13 +271,16 @@ def _target_band(
     In Automatic mode the band is derived from learned WP/FC plus the zone's
     plant demand profile (lifted on hot days); explicit user bounds still win.
     In Manual mode the configured Target Moisture drives the band as before.
+    The live ZoneState target mode/profile win over the config seed.
     """
-    if zone.target_mode == "auto":
+    mode = state.target_mode if state is not None else zone.target_mode
+    profile = state.demand_profile if state is not None else zone.demand_profile
+    if mode == "auto":
         air_temp = _first_number(hass, _temperature_candidates(zone))
         auto = target_band_for_profile(
             wilting_point,
             field_capacity,
-            zone.demand_profile,
+            profile,
             air_temp_c=air_temp,
         )
         if auto is not None:

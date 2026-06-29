@@ -91,6 +91,32 @@ async def test_toggling_switch_persists_to_zone_state(hass: HomeAssistant) -> No
     assert _state(hass, entry).learning_enabled is True
 
 
+async def test_auto_target_switch_persists_mode(hass: HomeAssistant) -> None:
+    """The Automatic Target switch toggles ZoneState target mode auto/manual."""
+    hass.states.async_set("sensor.a", "20.0")
+    entry = await _setup(hass, _ZONE)
+
+    assert hass.states.get("switch.herb_bed_target_automatic").state == "off"
+
+    await hass.services.async_call(
+        "switch",
+        "turn_on",
+        {"entity_id": "switch.herb_bed_target_automatic"},
+        blocking=True,
+    )
+    await hass.async_block_till_done()
+    assert _state(hass, entry).target_mode == "auto"
+
+    await hass.services.async_call(
+        "switch",
+        "turn_off",
+        {"entity_id": "switch.herb_bed_target_automatic"},
+        blocking=True,
+    )
+    await hass.async_block_till_done()
+    assert _state(hass, entry).target_mode == "manual"
+
+
 async def test_setting_schedule_time_persists_and_normalises(
     hass: HomeAssistant,
 ) -> None:

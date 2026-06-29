@@ -292,14 +292,22 @@ class IrrigationDecisionSensor(SensorEntity):
         available = available_water_fraction(
             current, self._zone.wilting_point, self._zone.field_capacity
         )
+        live = self._zone_state()
+        target_mode = live.target_mode if live else self._zone.target_mode
+        demand_profile = live.demand_profile if live else self._zone.demand_profile
+        target_moisture = (
+            live.target_moisture
+            if live and live.target_moisture is not None
+            else self._zone.target_moisture
+        )
         self._attr_extra_state_attributes = {
             "zone_id": self._zone.zone_id,
             "reason": decision.reason.value,
             "recommended_liters": round(decision.recommended_liters, 2),
             "degraded": decision.degraded,
-            "target_moisture": self._zone.target_moisture,
-            "target_mode": self._zone.target_mode,
-            "demand_profile": self._zone.demand_profile,
+            "target_moisture": target_moisture,
+            "target_mode": target_mode,
+            "demand_profile": demand_profile,
             "max_liters": self._zone.max_liters,
             "field_capacity": self._zone.field_capacity,
             "wilting_point": self._zone.wilting_point,

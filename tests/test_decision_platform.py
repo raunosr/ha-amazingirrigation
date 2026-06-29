@@ -398,6 +398,8 @@ def test_build_inputs_auto_mode_derives_band_from_profile(
         target_moisture=40.0,
         max_liters=10.0,
         learning_enabled=True,
+        target_mode="auto",
+        demand_profile="medium",
     )
     apply_model_to_state(
         state,
@@ -428,7 +430,7 @@ def test_build_inputs_auto_mode_explicit_bounds_win(hass: HomeAssistant) -> None
         target_mode="auto",
         demand_profile="medium",
     )
-    state = ZoneState(zone_id="abc123", target_moisture=40.0, max_liters=10.0, learning_enabled=True)
+    state = ZoneState(zone_id="abc123", target_moisture=40.0, max_liters=10.0, learning_enabled=True, target_mode="auto", demand_profile="medium")
     apply_model_to_state(state, WaterBalanceParams(2.0, 1.0, 1.0, 0.0, 50.0, 10.0), {"eta_irr": 1.0})
 
     inputs = build_inputs(hass, zone, state=state)
