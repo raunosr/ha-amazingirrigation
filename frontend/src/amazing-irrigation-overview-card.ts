@@ -891,9 +891,17 @@ export class AmazingIrrigationOverviewCard extends LitElement {
           <span>Model Insight</span>
           ${insight.overallConfidence !== null
             ? html`<span
-                class="confidence-badge"
+                class="confidence-badge ${this._confLevel(insight.overallConfidence)}"
                 title="How confident the model is in its prediction for this zone"
-                >${Math.round(insight.overallConfidence * 100)}%</span
+                ><span class="conf-meter" aria-hidden="true"
+                  ><i></i><i></i><i></i
+                ></span>
+                <span class="conf-word"
+                  >${this._confWord(insight.overallConfidence)}</span
+                >
+                <span class="conf-pct"
+                  >${Math.round(insight.overallConfidence * 100)}%</span
+                ></span
               >`
             : nothing}
         </summary>
@@ -932,6 +940,18 @@ export class AmazingIrrigationOverviewCard extends LitElement {
     `;
   }
 
+  private _confLevel(c: number): "conf-low" | "conf-med" | "conf-high" {
+    if (c >= 0.8) return "conf-high";
+    if (c >= 0.5) return "conf-med";
+    return "conf-low";
+  }
+
+  private _confWord(c: number): string {
+    if (c >= 0.8) return "High";
+    if (c >= 0.5) return "Medium";
+    return "Low";
+  }
+
   private _renderParam(param: ModelParameter): TemplateResult {
     return html`
       <div class="row param-row">
@@ -941,7 +961,7 @@ export class AmazingIrrigationOverviewCard extends LitElement {
             ? "learning…"
             : `${param.value} ${param.unit ?? ""}`}
           ${param.confidence !== null
-            ? html`<span class="conf-bar">
+            ? html`<span class="conf-bar ${this._confLevel(param.confidence)}">
                 <span style="width:${Math.round(param.confidence * 100)}%"></span>
               </span>`
             : nothing}
@@ -1543,13 +1563,31 @@ export class AmazingIrrigationOverviewCard extends LitElement {
 
     /* ── Model Insight ─────────────────────────────── */
     .confidence-badge {
-      font-size: 0.72rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.7rem;
       font-weight: 600;
-      padding: 1px 6px;
-      border-radius: 8px;
-      background: var(--primary-color);
-      color: var(--text-primary-color, #fff);
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-variant-numeric: tabular-nums;
+      --conf: var(--primary-color);
+      background: color-mix(in srgb, var(--conf) 16%, transparent);
+      color: color-mix(in srgb, var(--conf) 72%, var(--primary-text-color));
     }
+    .confidence-badge.conf-high { --conf: var(--success-color, #43a047); }
+    .confidence-badge.conf-med  { --conf: var(--warning-color, #ff9800); }
+    .confidence-badge.conf-low  { --conf: var(--error-color, #db4437); }
+    .conf-word { letter-spacing: 0.01em; }
+    .conf-pct { opacity: 0.75; font-weight: 700; }
+    .conf-meter { display: inline-flex; gap: 2px; }
+    .conf-meter i {
+      width: 4px; height: 9px; border-radius: 1px;
+      background: color-mix(in srgb, var(--conf) 22%, var(--divider-color));
+    }
+    .confidence-badge.conf-low .conf-meter i:nth-child(1),
+    .confidence-badge.conf-med .conf-meter i:nth-child(-n + 2),
+    .confidence-badge.conf-high .conf-meter i { background: var(--conf); }
     .note {
       font-size: 0.75rem;
       color: var(--secondary-text-color);
@@ -1586,6 +1624,9 @@ export class AmazingIrrigationOverviewCard extends LitElement {
       height: 100%;
       background: var(--primary-color);
     }
+    .conf-bar.conf-high span { background: var(--success-color, #43a047); }
+    .conf-bar.conf-med span  { background: var(--warning-color, #ff9800); }
+    .conf-bar.conf-low span  { background: var(--error-color, #db4437); }
     .badge-count {
       font-size: 0.7rem;
       background: var(--secondary-background-color);
