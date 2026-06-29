@@ -82,6 +82,11 @@ always override learned ones, and every value stays inside safe bounds.
   simulates the model forward to the next active schedule slot and applies only the
   liters needed to keep predicted moisture in range without exceeding Field Capacity.
   A zone with only a single Target Moisture keeps working unchanged.
+- **Plant Water Demand profiles.** Pick Low / Medium / High instead of an exact
+  species. In **Automatic** target mode the model derives the Target Range from
+  learned Wilting Point / Field Capacity and the profile (with an automatic
+  hot-day margin); **Manual** keeps your fixed Target Moisture. Explicit low/high
+  bounds always win, and the soil water-balance physics is unchanged.
 - **History Bootstrap.** Every new zone with moisture sensors learns fast by replaying
   history at setup — over a selectable window (default 2 months), drawing on Home
   Assistant long-term statistics beyond the recorder's ~10-day raw retention. Re-run it

@@ -148,6 +148,37 @@ describe("greenhouse context", () => {
   });
 });
 
+describe("demand profile + target band", () => {
+  it("exposes target mode, demand profile and the derived band", () => {
+    const view = buildZoneView(
+      config,
+      states({
+        "sensor.herb_decision": {
+          state: "skip",
+          attributes: {
+            target_mode: "auto",
+            demand_profile: "high",
+            target_band_low: 36,
+            target_band_high: 42,
+          },
+        },
+      }),
+    );
+    expect(view.targetMode).toBe("auto");
+    expect(view.demandProfile).toBe("high");
+    expect(view.targetBandLow).toBe(36);
+    expect(view.targetBandHigh).toBe(42);
+  });
+
+  it("leaves profile/band null when not provided", () => {
+    const view = buildZoneView(config, states());
+    expect(view.targetMode).toBeNull();
+    expect(view.demandProfile).toBeNull();
+    expect(view.targetBandLow).toBeNull();
+    expect(view.targetBandHigh).toBeNull();
+  });
+});
+
 describe("buildOverview", () => {
   it("builds a view model per configured zone", () => {
     const overview: OverviewCardConfig = {

@@ -298,6 +298,8 @@ class IrrigationDecisionSensor(SensorEntity):
             "recommended_liters": round(decision.recommended_liters, 2),
             "degraded": decision.degraded,
             "target_moisture": self._zone.target_moisture,
+            "target_mode": self._zone.target_mode,
+            "demand_profile": self._zone.demand_profile,
             "max_liters": self._zone.max_liters,
             "field_capacity": self._zone.field_capacity,
             "wilting_point": self._zone.wilting_point,

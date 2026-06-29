@@ -14,6 +14,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from .const import (
+    CONF_DEMAND_PROFILE,
     CONF_ENABLED,
     CONF_ET_SOURCE,
     CONF_FIELD_CAPACITY,
@@ -42,6 +43,7 @@ from .const import (
     CONF_SEASON_START,
     CONF_SOIL_TYPE,
     CONF_SOLAR_RADIATION,
+    CONF_TARGET_MODE,
     CONF_TARGET_MOISTURE,
     CONF_TARGET_MOISTURE_HIGH,
     CONF_TARGET_MOISTURE_LOW,
@@ -127,6 +129,8 @@ class ZoneConfig:
     wilting_point: float | None = None
     learning_enabled: bool = False
     history_days: int = 60
+    demand_profile: str = "medium"
+    target_mode: str = "manual"
     et_source: str = "auto"
     soil_type: str = "loam"
     greenhouse: bool = False
@@ -170,6 +174,12 @@ class ZoneConfig:
             wilting_point=_as_float(record.get(CONF_WILTING_POINT), None),
             learning_enabled=bool(record.get(CONF_LEARNING_ENABLED, False)),
             history_days=_as_history_days(record.get(CONF_HISTORY_DAYS)),
+            demand_profile=_select(
+                record.get(CONF_DEMAND_PROFILE), {"low", "medium", "high"}, "medium"
+            ),
+            target_mode=_select(
+                record.get(CONF_TARGET_MODE), {"auto", "manual"}, "manual"
+            ),
             et_source=_select(record.get(CONF_ET_SOURCE), {"auto", "weather", "greenhouse"}, "auto"),
             soil_type=_select(record.get(CONF_SOIL_TYPE), {"loam", "sand", "clay"}, "loam"),
             greenhouse=bool(record.get(CONF_GREENHOUSE, False)),
