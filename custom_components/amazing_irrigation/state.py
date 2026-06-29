@@ -102,6 +102,10 @@ class ZoneState:
     bootstrap_intervals: int | None = None
     bootstrap_requested_days: int | None = None
     bootstrap_source: str | None = None
+    # ISO timestamp of the last automatic recorder-history bootstrap attempt,
+    # set even when the fit was unsuccessful. Prevents the costly recorder
+    # fetch from repeating on every config-edit reload (see history_ingest).
+    bootstrap_attempted: str | None = None
     model_updated: str | None = None
     # Latest predictive decision explanation for UI/model insight surfaces.
     decision_explanation: dict[str, Any] | None = None
