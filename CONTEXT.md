@@ -101,7 +101,7 @@ A watering recommendation derived from historical moisture, rain, and Watering E
 _Avoid_: AI decision, automatic target
 
 **Zone State**:
-The per-zone persisted store holding live-editable tunables (target moisture, max liters, enabled, learning, and the two schedule slots), the Learned Model, and cumulative volume. It is the live source of truth that the scheduler and Irrigation Decision read; the config-entry options only seed its initial values.
+The per-zone persisted store holding live-editable tunables (target moisture, max liters, enabled, learning, target mode auto/manual, demand profile, and the two schedule slots), the Learned Model, and cumulative volume. It is the live source of truth that the scheduler and Irrigation Decision read; the config-entry options only seed its initial values.
 _Avoid_: Settings, config
 
 **Learned Model**:

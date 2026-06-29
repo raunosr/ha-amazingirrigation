@@ -65,6 +65,7 @@ async def async_setup_entry(
                 icon="mdi:calendar-clock-outline", attribute="schedule_2_active",
             )
         )
+        entities.append(AutoTargetSwitch(entry, zone, store))
     async_add_entities(entities)
 
 
@@ -124,5 +125,50 @@ class ZoneToggleSwitch(SwitchEntity):
         if state is None:
             return
         setattr(state, self._attribute, value)
+        await self._store.async_save()
+        self.async_write_ha_state()
+
+
+class AutoTargetSwitch(SwitchEntity):
+    """Target moisture mode toggle: on = Automatic, off = Manual.
+
+    Automatic lets the model own the target band (from learned WP/FC and the
+    demand profile); Manual keeps the user's fixed Target Moisture.
+    """
+
+    _attr_has_entity_name = True
+    _attr_name = "Target · Automatic"
+    _attr_icon = "mdi:target"
+
+    def __init__(
+        self, entry: ConfigEntry, zone: ZoneConfig, store: ZoneStateStore
+    ) -> None:
+        """Initialise the automatic-target toggle for a zone."""
+        self._zone = zone
+        self._store = store
+        self._attr_unique_id = f"{entry.entry_id}_{zone.zone_id}_target_mode"
+        self._attr_device_info = _zone_device_info(entry, zone)
+
+    @property
+    def is_on(self) -> bool | None:
+        """Return True when the zone's target mode is Automatic."""
+        state = self._store.get(self._zone.zone_id)
+        if state is None:
+            return None
+        return state.target_mode == "auto"
+
+    async def async_turn_on(self, **kwargs) -> None:  # noqa: ANN003
+        """Switch to Automatic target mode."""
+        await self._set("auto")
+
+    async def async_turn_off(self, **kwargs) -> None:  # noqa: ANN003
+        """Switch to Manual target mode."""
+        await self._set("manual")
+
+    async def _set(self, mode: str) -> None:
+        state = self._store.get(self._zone.zone_id)
+        if state is None:
+            return
+        state.target_mode = mode
         await self._store.async_save()
         self.async_write_ha_state()
