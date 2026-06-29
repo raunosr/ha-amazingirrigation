@@ -345,55 +345,201 @@ export class AmazingIrrigationOverviewCard extends LitElement {
     if (!explanation || !explanation.predictedTrajectory.length) return nothing;
 
     const data = explanation.predictedTrajectory;
-    const max = Math.max(...data, view.targetBandHigh ?? view.target ?? 60);
-    const min = Math.min(...data, view.targetBandLow ?? 20);
-    const range = max - min || 1;
-    const h = 60;
-    const w = 100;
-    const points = data
-      .map((v, i) => {
-        const x = (i / (data.length - 1)) * w;
-        const y = h - ((v - min) / range) * h;
-        return `${x},${y}`;
-      })
+    const horizonH = explanation.horizonHours ?? data.length;
+    const hoursPerSlot = data.length > 1 ? horizonH / (data.length - 1) : 1;
+
+    const bandLow = view.targetBandLow ?? (view.target !== null ? view.target - 2 : null);
+    const bandHigh = view.targetBandHigh ?? (view.target !== null ? view.target + 2 : null);
+
+    const dataMin = Math.min(...data);
+    const dataMax = Math.max(...data);
+    const yMin = Math.floor(Math.min(dataMin, bandLow ?? dataMin, 0) / 5) * 5;
+    const yMax = Math.ceil(Math.max(dataMax, bandHigh ?? dataMax, view.target ?? 0) / 5) * 5 + 5;
+    const yRange = yMax - yMin || 1;
+
+    const padL = 32;
+    const padR = 8;
+    const padT = 12;
+    const padB = 24;
+    const chartW = 300;
+    const chartH = 100;
+    const totalW = chartW + padL + padR;
+    const totalH = chartH + padT + padB;
+
+    const toX = (i: number) => padL + (i / (data.length - 1)) * chartW;
+    const toY = (v: number) => padT + chartH - ((v - yMin) / yRange) * chartH;
+
+    const linePath = data
+      .map((v, i) => `${i === 0 ? "M" : "L"}${toX(i).toFixed(1)},${toY(v).toFixed(1)}`)
       .join(" ");
 
-    const targetY =
-      view.target !== null ? h - ((view.target - min) / range) * h : null;
+    const fillPath =
+      linePath +
+      ` L${toX(data.length - 1).toFixed(1)},${toY(yMin).toFixed(1)}` +
+      ` L${toX(0).toFixed(1)},${toY(yMin).toFixed(1)} Z`;
+
+    const yTicks: number[] = [];
+    const step = yRange <= 30 ? 5 : yRange <= 60 ? 10 : 20;
+    for (let v = yMin; v <= yMax; v += step) yTicks.push(v);
+
+    const xLabels: Array<{ i: number; label: string }> = [];
+    const labelStep = data.length <= 8 ? 1 : data.length <= 16 ? 2 : Math.ceil(data.length / 8);
+    for (let i = 0; i < data.length; i += labelStep) {
+      xLabels.push({ i, label: `+${Math.round(i * hoursPerSlot)}h` });
+    }
+    if (xLabels[xLabels.length - 1]?.i !== data.length - 1) {
+      xLabels.push({ i: data.length - 1, label: `+${Math.round(horizonH)}h` });
+    }
+
+    const criticalTheta = explanation.predictedCriticalTheta;
+    const peakTheta = explanation.predictedPeakTheta;
+    const criticalIdx = criticalTheta !== null
+      ? data.indexOf(Math.min(...data))
+      : null;
+    const peakIdx = peakTheta !== null
+      ? data.indexOf(Math.max(...data))
+      : null;
 
     return html`
       <div class="prediction-section">
         <div class="section-label">
-          Predicted Trajectory
+          Moisture Prediction
           ${explanation.horizonHours !== null
             ? html`<span class="sublabel">${explanation.horizonHours}h horizon</span>`
             : nothing}
         </div>
+
         <svg
-          class="sparkline"
-          viewBox="0 0 ${w} ${h}"
-          preserveAspectRatio="none"
+          class="prediction-chart"
+          viewBox="0 0 ${totalW} ${totalH}"
+          preserveAspectRatio="xMidYMid meet"
         >
-          ${targetY !== null
-            ? html`<line
-                x1="0"
-                y1="${targetY}"
-                x2="${w}"
-                y2="${targetY}"
-                class="spark-target"
+          <defs>
+            <linearGradient id="pred-fill-grad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="var(--primary-color)" stop-opacity="0.18" />
+              <stop offset="100%" stop-color="var(--primary-color)" stop-opacity="0.02" />
+            </linearGradient>
+          </defs>
+
+          <!-- Y-axis gridlines + labels -->
+          ${yTicks.map(
+            (v) => html`
+              <line
+                x1="${padL}" y1="${toY(v)}" x2="${padL + chartW}" y2="${toY(v)}"
+                class="pred-grid"
+              />
+              <text x="${padL - 4}" y="${toY(v) + 3}" class="pred-y-label">${v}</text>
+            `,
+          )}
+
+          <!-- Target band shading -->
+          ${bandLow !== null && bandHigh !== null
+            ? html`<rect
+                x="${padL}" y="${toY(bandHigh)}"
+                width="${chartW}" height="${Math.abs(toY(bandLow) - toY(bandHigh))}"
+                class="pred-target-band"
               />`
             : nothing}
-          <polyline points="${points}" class="spark-line" />
+
+          <!-- Target line -->
+          ${view.target !== null
+            ? html`<line
+                x1="${padL}" y1="${toY(view.target)}"
+                x2="${padL + chartW}" y2="${toY(view.target)}"
+                class="pred-target-line"
+              />`
+            : nothing}
+
+          <!-- Area fill -->
+          <path d="${fillPath}" class="pred-area" />
+
+          <!-- Line -->
+          <path d="${linePath}" class="pred-line" />
+
+          <!-- Data points -->
+          ${data.map(
+            (v, i) => html`
+              <circle
+                cx="${toX(i)}" cy="${toY(v)}" r="2.5"
+                class="pred-dot"
+              />
+            `,
+          )}
+
+          <!-- Critical / Peak markers -->
+          ${criticalIdx !== null && criticalTheta !== null
+            ? html`<circle
+                cx="${toX(criticalIdx)}" cy="${toY(data[criticalIdx])}" r="4"
+                class="pred-marker-critical"
+              />`
+            : nothing}
+          ${peakIdx !== null && peakTheta !== null
+            ? html`<circle
+                cx="${toX(peakIdx)}" cy="${toY(data[peakIdx])}" r="4"
+                class="pred-marker-peak"
+              />`
+            : nothing}
+
+          <!-- X-axis labels -->
+          ${xLabels.map(
+            ({ i, label }) => html`
+              <text
+                x="${toX(i)}" y="${padT + chartH + 16}"
+                class="pred-x-label"
+              >${label}</text>
+            `,
+          )}
+
+          <!-- Current moisture marker (first point) -->
+          <text
+            x="${toX(0) + 4}" y="${toY(data[0]) - 6}"
+            class="pred-value-label"
+          >${Math.round(data[0])}%</text>
+
+          <!-- End value label -->
+          <text
+            x="${toX(data.length - 1) - 4}" y="${toY(data[data.length - 1]) - 6}"
+            class="pred-value-label end"
+          >${Math.round(data[data.length - 1])}%</text>
         </svg>
-        ${explanation.chosenLiters !== null
-          ? html`<div class="prediction-note">
-              Chosen: ${explanation.chosenLiters} L
-              ${explanation.predictedCriticalTheta !== null
-                ? html` · Low: ${explanation.predictedCriticalTheta}%`
-                : nothing}
-              ${explanation.predictedPeakTheta !== null
-                ? html` · Peak: ${explanation.predictedPeakTheta}%`
-                : nothing}
+
+        <div class="pred-legend">
+          ${view.target !== null
+            ? html`<span class="pred-legend-item">
+                <span class="pred-swatch target"></span>Target ${view.target}%
+              </span>`
+            : nothing}
+          ${criticalTheta !== null
+            ? html`<span class="pred-legend-item">
+                <span class="pred-swatch critical"></span>Low ${criticalTheta}%
+              </span>`
+            : nothing}
+          ${peakTheta !== null
+            ? html`<span class="pred-legend-item">
+                <span class="pred-swatch peak"></span>Peak ${peakTheta}%
+              </span>`
+            : nothing}
+          ${explanation.chosenLiters !== null
+            ? html`<span class="pred-legend-item">
+                <ha-icon icon="mdi:water" style="--mdc-icon-size:14px"></ha-icon>
+                ${explanation.chosenLiters} L
+              </span>`
+            : nothing}
+        </div>
+
+        <!-- Water balance terms breakdown -->
+        ${explanation.terms.length
+          ? html`<div class="pred-terms">
+              ${explanation.terms.map(
+                (t) => html`
+                  <div class="pred-term">
+                    <span class="pred-term-label">${t.label}</span>
+                    <span class="pred-term-value ${t.value >= 0 ? "positive" : "negative"}">
+                      ${t.value >= 0 ? "+" : ""}${t.value.toFixed(1)}${t.unit}
+                    </span>
+                  </div>
+                `,
+              )}
             </div>`
           : nothing}
       </div>
@@ -930,31 +1076,138 @@ export class AmazingIrrigationOverviewCard extends LitElement {
       font-size: 0.8rem;
     }
 
-    /* ── Prediction Sparkline ──────────────────────── */
+    /* ── Prediction Chart ─────────────────────────── */
     .prediction-section {
       padding: 8px 16px 12px;
     }
-    .sparkline {
+    .prediction-chart {
       width: 100%;
-      height: 48px;
+      height: auto;
+      max-height: 160px;
       display: block;
     }
-    .spark-line {
+    .pred-grid {
+      stroke: var(--divider-color, rgba(255,255,255,0.08));
+      stroke-width: 0.5;
+      vector-effect: non-scaling-stroke;
+    }
+    .pred-y-label {
+      font-size: 7px;
+      fill: var(--secondary-text-color);
+      text-anchor: end;
+      dominant-baseline: middle;
+    }
+    .pred-x-label {
+      font-size: 7px;
+      fill: var(--secondary-text-color);
+      text-anchor: middle;
+    }
+    .pred-target-band {
+      fill: var(--primary-color);
+      opacity: 0.08;
+    }
+    .pred-target-line {
+      stroke: var(--primary-color);
+      stroke-width: 0.8;
+      stroke-dasharray: 4 2;
+      vector-effect: non-scaling-stroke;
+      opacity: 0.5;
+    }
+    .pred-area {
+      fill: url(#pred-fill-grad);
+    }
+    .pred-line {
       fill: none;
       stroke: var(--primary-color);
+      stroke-width: 1.8;
+      stroke-linejoin: round;
+      stroke-linecap: round;
+      vector-effect: non-scaling-stroke;
+    }
+    .pred-dot {
+      fill: var(--card-background-color, var(--primary-background-color));
+      stroke: var(--primary-color);
+      stroke-width: 1;
+      vector-effect: non-scaling-stroke;
+    }
+    .pred-marker-critical {
+      fill: none;
+      stroke: var(--error-color, #db4437);
       stroke-width: 1.5;
       vector-effect: non-scaling-stroke;
     }
-    .spark-target {
-      stroke: var(--secondary-text-color);
-      stroke-width: 0.5;
-      stroke-dasharray: 3 2;
+    .pred-marker-peak {
+      fill: none;
+      stroke: var(--success-color, #43a047);
+      stroke-width: 1.5;
       vector-effect: non-scaling-stroke;
     }
-    .prediction-note {
-      font-size: 0.75rem;
+    .pred-value-label {
+      font-size: 7px;
+      font-weight: 600;
+      fill: var(--primary-text-color);
+      text-anchor: start;
+    }
+    .pred-value-label.end {
+      text-anchor: end;
+    }
+
+    .pred-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      padding: 4px 0 0;
+      font-size: 0.72rem;
       color: var(--secondary-text-color);
-      margin-top: 4px;
+    }
+    .pred-legend-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .pred-swatch {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+    .pred-swatch.target {
+      background: var(--primary-color);
+      opacity: 0.5;
+    }
+    .pred-swatch.critical {
+      border: 1.5px solid var(--error-color, #db4437);
+      background: none;
+    }
+    .pred-swatch.peak {
+      border: 1.5px solid var(--success-color, #43a047);
+      background: none;
+    }
+
+    .pred-terms {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 4px 12px;
+      padding: 8px 0 0;
+      font-size: 0.75rem;
+    }
+    .pred-term {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .pred-term-label {
+      color: var(--secondary-text-color);
+    }
+    .pred-term-value {
+      font-weight: 500;
+      font-variant-numeric: tabular-nums;
+    }
+    .pred-term-value.positive {
+      color: var(--success-color, #43a047);
+    }
+    .pred-term-value.negative {
+      color: var(--error-color, #db4437);
     }
 
     /* ── Sections ──────────────────────────────────── */
