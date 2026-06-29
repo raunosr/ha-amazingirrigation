@@ -266,7 +266,7 @@ async def test_run_and_stop_buttons(hass: HomeAssistant) -> None:
     await hass.services.async_call(
         "button",
         "press",
-        {"entity_id": "button.herb_bed_run"},
+        {"entity_id": "button.herb_bed_watering_run"},
         blocking=True,
     )
     await hass.async_block_till_done()
@@ -275,7 +275,7 @@ async def test_run_and_stop_buttons(hass: HomeAssistant) -> None:
     await hass.services.async_call(
         "button",
         "press",
-        {"entity_id": "button.herb_bed_stop"},
+        {"entity_id": "button.herb_bed_watering_stop"},
         blocking=True,
     )
     await hass.async_block_till_done()

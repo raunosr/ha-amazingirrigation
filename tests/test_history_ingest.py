@@ -492,7 +492,7 @@ async def test_relearn_button_calls_history_bootstrap(
     await hass.services.async_call(
         "button",
         "press",
-        {"entity_id": "button.herb_bed_re_learn_from_history"},
+        {"entity_id": "button.herb_bed_learning_re_learn_from_history"},
         blocking=True,
     )
 

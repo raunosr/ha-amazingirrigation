@@ -58,7 +58,7 @@ class RunZoneButton(ButtonEntity):
     """Create a Run Request and water the zone if the decision allows."""
 
     _attr_has_entity_name = True
-    _attr_name = "Run"
+    _attr_name = "Watering · Run"
     _attr_icon = "mdi:water"
 
     def __init__(
@@ -78,7 +78,7 @@ class StopZoneButton(ButtonEntity):
     """Stop an in-progress Watering Event (only when stop is configured)."""
 
     _attr_has_entity_name = True
-    _attr_name = "Stop"
+    _attr_name = "Watering · Stop"
     _attr_icon = "mdi:stop"
 
     def __init__(
@@ -98,7 +98,7 @@ class RelearnHistoryButton(ButtonEntity):
     """Re-fit a zone's water-balance model from recorder history."""
 
     _attr_has_entity_name = True
-    _attr_name = "Re-learn from History"
+    _attr_name = "Learning · Re-learn from History"
     _attr_icon = "mdi:history"
 
     def __init__(
