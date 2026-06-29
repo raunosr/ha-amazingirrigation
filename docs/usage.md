@@ -233,7 +233,7 @@ Balance** and uses it for **Predictive Control**:
   beyond the recorder's ~10-day raw retention uses Home Assistant **long-term
   statistics** (hourly means kept ~1 year for `state_class: measurement`
   sensors). Re-run it any time with the per-zone **Re-learn from History** button
-  (`button.<zone>_re_learn_from_history`) or the
+  (`button.<zone>_learning_re_learn_from_history`) or the
   `amazing_irrigation.relearn_from_history` service (its `days` defaults to the
   zone's window). It degrades gracefully when history is unavailable and reports
   how much it used and from which source.

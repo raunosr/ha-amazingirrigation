@@ -161,5 +161,5 @@ async def test_run_button_created_without_stop_when_no_actuator(
     buttons = [e for e in hass.states.async_entity_ids() if e.startswith("button.")]
     # Per-zone control switches exist; no actuator switch entity is created.
     assert "switch.herb_bed_zone_enabled" in switches
-    assert "button.herb_bed_run" in buttons
-    assert "button.herb_bed_stop" not in buttons
+    assert "button.herb_bed_watering_run" in buttons
+    assert "button.herb_bed_watering_stop" not in buttons

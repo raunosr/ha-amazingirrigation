@@ -277,8 +277,8 @@ async def test_run_button_present_stop_absent_without_actuator(
     # The integration exposes per-zone control switches (zone/learning/schedule)
     # but never an actuator switch entity.
     assert "switch.herb_bed_zone_enabled" in switches
-    assert "button.herb_bed_run" in buttons
-    assert "button.herb_bed_stop" not in buttons
+    assert "button.herb_bed_watering_run" in buttons
+    assert "button.herb_bed_watering_stop" not in buttons
 
 
 def test_build_inputs_enables_predictive_with_model_and_horizon(
