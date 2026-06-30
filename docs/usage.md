@@ -164,13 +164,19 @@ standalone script for manual testing is in
 | Field | Purpose |
 | --- | --- |
 | Watering sensor | Binary sensor that is `on` while watering; confirms Watering Events. |
-| Volume sensor | Cumulative/last volume sensor for reporting. |
+| Volume sensor | Flow/volume sensor used to confirm flow and measure liters. Both lifetime-cumulative counters and per-cycle sensors that reset to 0 each watering are handled automatically. |
 
 > **Auto-detection.** Leave both feedback sensors blank — for *any* actuator
 > type — and the integration derives them from the device of the chosen
-> actuator switch: the `_is_watering` binary sensor and the cumulative
+> actuator switch: the `_is_watering` binary sensor and the
 > `_volume` sensor (never `_volume_limit`). This works whenever the switch is a
 > LinkTap MQTT entity. Anything you select manually overrides auto-detection.
+
+> **Cumulative total.** The integration measures each Watering Event with a
+> reset-aware accumulator, so a device counter that resets to 0 at the start of
+> every watering is tracked correctly. The per-zone and system **Total Watering
+> Volume** sensors (`total_increasing`) provide the running cumulative total —
+> you do **not** need a separate `utility_meter` helper.
 
 > Actuator command success is treated as a *request* only. When feedback is
 > configured, Watering Events are confirmed from the watering-state/volume

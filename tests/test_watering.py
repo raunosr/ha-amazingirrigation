@@ -332,6 +332,90 @@ async def test_volume_tick_before_confirmation_does_not_finalize(
     assert controller.last_event.status is not WateringStatus.STOPPED
 
 
+async def test_confirmation_with_resetting_volume_sensor(
+    hass: HomeAssistant,
+) -> None:
+    """A per-cycle sensor that resets to 0 at start still measures real flow.
+
+    The device counter holds the previous cycle's final value (5 L) when the run
+    starts, resets to 0, then climbs to 3 L. The reset-aware accumulator must
+    report 3 L, not a bogus negative/zero delta from the stale baseline.
+    """
+    hass.states.async_set("sensor.a", "20.0")
+    hass.states.async_set("sensor.vol", "5")
+    _record_switch(hass)
+    entry = await _setup(hass, {**_SWITCH_ZONE, CONF_VOLUME_SENSOR: "sensor.vol"})
+
+    controller = _controller(hass, entry)
+    await controller.async_run()
+    # Device resets to 0 on start, then accumulates this cycle's flow.
+    hass.states.async_set("sensor.vol", "0")
+    await hass.async_block_till_done()
+    hass.states.async_set("sensor.vol", "3")
+    await hass.async_block_till_done()
+
+    assert controller.last_event.status is WateringStatus.CONFIRMED
+    assert controller.last_event.measured_liters == pytest.approx(3.0)
+    assert _zone_state(hass, entry).total_liters == pytest.approx(3.0)
+
+
+async def test_resetting_volume_sensor_accumulates_across_events(
+    hass: HomeAssistant,
+) -> None:
+    """Consecutive resetting cycles each add their own flow to the total."""
+    hass.states.async_set("sensor.a", "20.0")
+    hass.states.async_set("sensor.vol", "5")
+    _record_switch(hass)
+    entry = await _setup(hass, {**_SWITCH_ZONE, CONF_VOLUME_SENSOR: "sensor.vol"})
+
+    controller = _controller(hass, entry)
+
+    await controller.async_run()
+    hass.states.async_set("sensor.vol", "0")
+    await hass.async_block_till_done()
+    hass.states.async_set("sensor.vol", "3")
+    await hass.async_block_till_done()
+    await controller.async_stop()
+
+    # Second cycle: sensor still holds the prior 3 L, resets, climbs to 2 L.
+    await controller.async_run()
+    hass.states.async_set("sensor.vol", "0")
+    await hass.async_block_till_done()
+    hass.states.async_set("sensor.vol", "2")
+    await hass.async_block_till_done()
+    await controller.async_stop()
+
+    assert _zone_state(hass, entry).total_liters == pytest.approx(5.0)
+
+
+async def test_volume_sensor_reset_mid_event_is_accumulated(
+    hass: HomeAssistant,
+) -> None:
+    """A reset during a single event keeps the running total correct.
+
+    Post-confirmation flow (including a reset) is reconciled when the event ends,
+    matching how finalisation tops up the measured volume.
+    """
+    hass.states.async_set("sensor.a", "20.0")
+    hass.states.async_set("sensor.vol", "0")
+    _record_switch(hass)
+    entry = await _setup(hass, {**_SWITCH_ZONE, CONF_VOLUME_SENSOR: "sensor.vol"})
+
+    controller = _controller(hass, entry)
+    await controller.async_run()
+    hass.states.async_set("sensor.vol", "3")
+    await hass.async_block_till_done()
+    # Mid-event reset back to 0, then a further 2 L, reconciled on stop.
+    hass.states.async_set("sensor.vol", "0")
+    await hass.async_block_till_done()
+    hass.states.async_set("sensor.vol", "2")
+    await hass.async_block_till_done()
+    await controller.async_stop()
+
+    assert controller.last_event.measured_liters == pytest.approx(5.0)
+    assert _zone_state(hass, entry).total_liters == pytest.approx(5.0)
+
+
 async def test_unload_releases_feedback_subscription(hass: HomeAssistant) -> None:
     """Unloading the entry must tear down a live feedback subscription."""
     hass.states.async_set("sensor.a", "20.0")
