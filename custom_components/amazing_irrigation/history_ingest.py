@@ -18,7 +18,13 @@ from typing import Any
 
 from .estimator import EstimatorObservation, JointEstimator
 from .state import ZoneStateStore, apply_model_to_state, params_from_state
-from .waterbalance import Climate, WaterBalanceParams, default_params
+from .waterbalance import (
+    MOISTURE_MAX,
+    MOISTURE_MIN,
+    Climate,
+    WaterBalanceParams,
+    default_params,
+)
 from .zone import ZoneConfig, aggregate_zone_moisture
 
 _LOGGER = logging.getLogger(__name__)
@@ -252,6 +258,11 @@ def bootstrap_from_series(
         prior_cov=[16.0, 16.0, 2.0, 0.20],
         measurement_noise=0.25,
         overrides=overrides,
+    )
+    estimator.seed_envelope(
+        moisture
+        for obs in intervals
+        for moisture in (obs.theta_start, obs.theta_end)
     )
     params = estimator.fit(intervals)
     covariance = estimator.covariance.tolist()
@@ -696,7 +707,7 @@ def _aggregate_moisture_history(
     for timestamp in timestamps:
         readings = [item.as_of(timestamp) for item in series]
         moisture = aggregate_zone_moisture(readings).value
-        if moisture is not None:
+        if moisture is not None and MOISTURE_MIN < moisture < MOISTURE_MAX:
             points.append(SeriesPoint(timestamp, moisture))
     return TimeSeries(points)
 

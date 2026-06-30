@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -199,7 +200,31 @@ def test_bootstrap_from_synthetic_history_recovers_parameters_in_ballpark() -> N
     assert result.params.drain_rate == pytest.approx(true.drain_rate, abs=0.08)
 
 
-def test_bootstrap_reports_insufficient_history_without_fitting() -> None:
+def test_bootstrap_recovers_envelope_from_polluted_prior() -> None:
+    """A stored FC=100/WP=0 prior is overridden by the freshly fetched window."""
+    polluted = replace(
+        default_params("loam"), field_capacity=100.0, wilting_point=0.0
+    )
+    observations = [
+        EstimatorObservation(
+            theta_start=40.0 + (index % 6),
+            theta_end=40.0 + ((index + 1) % 6),
+            dt=1.0,
+            liters=0.2 if index % 2 else 0.0,
+        )
+        for index in range(40)
+    ]
+
+    result = bootstrap_from_series(polluted, observations)
+
+    assert result.success is True
+    assert result.params.field_capacity < 60.0
+    assert result.params.wilting_point > 0.0
+    assert result.params.field_capacity == pytest.approx(45.0, abs=1.0)
+    assert result.params.wilting_point == pytest.approx(40.0, abs=1.0)
+
+
+
     """Too few intervals produce a clear non-success result for callers."""
     result = bootstrap_from_series(
         default_params("loam"),

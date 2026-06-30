@@ -45,6 +45,11 @@ COEFFICIENT_NAMES = ("eta_irr", "eta_rain", "k_et", "drain_rate")
 ENVELOPE_NAMES = ("field_capacity", "wilting_point")
 PARAMETER_NAMES = COEFFICIENT_NAMES + ENVELOPE_NAMES
 
+# Recent data should dominate: observations and the FC/WP envelope are weighted so
+# their influence halves over this many days, letting the model follow seasonal
+# change while older history only sets the baseline.
+DEFAULT_ADAPTATION_HALF_LIFE_DAYS = 30.0
+
 _BOUNDS: dict[str, tuple[float, float]] = {
     "eta_irr": (ETA_IRR_MIN, ETA_IRR_MAX),
     "eta_rain": (ETA_RAIN_MIN, ETA_RAIN_MAX),
@@ -99,7 +104,12 @@ class JointEstimator:
         measurement_noise: Observation noise variance in moisture-% squared.
         process_noise: Small covariance added to free coefficients each update.
         envelope_alpha: EMA weight used to pull field capacity/wilting point
-            toward the running observed high/low moisture envelope.
+            toward the running observed high/low moisture envelope.  Used only
+            when ``half_life_days`` disables time-based decay.
+        half_life_days: Adaptation half-life in days.  Recent observations and
+            the FC/WP envelope decay to half influence over this span so the
+            model follows seasonal change; ``None`` (or non-positive) disables
+            time-based forgetting and reverts to flat weighting.
         overrides: Optional mapping of parameter names to manual values.  Any of
             the four linear coefficients and/or ``field_capacity`` /
             ``wilting_point`` may be fixed.
@@ -119,6 +129,7 @@ class JointEstimator:
         measurement_noise: float = 0.25,
         process_noise: float | Iterable[float] | np.ndarray = 1e-9,
         envelope_alpha: float = 0.05,
+        half_life_days: float | None = DEFAULT_ADAPTATION_HALF_LIFE_DAYS,
         overrides: Mapping[str, float] | None = None,
     ) -> None:
         """Initialise the recursive estimator from bounded priors."""
@@ -134,6 +145,13 @@ class JointEstimator:
         )
         self._process_noise = self._coerce_process_noise(process_noise)
         self._envelope_alpha = _finite_clamped(envelope_alpha, 0.0, 1.0, 0.05)
+        self._half_life_hours = (
+            float(half_life_days) * 24.0
+            if half_life_days is not None
+            and np.isfinite(half_life_days)
+            and half_life_days > 0.0
+            else None
+        )
         self._field_capacity = bounded.field_capacity
         self._wilting_point = bounded.wilting_point
         self._root_depth_mm = bounded.root_depth_mm
@@ -226,23 +244,74 @@ class JointEstimator:
         self._overrides.pop(name, None)
         self._regularise()
 
-    def observe_moisture(self, theta: float | None) -> None:
-        """Feed one moisture reading into the FC/WP envelope tracker."""
+    def observe_moisture(self, theta: float | None, dt_hours: float = 0.0) -> None:
+        """Feed one moisture reading into the FC/WP envelope tracker.
+
+        Rail readings (0 or 100 — typically an offline or saturated sensor) are
+        rejected so they cannot pin the envelope.  The envelope tracks recent
+        extremes with a fast attack toward new highs/lows and a time-decayed
+        slow release, so stale extremes fade with the configured half-life and
+        recent conditions dominate.  ``dt_hours`` is the time the reading
+        represents and scales the release.
+        """
         observed = _finite_float(theta)
-        if observed is None:
+        if observed is None or observed <= MOISTURE_MIN or observed >= MOISTURE_MAX:
             return
-        observed = _finite_clamped(observed, MOISTURE_MIN, MOISTURE_MAX, MOISTURE_MIN)
+        release = self._envelope_release(dt_hours)
         if "field_capacity" not in self._overrides:
-            self._observed_high = max(self._observed_high, observed)
-            self._field_capacity = _ema(
-                self._field_capacity, self._observed_high, self._envelope_alpha
-            )
+            if observed >= self._observed_high:
+                self._observed_high = observed
+            else:
+                self._observed_high += release * (observed - self._observed_high)
+            self._field_capacity = self._observed_high
         if "wilting_point" not in self._overrides:
-            self._observed_low = min(self._observed_low, observed)
-            self._wilting_point = _ema(
-                self._wilting_point, self._observed_low, self._envelope_alpha
-            )
+            if observed <= self._observed_low:
+                self._observed_low = observed
+            else:
+                self._observed_low += release * (observed - self._observed_low)
+            self._wilting_point = self._observed_low
         self._enforce_capacity_gap()
+
+    def seed_envelope(self, values: Iterable[float]) -> None:
+        """Initialise the FC/WP envelope from a window of moisture observations.
+
+        Used by the from-history bootstrap so a re-learn derives the envelope
+        from the freshly fetched data rather than inheriting a previously
+        learned (possibly polluted) field capacity / wilting point.  Rail and
+        non-finite values are ignored.
+        """
+        clean = [
+            value
+            for value in (_finite_float(item) for item in values)
+            if value is not None and MOISTURE_MIN < value < MOISTURE_MAX
+        ]
+        if not clean:
+            return
+        if "field_capacity" not in self._overrides:
+            self._observed_high = max(clean)
+            self._field_capacity = self._observed_high
+        if "wilting_point" not in self._overrides:
+            self._observed_low = min(clean)
+            self._wilting_point = self._observed_low
+        self._enforce_capacity_gap()
+
+    def _envelope_release(self, dt_hours: float) -> float:
+        """Release fraction for the envelope, time-scaled to the half-life."""
+        elapsed = max(0.0, _finite_float(dt_hours) or 0.0)
+        if elapsed <= 0.0:
+            return 0.0
+        if self._half_life_hours is None:
+            return self._envelope_alpha
+        return float(1.0 - 0.5 ** (elapsed / self._half_life_hours))
+
+    def _effective_forgetting(self, hours: float) -> float:
+        """Time-aware RLS forgetting: recent intervals weigh more."""
+        base = self._forgetting
+        if self._half_life_hours is None:
+            return base
+        elapsed = max(0.0, _finite_float(hours) or 0.0)
+        decay = float(0.5 ** (elapsed / self._half_life_hours))
+        return _finite_clamped(base * decay, 1e-6, 1.0, base)
 
     def update(
         self,
@@ -274,7 +343,7 @@ class JointEstimator:
         except (ArithmeticError, OverflowError, TypeError, ValueError):
             pass
         self.observe_moisture(theta_start)
-        self.observe_moisture(theta_end)
+        self.observe_moisture(theta_end, dt_hours=dt)
         self._regularise()
         return self.params
 
@@ -347,7 +416,7 @@ class JointEstimator:
         b = self._coefficient_values()
         y_free = y - float(np.dot(x[fixed], b[fixed])) if bool(np.any(fixed)) else y
         p_prior = self._cov[np.ix_(free, free)].copy()
-        p_prior = p_prior / self._forgetting
+        p_prior = p_prior / self._effective_forgetting(hours)
         process = np.diag(self._process_noise[free])
         p_prior = self._safe_matrix(p_prior + process, free_count=int(np.sum(free)))
         innovation_var = float(x_free @ p_prior @ x_free.T) + self._measurement_noise
@@ -529,7 +598,3 @@ def _finite_clamped(value: float, low: float, high: float, default: float) -> fl
     if result is None:
         return default
     return float(np.clip(result, low, high))
-
-
-def _ema(prior: float, sample: float, weight: float) -> float:
-    return (1.0 - weight) * prior + weight * sample
