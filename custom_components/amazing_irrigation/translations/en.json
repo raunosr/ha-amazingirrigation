@@ -170,7 +170,7 @@
           "actuator_stop_script": "Stop script",
           "volume_field": "Volume field/variable name",
           "watering_sensor": "Watering feedback sensor (optional, auto-detected)",
-          "volume_sensor": "Cumulative volume sensor (optional, auto-detected)",
+          "volume_sensor": "Volume sensor (optional, auto-detected)",
           "linktap_device": "LinkTap device (auto-fills id, switch and sensors)",
           "linktap_topic": "LinkTap MQTT topic",
           "linktap_id": "LinkTap id (auto-filled from device; optional override)",
@@ -178,7 +178,7 @@
         },
         "data_description": {
           "watering_sensor": "Leave blank to auto-detect the '_is_watering' binary sensor from the actuator switch's device.",
-          "volume_sensor": "Leave blank to auto-detect the cumulative '_volume' sensor (never '_volume_limit') from the actuator switch's device."
+          "volume_sensor": "Leave blank to auto-detect the '_volume' sensor (never '_volume_limit') from the actuator switch's device. Works with both lifetime-cumulative counters and sensors that reset to 0 each watering; the integration's 'Total Watering Volume' sensor provides the running cumulative total (no utility meter helper needed)."
         }
       },
       "remove_zone": {

@@ -87,6 +87,11 @@ class WateringController:
         self._confirmed_once = False
         self._unsub: Callable[[], None] | None = None
         self._volume_baseline: float | None = None
+        # Reset-aware per-event volume accumulator. The configured volume sensor
+        # may be lifetime-cumulative or reset to 0 each watering; we sum positive
+        # deltas (a drop means a reset) so measurement is correct either way.
+        self._volume_last: float | None = None
+        self._measured_accum = 0.0
         # Liters already added to the zone's Total Watering Volume for the
         # current Watering Event, so a single event is never counted twice.
         self._accounted_liters = 0.0
@@ -198,6 +203,26 @@ class WateringController:
             self.hass.async_create_task(self._zone_state_store.async_save())
 
     @callback
+    def _observe_volume(self, current: float) -> None:
+        """Accumulate confirmed flow from the volume sensor, tolerant of resets.
+
+        The configured volume sensor may be a lifetime-cumulative counter or one
+        that resets to 0 at the start of each watering. We sum positive deltas; a
+        negative delta means the source reset, so the reading itself is the flow
+        since that reset. This mirrors how a utility meter handles resets, scoped
+        to the current Watering Event.
+        """
+        if self._volume_last is None:
+            self._volume_last = current
+            return
+        delta = current - self._volume_last
+        if delta < 0.0:
+            delta = current
+        if delta > 0.0:
+            self._measured_accum += delta
+        self._volume_last = current
+
+    @callback
     def _event_volume(self) -> float:
         """Best-known liters applied for the current event (measured or requested)."""
         if self.last_event.measured_liters is not None:
@@ -247,6 +272,8 @@ class WateringController:
 
         if self.actuator.volume_sensor:
             self._volume_baseline = read_number(self.hass, self.actuator.volume_sensor)
+            self._volume_last = self._volume_baseline
+            self._measured_accum = 0.0
 
         try:
             await async_execute_all(self.hass, start_call)
@@ -316,9 +343,11 @@ class WateringController:
 
         if self.actuator.volume_sensor and self._volume_baseline is not None:
             current = read_number(self.hass, self.actuator.volume_sensor)
-            if current is not None and current > self._volume_baseline:
+            if current is not None:
+                self._observe_volume(current)
+            if self._measured_accum > 0.0:
                 confirmed = True
-                measured = current - self._volume_baseline
+                measured = self._measured_accum
 
         if confirmed:
             self._confirmed_once = True
@@ -338,7 +367,8 @@ class WateringController:
         if self.actuator.volume_sensor and self._volume_baseline is not None:
             current = read_number(self.hass, self.actuator.volume_sensor)
             if current is not None:
-                measured = max(0.0, current - self._volume_baseline)
+                self._observe_volume(current)
+            measured = self._measured_accum
         was_confirmed = self._confirmed_once
         self._teardown()
         self._set_event(
@@ -356,6 +386,8 @@ class WateringController:
     def _teardown(self) -> None:
         """Stop tracking feedback."""
         self._active = False
+        self._volume_last = None
+        self._measured_accum = 0.0
         if self._unsub is not None:
             self._unsub()
             self._unsub = None
@@ -374,7 +406,8 @@ class WateringController:
         if self.actuator.volume_sensor and self._volume_baseline is not None:
             current = read_number(self.hass, self.actuator.volume_sensor)
             if current is not None:
-                measured = max(0.0, current - self._volume_baseline)
+                self._observe_volume(current)
+            measured = self._measured_accum
         was_confirmed = self._confirmed_once
 
         try:
