@@ -243,3 +243,81 @@ def test_fit_accepts_mapping_observations_and_exposes_expected_confidence_keys()
 
     assert isinstance(params, WaterBalanceParams)
     assert set(estimator.confidence) == set(COEFFICIENT_NAMES)
+
+
+def test_observe_moisture_rejects_rail_readings():
+    """Offline 0% and saturated 100% readings must not pin the envelope."""
+    prior = replace(default_params("loam"), field_capacity=45.0, wilting_point=18.0)
+    estimator = JointEstimator(prior)
+
+    # Rails are dropped: the envelope stays at the prior, not 100/0.
+    for reading in (0.0, 100.0, 0.0, 100.0):
+        estimator.observe_moisture(reading)
+    assert estimator.params.field_capacity == pytest.approx(45.0)
+    assert estimator.params.wilting_point == pytest.approx(18.0)
+
+    # In-range extremes are still accepted (fast attack on new high/low).
+    estimator.observe_moisture(48.0)
+    estimator.observe_moisture(15.0)
+    assert estimator.params.field_capacity == pytest.approx(48.0)
+    assert estimator.params.wilting_point == pytest.approx(15.0)
+
+
+def test_seed_envelope_recovers_from_polluted_prior():
+    """A re-learn seeded from clean data overrides a stored FC=100/WP=0 prior."""
+    polluted = replace(default_params("loam"), field_capacity=100.0, wilting_point=0.0)
+    estimator = JointEstimator(polluted)
+    assert estimator.params.field_capacity == pytest.approx(100.0)
+    assert estimator.params.wilting_point == pytest.approx(0.0)
+
+    estimator.seed_envelope([40.0, 45.0, 0.0, 100.0, 42.0, 41.0])
+
+    assert estimator.params.field_capacity == pytest.approx(45.0, abs=0.01)
+    assert estimator.params.wilting_point == pytest.approx(40.0, abs=0.01)
+
+
+def test_envelope_contracts_as_stale_extreme_decays():
+    """A stale high fades toward recent readings over the adaptation half-life."""
+    prior = replace(default_params("loam"), field_capacity=45.0, wilting_point=18.0)
+    estimator = JointEstimator(prior, half_life_days=30.0)
+
+    estimator.observe_moisture(80.0)
+    assert estimator.params.field_capacity == pytest.approx(80.0)
+
+    # One half-life (30 days) at 45% should release the high halfway toward 45.
+    estimator.observe_moisture(45.0, dt_hours=30.0 * 24.0)
+    assert estimator.params.field_capacity == pytest.approx(62.5, abs=0.5)
+
+    for _ in range(6):
+        estimator.observe_moisture(45.0, dt_hours=30.0 * 24.0)
+    assert estimator.params.field_capacity < 50.0
+
+
+def test_disabled_half_life_keeps_monotonic_release_weight():
+    """With time-decay disabled the envelope falls back to flat EMA release."""
+    prior = replace(default_params("loam"), field_capacity=45.0, wilting_point=18.0)
+    estimator = JointEstimator(prior, half_life_days=None, envelope_alpha=0.5)
+
+    estimator.observe_moisture(80.0)
+    estimator.observe_moisture(45.0, dt_hours=1.0)
+
+    assert estimator.params.field_capacity == pytest.approx(62.5, abs=0.5)
+
+
+def test_recent_observations_dominate_seasonal_shift():
+    """A sustained moisture shift moves FC faster than flat weighting would."""
+    true_params = WaterBalanceParams(1.6, 1.1, 0.6, 0.1, 45.0, 18.0)
+    prior = replace(default_params("loam"), field_capacity=70.0, wilting_point=18.0)
+    estimator = JointEstimator(prior, half_life_days=30.0)
+
+    for obs in _synthetic_observations(true_params, count=120):
+        estimator.update(
+            theta_start=obs.theta_start,
+            theta_end=obs.theta_end,
+            dt=obs.dt,
+            liters=obs.liters,
+            rain_mm=obs.rain_mm,
+            climate=obs.climate,
+        )
+
+    assert estimator.params.field_capacity < 70.0

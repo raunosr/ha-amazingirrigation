@@ -286,7 +286,7 @@ class ZoneLearner:
             ) + 1
 
         if moisture is not None and not ran_update:
-            estimator.observe_moisture(moisture)
+            estimator.observe_moisture(moisture, dt_hours=hours or 0.0)
         if moisture is not None:
             bookkeeping["capacity_samples"] = self._count(
                 bookkeeping, "capacity_samples"
