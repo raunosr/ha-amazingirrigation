@@ -106,6 +106,12 @@ always override learned ones, and every value stays inside safe bounds.
 - **Unified selection.** Soil type, plant profile, sensor depth, rain fraction and
   minimum application are set the same way in the initial config flow, on the
   device page (auto-created Number/Select entities), and in the card.
+- **Transparent target.** A **Target Range** sensor (`33–58%`, with
+  start/refill/cap/mode/source attributes) shows what each zone waters towards
+  right now, the Irrigation Decision carries a plain-language summary
+  ("Skip — moisture 50% is within target 33–58%"), the manual Target Moisture is
+  marked unavailable while Automatic mode owns the band, and the learned model
+  sensors are grouped as Diagnostic to keep the main view uncluttered.
 - **Bed area & root depth (optional).** Enter a zone's area and rooting depth to seed
   irrigation/rain gains physically for faster, more accurate cold-start; learning
   refines them and manual parameters override. See *Scientific background* below.

@@ -30,6 +30,7 @@ function states(
       state: "water",
       attributes: {
         reason: "below_target",
+        summary: "Water 12.5 L \u2014 moisture 32% is below target 33\u201358%",
         recommended_liters: 12.5,
         target_moisture: 40,
         available_water: 0.5,
@@ -82,6 +83,9 @@ describe("buildZoneView", () => {
     expect(view.availableWater).toBe(0.5);
     expect(view.decision).toBe("water");
     expect(view.decisionReason).toBe("below_target");
+    expect(view.decisionSummary).toBe(
+      "Water 12.5 L \u2014 moisture 32% is below target 33\u201358%",
+    );
     expect(view.wateringStatus).toBe("confirmed");
     expect(view.isWatering).toBe(true);
     expect(view.canStop).toBe(true);

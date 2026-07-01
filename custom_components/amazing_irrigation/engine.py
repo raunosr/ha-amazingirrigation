@@ -248,6 +248,9 @@ def decide(inp: DecisionInputs) -> Decision:
     band_details = {
         "target_band_low": round(band.low, 1),
         "target_band_high": round(band.high, 1),
+        "band_field_capacity": (
+            round(inp.field_capacity, 1) if inp.field_capacity is not None else None
+        ),
     }
 
     # Smallest worthwhile application, waived under a heat emergency.
@@ -269,6 +272,11 @@ def decide(inp: DecisionInputs) -> Decision:
             "horizon_hours": control.horizon_hours,
             "target_band_low": round(band.low, 1),
             "target_band_high": round(band.high, 1),
+            "band_field_capacity": (
+                round(inp.field_capacity, 1)
+                if inp.field_capacity is not None
+                else None
+            ),
         }
         if control.should_water:
             return Decision(
