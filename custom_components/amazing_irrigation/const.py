@@ -129,6 +129,32 @@ SERVICE_EVALUATE_ZONE = "evaluate_zone"
 SERVICE_RUN_ZONE = "run_zone"
 SERVICE_STOP_ZONE = "stop_zone"
 SERVICE_RELEARN_FROM_HISTORY = "relearn_from_history"
+SERVICE_START_DISCOVERY = "start_field_capacity_discovery"
+
+# hass.data[DOMAIN][entry_id] sub-key holding DiscoveryController by zone_id.
+DATA_DISCOVERY = "discovery"
+
+# Guided Field Capacity Discovery phases (persisted in ZoneState.discovery).
+DISCOVERY_IDLE = "idle"
+DISCOVERY_AWAITING_SATURATION = "awaiting_saturation"
+DISCOVERY_MONITORING = "monitoring"
+DISCOVERY_COMPLETED = "completed"
+DISCOVERY_FAILED = "failed"
+DISCOVERY_CANCELLED = "cancelled"
+
+# Field Capacity Discovery tuning defaults. The stop criterion is a drainage-rate
+# knee (FAO-56 Drained Upper Limit), not a fixed clock: FC is recorded once the
+# moisture drop rate falls below a threshold that is relative to the initial
+# post-saturation drainage rate (texture-adaptive) with a small absolute floor,
+# bounded by a minimum wait (ignore the early transient plateau) and a maximum
+# wait (graceful fallback). Values are in sensor moisture-% space.
+DISCOVERY_SAMPLE_INTERVAL = timedelta(minutes=10)
+DISCOVERY_MIN_WAIT_HOURS = 12.0
+DISCOVERY_MAX_WAIT_HOURS = 48.0
+DISCOVERY_STABILITY_WINDOW_HOURS = 2.0
+DISCOVERY_RATE_RELATIVE_STOP = 0.12
+DISCOVERY_RATE_ABS_FLOOR = 0.2
+DISCOVERY_RISE_ABORT_DELTA = 3.0
 
 # Event fired when a Run Request is evaluated into an Irrigation Decision.
 EVENT_DECISION = "amazing_irrigation_decision"

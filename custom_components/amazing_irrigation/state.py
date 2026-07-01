@@ -113,6 +113,10 @@ class ZoneState:
     total_liters: float = 0.0
     # Opaque bookkeeping for the learning engine (EMA counters, last samples).
     learning_state: dict[str, Any] = field(default_factory=dict)
+    # Guided Field Capacity Discovery workflow state (phase, curve summary,
+    # result); see discovery.DiscoveryState. Stored as a plain dict like
+    # learning_state so the ZoneState store stays serialisation-simple.
+    discovery: dict[str, Any] = field(default_factory=dict)
     # Snapshot of the config-controlled values last applied from the options
     # record, used to detect config edits across reloads (see reconcile_zone_state).
     config_signature: dict[str, Any] = field(default_factory=dict)

@@ -71,3 +71,16 @@ relearn_from_history:
           min: 1
           max: 365
           mode: box
+
+start_field_capacity_discovery:
+  name: Start Field Capacity Discovery
+  description: >-
+    Begin the guided Field Capacity Discovery workflow for the targeted zones.
+    You will be prompted to saturate the moisture sensor and cover the soil; the
+    integration then monitors drainage and records Field Capacity automatically.
+  target:
+    entity:
+      integration: amazing_irrigation
+    device:
+      integration: amazing_irrigation
+

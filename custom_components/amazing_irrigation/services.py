@@ -24,12 +24,14 @@ from .const import (
     CONF_ZONES,
     DATA_CONTROLLERS,
     DATA_DECISION_ENTITIES,
+    DATA_DISCOVERY,
     DATA_ZONE_STATE,
     DOMAIN,
     EVENT_DECISION,
     SERVICE_EVALUATE_ZONE,
     SERVICE_RELEARN_FROM_HISTORY,
     SERVICE_RUN_ZONE,
+    SERVICE_START_DISCOVERY,
     SERVICE_STOP_ZONE,
 )
 from .history_ingest import async_bootstrap_zone
@@ -65,6 +67,13 @@ _RELEARN_SCHEMA = vol.Schema(
         vol.Optional("days"): vol.All(
             vol.Coerce(int), vol.Range(min=1, max=365)
         ),
+    }
+)
+
+_START_DISCOVERY_SCHEMA = vol.Schema(
+    {
+        vol.Optional("entity_id"): cv.entity_ids,
+        vol.Optional("device_id"): vol.All(cv.ensure_list, [cv.string]),
     }
 )
 
@@ -263,6 +272,27 @@ async def _async_relearn_from_history(call: ServiceCall) -> dict[str, Any]:
     return {"results": results}
 
 
+async def _async_start_discovery(call: ServiceCall) -> dict[str, Any]:
+    """Handle ``amazing_irrigation.start_field_capacity_discovery``."""
+    hass = call.hass
+    results: list[dict[str, Any]] = []
+    for (entry_id, zone_id), _zone in _resolve_zone_targets(hass, call).items():
+        controllers = (
+            hass.data.get(DOMAIN, {}).get(entry_id, {}).get(DATA_DISCOVERY, {})
+        )
+        controller = controllers.get(zone_id)
+        if controller is None:
+            results.append(
+                {"zone_id": zone_id, "started": False, "reason": "No moisture sensor"}
+            )
+            continue
+        await controller.async_start_discovery()
+        results.append(
+            {"zone_id": zone_id, "started": True, "phase": controller.discovery.phase}
+        )
+    return {"results": results}
+
+
 def async_setup_services(hass: HomeAssistant) -> None:
     """Register integration services once."""
     if hass.services.has_service(DOMAIN, SERVICE_EVALUATE_ZONE):
@@ -295,6 +325,13 @@ def async_setup_services(hass: HomeAssistant) -> None:
         schema=_RELEARN_SCHEMA,
         supports_response=SupportsResponse.OPTIONAL,
     )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_START_DISCOVERY,
+        _async_start_discovery,
+        schema=_START_DISCOVERY_SCHEMA,
+        supports_response=SupportsResponse.OPTIONAL,
+    )
 
 
 def async_unload_services(hass: HomeAssistant) -> None:
@@ -303,3 +340,4 @@ def async_unload_services(hass: HomeAssistant) -> None:
     hass.services.async_remove(DOMAIN, SERVICE_RUN_ZONE)
     hass.services.async_remove(DOMAIN, SERVICE_STOP_ZONE)
     hass.services.async_remove(DOMAIN, SERVICE_RELEARN_FROM_HISTORY)
+    hass.services.async_remove(DOMAIN, SERVICE_START_DISCOVERY)

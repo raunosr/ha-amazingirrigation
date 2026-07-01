@@ -272,6 +272,25 @@ class JointEstimator:
             self._wilting_point = self._observed_low
         self._enforce_capacity_gap()
 
+    def seed_field_capacity(self, value: float) -> None:
+        """Anchor Field Capacity from an in-situ drainage measurement.
+
+        Used by the guided Field Capacity Discovery workflow: sets the observed
+        moisture-envelope high (and thus FC) to the measured Drained Upper Limit
+        without touching the wilting-point floor, so a subsequent live learning
+        can still adapt it. A manual ``field_capacity`` override still wins.
+        """
+        observed = _finite_float(value)
+        if observed is None:
+            return
+        if "field_capacity" in self._overrides:
+            return
+        low, high = _BOUNDS["field_capacity"]
+        bounded = _finite_clamped(observed, low, high, default=low)
+        self._observed_high = bounded
+        self._field_capacity = bounded
+        self._enforce_capacity_gap()
+
     def seed_envelope(self, values: Iterable[float]) -> None:
         """Initialise the FC/WP envelope from a window of moisture observations.
 

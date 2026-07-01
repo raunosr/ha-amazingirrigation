@@ -17,6 +17,7 @@ from homeassistant.core import HomeAssistant
 from .const import (
     CONF_ZONES,
     DATA_CONTROLLERS,
+    DATA_DISCOVERY,
     DATA_HISTORY,
     DATA_LEARNERS,
     DATA_RAIN_WATCHERS,
@@ -26,6 +27,7 @@ from .const import (
     DATA_ZONE_STATE,
     DOMAIN,
 )
+from .discovery_controller import build_discovery_controllers
 from .frontend_card import async_register_card
 from .history import build_histories
 from .history_ingest import async_bootstrap_zone
@@ -63,6 +65,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     rain_watchers = build_rain_watchers(hass, zones, histories)
     weather_provider = build_weather_provider(hass, zones)
     learners = build_learners(hass, zones, zone_state)
+    discovery = build_discovery_controllers(hass, zones, zone_state, learners)
     domain_data[entry.entry_id] = {
         DATA_CONTROLLERS: controllers,
         DATA_SCHEDULER: scheduler,
@@ -71,6 +74,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         DATA_WEATHER_PROVIDER: weather_provider,
         DATA_ZONE_STATE: zone_state,
         DATA_LEARNERS: learners,
+        DATA_DISCOVERY: discovery,
     }
 
     if PLATFORMS:
@@ -84,6 +88,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await weather_provider.async_start()
     for learner in learners.values():
         learner.async_start()
+    for discovery_controller in discovery.values():
+        discovery_controller.async_start()
     hass.async_create_task(_async_bootstrap_missing_models(hass, zones, zone_state))
 
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
@@ -115,6 +121,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 weather_provider.async_stop()
             for learner in entry_data.get(DATA_LEARNERS, {}).values():
                 learner.async_stop()
+            for discovery_controller in entry_data.get(DATA_DISCOVERY, {}).values():
+                discovery_controller.async_shutdown()
             for controller in entry_data.get(DATA_CONTROLLERS, {}).values():
                 controller.teardown()
         # Entry data is keyed by entry_id; ignore domain-level caches/flags.

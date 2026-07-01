@@ -96,6 +96,11 @@ always override learned ones, and every value stays inside safe bounds.
   any time with the per-zone **Re-learn from History** button or the
   `amazing_irrigation.relearn_from_history` service. It degrades gracefully when no
   history is available and reports how much it used and from which source.
+- **Field Capacity Discovery.** A guided, human-in-the-loop calibration (FAO-56
+  in-situ drainage method): you saturate the sensor and cover the soil, and the
+  integration monitors the drainage curve and records **Field Capacity** when
+  drainage settles — a rate-based, texture-adaptive stop (not a fixed clock). See
+  [`docs/usage.md`](./docs/usage.md#field-capacity-discovery).
 - **Model Insight.** A per-zone diagnostic sensor and the card section above make
   every learned parameter, its confidence, the bootstrap summary and the reasoning
   behind each decision reviewable on the device page.
