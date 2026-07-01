@@ -256,11 +256,33 @@ def test_observe_moisture_rejects_rail_readings():
     assert estimator.params.field_capacity == pytest.approx(45.0)
     assert estimator.params.wilting_point == pytest.approx(18.0)
 
-    # In-range extremes are still accepted (fast attack on new high/low).
-    estimator.observe_moisture(48.0)
-    estimator.observe_moisture(15.0)
-    assert estimator.params.field_capacity == pytest.approx(48.0)
-    assert estimator.params.wilting_point == pytest.approx(15.0)
+    # A single in-range spike is NOT a drained plateau: Field Capacity is the
+    # drained upper limit, so a transient high above FC is ignored.
+    estimator.observe_moisture(80.0, dt_hours=1.0)
+    assert estimator.params.field_capacity == pytest.approx(45.0)
+
+
+def test_field_capacity_learns_drained_upper_limit_not_peak():
+    """FC settles on the post-drainage plateau, ignoring the wetting peak."""
+    prior = replace(default_params("loam"), field_capacity=95.0, wilting_point=5.0)
+    estimator = JointEstimator(prior)
+
+    # Saturation peak (~58) draining to a stable ~43-44 plateau, plus a stray
+    # offline spike (92) that must not pin FC.
+    series = (
+        [40.0] * 4
+        + [42, 47, 52, 55, 58, 57]  # wetting ramp to the saturation peak
+        + [92.0]  # transient offline/reconnect spike
+        + [55, 52, 49, 47, 45, 44]  # gravitational drainage
+        + [44.0] * 8
+        + [43.5] * 8
+        + [43.0] * 12  # drained plateau + slow ET decline
+    )
+    for value in series:
+        estimator.observe_moisture(value, dt_hours=1.0)
+
+    assert estimator.params.field_capacity == pytest.approx(44.0, abs=1.5)
+    assert estimator.params.field_capacity < 58.0
 
 
 def test_seed_envelope_recovers_from_polluted_prior():
@@ -270,21 +292,29 @@ def test_seed_envelope_recovers_from_polluted_prior():
     assert estimator.params.field_capacity == pytest.approx(100.0)
     assert estimator.params.wilting_point == pytest.approx(0.0)
 
-    estimator.seed_envelope([40.0, 45.0, 0.0, 100.0, 42.0, 41.0])
+    # A saturation→drainage window re-derives FC as the drained plateau (~44),
+    # not the stale 100 prior nor the wetting peak.
+    window = (
+        [40.0] * 3
+        + [46, 52, 58, 56]
+        + [52, 48, 45, 44]
+        + [44.0] * 6
+        + [43.0] * 8
+    )
+    estimator.seed_envelope(window)
 
-    assert estimator.params.field_capacity == pytest.approx(45.0, abs=0.01)
-    assert estimator.params.wilting_point == pytest.approx(40.0, abs=0.01)
+    assert estimator.params.field_capacity == pytest.approx(44.0, abs=1.5)
+    assert estimator.params.wilting_point < 45.0
 
 
 def test_envelope_contracts_as_stale_extreme_decays():
     """A stale high fades toward recent readings over the adaptation half-life."""
-    prior = replace(default_params("loam"), field_capacity=45.0, wilting_point=18.0)
+    prior = replace(default_params("loam"), field_capacity=80.0, wilting_point=18.0)
     estimator = JointEstimator(prior, half_life_days=30.0)
 
-    estimator.observe_moisture(80.0)
     assert estimator.params.field_capacity == pytest.approx(80.0)
 
-    # One half-life (30 days) at 45% should release the high halfway toward 45.
+    # One half-life (30 days) at 45% should release the stale high halfway.
     estimator.observe_moisture(45.0, dt_hours=30.0 * 24.0)
     assert estimator.params.field_capacity == pytest.approx(62.5, abs=0.5)
 
@@ -295,10 +325,9 @@ def test_envelope_contracts_as_stale_extreme_decays():
 
 def test_disabled_half_life_keeps_monotonic_release_weight():
     """With time-decay disabled the envelope falls back to flat EMA release."""
-    prior = replace(default_params("loam"), field_capacity=45.0, wilting_point=18.0)
+    prior = replace(default_params("loam"), field_capacity=80.0, wilting_point=18.0)
     estimator = JointEstimator(prior, half_life_days=None, envelope_alpha=0.5)
 
-    estimator.observe_moisture(80.0)
     estimator.observe_moisture(45.0, dt_hours=1.0)
 
     assert estimator.params.field_capacity == pytest.approx(62.5, abs=0.5)

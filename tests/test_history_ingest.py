@@ -220,8 +220,35 @@ def test_bootstrap_recovers_envelope_from_polluted_prior() -> None:
     assert result.success is True
     assert result.params.field_capacity < 60.0
     assert result.params.wilting_point > 0.0
-    assert result.params.field_capacity == pytest.approx(45.0, abs=1.0)
-    assert result.params.wilting_point == pytest.approx(40.0, abs=1.0)
+    assert result.params.field_capacity == pytest.approx(42.5, abs=2.0)
+    assert result.params.wilting_point == pytest.approx(40.0, abs=1.5)
+
+
+def test_bootstrap_recovers_envelope_even_with_few_intervals() -> None:
+    """FC/WP are re-derived from the window even below the interval threshold.
+
+    Field Capacity / Wilting Point are moisture-envelope quantities and must not
+    stay pinned to a stale learned prior just because there are too few irrigation
+    intervals to fit the linear coefficients.
+    """
+    polluted = replace(
+        default_params("loam"), field_capacity=100.0, wilting_point=0.0
+    )
+    observations = [
+        EstimatorObservation(
+            theta_start=40.0 + (index % 6),
+            theta_end=40.0 + ((index + 1) % 6),
+            dt=1.0,
+        )
+        for index in range(5)
+    ]
+
+    result = bootstrap_from_series(polluted, observations, min_intervals=20)
+
+    assert result.success is False
+    assert result.reason == "insufficient_history"
+    assert result.params.field_capacity < 60.0
+    assert result.params.wilting_point > 0.0
 
 
 

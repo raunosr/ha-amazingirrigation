@@ -237,13 +237,27 @@ def bootstrap_from_series(
     bounded_prior = prior_params.clamped()
     intervals = list(observations)
     days_span = sum(max(0.0, _finite_float(obs.dt) or 0.0) for obs in intervals) / 24.0
+    estimator = JointEstimator(
+        prior_params=bounded_prior,
+        prior_cov=[16.0, 16.0, 2.0, 0.20],
+        measurement_noise=0.25,
+        overrides=overrides,
+    )
+    # Field Capacity / Wilting Point are moisture-envelope quantities: derive them
+    # from the fetched moisture window regardless of how many irrigation intervals
+    # exist, so a re-learn never inherits a stale (possibly polluted) learned FC.
+    estimator.seed_envelope(
+        moisture
+        for obs in intervals
+        for moisture in (obs.theta_start, obs.theta_end)
+    )
     if len(intervals) < min_intervals:
         summary = (
             f"Insufficient history: {len(intervals)} intervals over "
             f"{days_span:.1f} days"
         )
         return BootstrapResult(
-            params=bounded_prior,
+            params=estimator.params,
             confidence={},
             covariance=[],
             intervals_used=len(intervals),
@@ -253,17 +267,6 @@ def bootstrap_from_series(
             reason="insufficient_history",
         )
 
-    estimator = JointEstimator(
-        prior_params=bounded_prior,
-        prior_cov=[16.0, 16.0, 2.0, 0.20],
-        measurement_noise=0.25,
-        overrides=overrides,
-    )
-    estimator.seed_envelope(
-        moisture
-        for obs in intervals
-        for moisture in (obs.theta_start, obs.theta_end)
-    )
     params = estimator.fit(intervals)
     covariance = estimator.covariance.tolist()
     summary = f"Learned from {len(intervals)} intervals over {days_span:.1f} days"

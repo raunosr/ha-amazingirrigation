@@ -74,6 +74,14 @@ Drainage rate, plus bounded Field Capacity / Wilting Point — using a recursive
 estimator that also reports a **Model Confidence** per parameter. Manual values
 always override learned ones, and every value stays inside safe bounds.
 
+**Field Capacity** is learned as the **drained upper limit (DUL)** — the settled
+moisture plateau a zone holds after gravitational drainage stops following a wetting
+event — not the wetting peak. A clear saturation→drainage signal in history therefore
+pulls Field Capacity toward the true drained value, while transient saturation peaks
+and offline/reconnect spikes are ignored. A zone that never saturates in the learning
+window keeps its soil-preset/prior Field Capacity (use a manual anchor or Discovery
+there).
+
 - **Climate inputs.** For accurate Evapotranspiration, configure the optional
   observed/forecast air temperature and humidity (and optional wind and solar)
   inputs on each zone. Greenhouse zones can use their local temperature/humidity

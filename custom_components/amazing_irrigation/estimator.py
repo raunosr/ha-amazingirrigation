@@ -50,6 +50,18 @@ PARAMETER_NAMES = COEFFICIENT_NAMES + ENVELOPE_NAMES
 # change while older history only sets the baseline.
 DEFAULT_ADAPTATION_HALF_LIFE_DAYS = 30.0
 
+# Field Capacity is the *drained upper limit* (DUL): the settled moisture plateau a
+# soil holds after gravitational drainage stops following saturation — NOT the wetting
+# peak. These constants drive the drainage-plateau detector that learns FC from that
+# plateau so a saturation→drainage signal in history forces FC toward the true value
+# while transient peaks and offline/reconnect spikes are ignored.
+PLATEAU_BAND = 2.0  # % moisture: samples within this range count as one flat run
+PLATEAU_MIN_SAMPLES = 3  # a run needs at least this many samples to confirm a plateau
+PLATEAU_MIN_HOURS = 2.0  # ...and this much cumulative in-band time (real dwell, not noise)
+PLATEAU_WET_RISE = 4.0  # % rise above the recent trough that marks a wetting event
+PLATEAU_DRAIN_DROP = 3.0  # % a plateau must sit below the wetting peak to be a drained level
+PLATEAU_FC_GAIN = 0.30  # how strongly each drainage-plateau sample pulls FC toward the DUL
+
 _BOUNDS: dict[str, tuple[float, float]] = {
     "eta_irr": (ETA_IRR_MIN, ETA_IRR_MAX),
     "eta_rain": (ETA_RAIN_MIN, ETA_RAIN_MAX),
@@ -160,6 +172,7 @@ class JointEstimator:
         self._fit_count = 0
         self._observed_high = bounded.field_capacity
         self._observed_low = bounded.wilting_point
+        self._reset_plateau_state()
         self._overrides: dict[str, float] = {}
         if overrides:
             for name, value in overrides.items():
@@ -248,29 +261,107 @@ class JointEstimator:
         """Feed one moisture reading into the FC/WP envelope tracker.
 
         Rail readings (0 or 100 — typically an offline or saturated sensor) are
-        rejected so they cannot pin the envelope.  The envelope tracks recent
-        extremes with a fast attack toward new highs/lows and a time-decayed
-        slow release, so stale extremes fade with the configured half-life and
-        recent conditions dominate.  ``dt_hours`` is the time the reading
-        represents and scales the release.
+        rejected so they cannot pin the envelope.
+
+        Field Capacity is the *drained upper limit* (DUL): the settled plateau a
+        soil holds after gravitational drainage stops following a wetting event —
+        not the wetting peak.  A confirmed drainage plateau (moisture rose by a
+        wetting margin, then settled below the peak) is treated as a direct DUL
+        measurement and pulls FC decisively toward it; unconfirmed transient
+        peaks and offline spikes are ignored.  Stale highs still decay via the
+        time-scaled release, so recent conditions dominate.  ``dt_hours`` is the
+        time the reading represents and scales both the release and the plateau
+        dwell.  Wilting Point tracks confirmed plateau lows with slow release up.
         """
         observed = _finite_float(theta)
         if observed is None or observed <= MOISTURE_MIN or observed >= MOISTURE_MAX:
             return
         release = self._envelope_release(dt_hours)
+        level, is_drainage = self._detect_plateau(observed, dt_hours)
         if "field_capacity" not in self._overrides:
-            if observed >= self._observed_high:
-                self._observed_high = observed
-            else:
+            if level is not None and is_drainage:
+                # A drained plateau below the wetting peak = a DUL measurement.
+                self._observed_high += PLATEAU_FC_GAIN * (level - self._observed_high)
+            elif level is not None and level >= self._observed_high:
+                self._observed_high = level
+            elif observed < self._observed_high:
                 self._observed_high += release * (observed - self._observed_high)
             self._field_capacity = self._observed_high
         if "wilting_point" not in self._overrides:
-            if observed <= self._observed_low:
-                self._observed_low = observed
-            else:
+            if level is not None and level <= self._observed_low:
+                self._observed_low = level
+            elif observed > self._observed_low:
                 self._observed_low += release * (observed - self._observed_low)
             self._wilting_point = self._observed_low
         self._enforce_capacity_gap()
+
+    def _reset_plateau_state(self) -> None:
+        """Clear the drainage-plateau detector (called on construction/seed)."""
+        self._run_min: float | None = None
+        self._run_max: float | None = None
+        self._run_sum = 0.0
+        self._run_count = 0
+        self._run_hours = 0.0
+        self._run_is_dul = False
+        self._trough: float | None = None
+        self._peak: float | None = None
+        self._armed = False
+
+    def _detect_plateau(
+        self, observed: float, dt_hours: float
+    ) -> tuple[float | None, bool]:
+        """Advance the plateau detector; return ``(level, is_drainage)``.
+
+        ``level`` is the confirmed plateau mean (or ``None`` while unconfirmed).
+        ``is_drainage`` is ``True`` when that plateau is a drained upper limit: a
+        wetting event was seen and the plateau settled at least
+        ``PLATEAU_DRAIN_DROP`` below the wetting peak.  Once a drainage plateau is
+        recognised the detector disarms so a later dry-down (no fresh wetting)
+        cannot drag FC down; a new wetting event re-arms it.
+        """
+        elapsed = max(0.0, _finite_float(dt_hours) or 0.0)
+        # Track wetting: a rise of PLATEAU_WET_RISE above the recent trough arms
+        # the detector and records the peak reached since that trough.
+        if self._trough is None:
+            self._trough = observed
+            self._peak = observed
+        self._trough = min(self._trough, observed)
+        self._peak = max(self._peak if self._peak is not None else observed, observed)
+        if observed - self._trough >= PLATEAU_WET_RISE:
+            self._armed = True
+
+        # Extend the current flat run, or start a new one when the band is broken.
+        if self._run_min is None or (
+            max(self._run_max, observed) - min(self._run_min, observed) > PLATEAU_BAND
+        ):
+            self._run_min = observed
+            self._run_max = observed
+            self._run_sum = observed
+            self._run_count = 1
+            self._run_hours = 0.0
+            self._run_is_dul = False
+        else:
+            self._run_min = min(self._run_min, observed)
+            self._run_max = max(self._run_max, observed)
+            self._run_sum += observed
+            self._run_count += 1
+            self._run_hours += elapsed
+
+        if self._run_count < PLATEAU_MIN_SAMPLES or self._run_hours < PLATEAU_MIN_HOURS:
+            return None, False
+        level = self._run_sum / self._run_count
+        peak = self._peak if self._peak is not None else level
+        is_drainage = self._run_is_dul or (
+            self._armed and (peak - level) >= PLATEAU_DRAIN_DROP
+        )
+        if is_drainage:
+            # Consume the wetting event: keep correcting FC across this same
+            # plateau run, but require a fresh wetting cycle for the next one.
+            self._run_is_dul = True
+            self._armed = False
+            self._trough = level
+            self._peak = level
+        return level, is_drainage
 
     def seed_field_capacity(self, value: float) -> None:
         """Anchor Field Capacity from an in-situ drainage measurement.
@@ -291,13 +382,19 @@ class JointEstimator:
         self._field_capacity = bounded
         self._enforce_capacity_gap()
 
-    def seed_envelope(self, values: Iterable[float]) -> None:
+    def seed_envelope(
+        self, values: Iterable[float], *, dt_hours: float | None = None
+    ) -> None:
         """Initialise the FC/WP envelope from a window of moisture observations.
 
         Used by the from-history bootstrap so a re-learn derives the envelope
         from the freshly fetched data rather than inheriting a previously
-        learned (possibly polluted) field capacity / wilting point.  Rail and
-        non-finite values are ignored.
+        learned (possibly polluted) field capacity / wilting point.  The window
+        is replayed through the same drainage-plateau detector as live learning,
+        so Field Capacity settles on the drained upper limit rather than the
+        wetting peak.  Rail and non-finite values are ignored.  ``dt_hours`` is
+        the assumed spacing between consecutive samples (used for the plateau
+        dwell); when omitted a nominal one-hour cadence is assumed.
         """
         clean = [
             value
@@ -306,13 +403,25 @@ class JointEstimator:
         ]
         if not clean:
             return
+        spacing = _finite_float(dt_hours)
+        if spacing is None or spacing <= 0.0:
+            spacing = 1.0
+        # Re-derive the envelope from *this* window (never inherit a stale prior):
+        # start from robust percentiles (immune to lone spikes / the wetting peak),
+        # then replay the drainage-plateau detector so FC settles on the drained
+        # upper limit whenever the window shows a saturation→drainage cycle.
+        high_seed = float(np.percentile(clean, 90))
+        low_seed = float(np.percentile(clean, 10))
+        self._reset_plateau_state()
         if "field_capacity" not in self._overrides:
-            self._observed_high = max(clean)
-            self._field_capacity = self._observed_high
+            self._observed_high = high_seed
+            self._field_capacity = high_seed
         if "wilting_point" not in self._overrides:
-            self._observed_low = min(clean)
-            self._wilting_point = self._observed_low
+            self._observed_low = low_seed
+            self._wilting_point = low_seed
         self._enforce_capacity_gap()
+        for value in clean:
+            self.observe_moisture(value, dt_hours=spacing)
 
     def _envelope_release(self, dt_hours: float) -> float:
         """Release fraction for the envelope, time-scaled to the half-life."""
