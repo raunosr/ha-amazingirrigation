@@ -76,7 +76,7 @@ async def test_add_zone_creates_record(hass: HomeAssistant) -> None:
             CONF_TARGET_MOISTURE_LOW: 35,
             CONF_TARGET_MOISTURE_HIGH: 45,
             CONF_ET_SOURCE: "weather",
-            CONF_SOIL_TYPE: "sand",
+            CONF_SOIL_TYPE: "sandy",
         },
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
@@ -96,7 +96,7 @@ async def test_add_zone_creates_record(hass: HomeAssistant) -> None:
     assert record[CONF_TARGET_MOISTURE_LOW] == 35
     assert record[CONF_TARGET_MOISTURE_HIGH] == 45
     assert record[CONF_ET_SOURCE] == "weather"
-    assert record[CONF_SOIL_TYPE] == "sand"
+    assert record[CONF_SOIL_TYPE] == "sandy"
 
 
 async def test_add_zone_time_pickers_map_to_schedule_times(

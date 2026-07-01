@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import PERCENTAGE, UnitOfVolume
+from homeassistant.const import PERCENTAGE, UnitOfLength, UnitOfVolume
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -38,6 +38,9 @@ async def async_setup_entry(
         zone = ZoneConfig.from_record(zone_id, record)
         entities.append(TargetMoistureNumber(entry, zone, store))
         entities.append(MaxLitersNumber(entry, zone, store))
+        entities.append(SensorDepthNumber(entry, zone, store))
+        entities.append(RainFractionNumber(entry, zone, store))
+        entities.append(MinApplicationNumber(entry, zone, store))
     async_add_entities(entities)
 
 
@@ -120,3 +123,61 @@ class MaxLitersNumber(_ZoneStateNumber):
         """Initialise the Max Liters number for a zone."""
         super().__init__(entry, zone, store)
         self._attr_unique_id = f"{entry.entry_id}_{zone.zone_id}_max_liters"
+
+
+class SensorDepthNumber(_ZoneStateNumber):
+    """The installation depth of the soil-moisture probe."""
+
+    _attr_name = "Sensor Depth"
+    _attr_icon = "mdi:ruler"
+    _attr_native_unit_of_measurement = UnitOfLength.MILLIMETERS
+    _attr_native_min_value = 0.0
+    _attr_native_max_value = 1500.0
+    _attr_native_step = 10.0
+    _attribute = "sensor_depth_mm"
+
+    def __init__(
+        self, entry: ConfigEntry, zone: ZoneConfig, store: ZoneStateStore
+    ) -> None:
+        """Initialise the Sensor Depth number for a zone."""
+        super().__init__(entry, zone, store)
+        self._attr_unique_id = f"{entry.entry_id}_{zone.zone_id}_sensor_depth_mm"
+
+
+class RainFractionNumber(_ZoneStateNumber):
+    """How much natural rainfall reaches this zone (0–100%)."""
+
+    _attr_name = "Rain Fraction"
+    _attr_icon = "mdi:weather-rainy"
+    _attr_mode = NumberMode.SLIDER
+    _attr_native_unit_of_measurement = PERCENTAGE
+    _attr_native_min_value = 0.0
+    _attr_native_max_value = 100.0
+    _attr_native_step = 5.0
+    _attribute = "rain_fraction"
+
+    def __init__(
+        self, entry: ConfigEntry, zone: ZoneConfig, store: ZoneStateStore
+    ) -> None:
+        """Initialise the Rain Fraction number for a zone."""
+        super().__init__(entry, zone, store)
+        self._attr_unique_id = f"{entry.entry_id}_{zone.zone_id}_rain_fraction"
+
+
+class MinApplicationNumber(_ZoneStateNumber):
+    """The minimum watering amount below which a run is skipped."""
+
+    _attr_name = "Minimum Application"
+    _attr_icon = "mdi:water-minus"
+    _attr_native_unit_of_measurement = UnitOfVolume.LITERS
+    _attr_native_min_value = 0.0
+    _attr_native_max_value = 100.0
+    _attr_native_step = 0.1
+    _attribute = "min_application"
+
+    def __init__(
+        self, entry: ConfigEntry, zone: ZoneConfig, store: ZoneStateStore
+    ) -> None:
+        """Initialise the Minimum Application number for a zone."""
+        super().__init__(entry, zone, store)
+        self._attr_unique_id = f"{entry.entry_id}_{zone.zone_id}_min_application"

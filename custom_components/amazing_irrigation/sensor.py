@@ -40,6 +40,7 @@ from .const import (
     DATA_LEARNERS,
     DATA_MODEL_INSIGHT_ENTITIES,
     DATA_ZONE_STATE,
+    DEMAND_PROFILE_OPTIONS,
     DISCOVERY_AWAITING_SATURATION,
     DISCOVERY_CANCELLED,
     DISCOVERY_COMPLETED,
@@ -49,6 +50,7 @@ from .const import (
     DISCOVERY_MIN_WAIT_HOURS,
     DISCOVERY_MONITORING,
     DOMAIN,
+    SOIL_TYPE_OPTIONS,
 )
 from .decision import evaluate_zone
 from .discovery_controller import DiscoveryController
@@ -314,6 +316,20 @@ class IrrigationDecisionSensor(SensorEntity):
         live = self._zone_state()
         target_mode = live.target_mode if live else self._zone.target_mode
         demand_profile = live.demand_profile if live else self._zone.demand_profile
+        soil_type = live.soil_type if live else self._zone.soil_type
+        sensor_depth_mm = (
+            live.sensor_depth_mm if live else self._zone.sensor_depth_mm
+        )
+        rain_fraction = live.rain_fraction if live else self._zone.rain_fraction
+        min_application = (
+            live.min_application if live else self._zone.min_application
+        )
+        root_depth_mm = self._zone.root_depth_mm
+        sensor_depth_shallow = bool(
+            sensor_depth_mm is not None
+            and root_depth_mm
+            and sensor_depth_mm < 0.5 * root_depth_mm
+        )
         target_moisture = (
             live.target_moisture
             if live and live.target_moisture is not None
@@ -327,6 +343,13 @@ class IrrigationDecisionSensor(SensorEntity):
             "target_moisture": target_moisture,
             "target_mode": target_mode,
             "demand_profile": demand_profile,
+            "demand_profile_options": list(DEMAND_PROFILE_OPTIONS),
+            "soil_type": soil_type,
+            "soil_type_options": list(SOIL_TYPE_OPTIONS),
+            "sensor_depth_mm": sensor_depth_mm,
+            "sensor_depth_shallow": sensor_depth_shallow,
+            "rain_fraction": rain_fraction,
+            "min_application": min_application,
             "max_liters": self._zone.max_liters,
             "field_capacity": self._zone.field_capacity,
             "wilting_point": self._zone.wilting_point,

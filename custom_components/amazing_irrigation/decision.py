@@ -21,9 +21,9 @@ from homeassistant.util import dt as dt_util
 from .const import DATA_WEATHER_FORECAST, DOMAIN
 from .controller import ForecastInterval, TargetBand, band_from_target
 from .demand import target_band_for_profile
-from .engine import Decision, DecisionInputs, decide
+from .engine import Decision, DecisionInputs, decide, is_heat_emergency
 from .state import ZoneState, params_from_state
-from .waterbalance import Climate
+from .waterbalance import Climate, default_params
 from .weather_forecast import ForecastPoint, horizon_from_forecast, near_term_rain
 from .zone import ZoneConfig, aggregate_zone_moisture, is_in_season
 
@@ -71,6 +71,56 @@ def _gain_per_liter(zone: ZoneConfig, state: ZoneState | None) -> float | None:
     if state is not None and state.learning_enabled:
         return state.learned_gain_per_liter
     return zone.gain_per_liter
+
+
+def _effective_soil_type(zone: ZoneConfig, state: ZoneState | None) -> str:
+    """Live soil type wins over the config seed."""
+    if state is not None and getattr(state, "soil_type", None):
+        return state.soil_type
+    return zone.soil_type
+
+
+def _effective_demand_profile(zone: ZoneConfig, state: ZoneState | None) -> str:
+    """Live demand profile wins over the config seed."""
+    if state is not None and getattr(state, "demand_profile", None):
+        return state.demand_profile
+    return zone.demand_profile
+
+
+def _effective_rain_fraction(zone: ZoneConfig, state: ZoneState | None) -> float:
+    """Live rain fraction (0-100 %) wins over the config seed."""
+    value = zone.rain_fraction
+    if state is not None and getattr(state, "rain_fraction", None) is not None:
+        value = state.rain_fraction
+    return max(0.0, min(100.0, value))
+
+
+def _effective_min_application(zone: ZoneConfig, state: ZoneState | None) -> float:
+    """Live minimum application (liters) wins over the config seed."""
+    value = zone.min_application
+    if state is not None and getattr(state, "min_application", None) is not None:
+        value = state.min_application
+    return max(0.0, value)
+
+
+def _zone_params(zone: ZoneConfig, state: ZoneState | None):
+    """Reconstruct water-balance params (live soil type, geometry, profile)."""
+    soil_type = _effective_soil_type(zone, state)
+    demand_profile = _effective_demand_profile(zone, state)
+    if state is not None:
+        return params_from_state(
+            state,
+            soil_type=soil_type,
+            area_m2=zone.area_m2,
+            root_depth_mm=zone.root_depth_mm,
+            demand_profile=demand_profile,
+        )
+    return default_params(
+        soil_type,
+        area_m2=zone.area_m2,
+        root_depth_mm=zone.root_depth_mm,
+        demand_profile=demand_profile,
+    )
 
 
 def _climate_preference(zone: ZoneConfig) -> str:
@@ -182,6 +232,25 @@ def _weather_points(hass: HomeAssistant, zone: ZoneConfig) -> list[ForecastPoint
     return points if points else None
 
 
+def _scale_horizon_rain(
+    intervals: list[ForecastInterval], fraction: float
+) -> list[ForecastInterval]:
+    """Scale each interval's rainfall by a covered-zone rain fraction (0..1)."""
+    if fraction >= 1.0:
+        return intervals
+    if fraction <= 0.0:
+        fraction = 0.0
+    return [
+        ForecastInterval(
+            dt=item.dt,
+            rain_mm=max(0.0, item.rain_mm) * fraction,
+            climate=item.climate,
+            protected_rain=item.protected_rain,
+        )
+        for item in intervals
+    ]
+
+
 def _forecast_horizon(
     hass: HomeAssistant,
     zone: ZoneConfig,
@@ -193,6 +262,7 @@ def _forecast_horizon(
     if total_hours <= 0:
         total_hours = _DEFAULT_HORIZON_HOURS
     points = _weather_points(hass, zone)
+    fraction = _effective_rain_fraction(zone, state) / 100.0
     if points:
         weather_intervals = horizon_from_forecast(
             points,
@@ -204,7 +274,7 @@ def _forecast_horizon(
             solar=read_number(hass, zone.solar_radiation),
         )
         if weather_intervals:
-            return weather_intervals
+            return _scale_horizon_rain(weather_intervals, fraction)
     climate = _climate_from_entities(hass, zone)
     forecast_rain = _effective_forecast_rain(hass, zone)
     intervals: list[ForecastInterval] = []
@@ -213,7 +283,7 @@ def _forecast_horizon(
         dt = min(_MAX_HORIZON_STEP_HOURS, remaining)
         rain_mm = 0.0
         if total_hours > 0 and forecast_rain > 0:
-            rain_mm = forecast_rain * (dt / total_hours)
+            rain_mm = forecast_rain * (dt / total_hours) * fraction
         intervals.append(
             ForecastInterval(
                 dt=dt,
@@ -230,6 +300,7 @@ def _predictive_kwargs(
     hass: HomeAssistant,
     zone: ZoneConfig,
     state: ZoneState | None,
+    params,
     target_moisture: float | None,
     now: datetime,
 ) -> dict:
@@ -240,10 +311,8 @@ def _predictive_kwargs(
         or not isinstance(state.model_params, Mapping)
         or not state.model_params
         or target_moisture is None
+        or params is None
     ):
-        return {}
-    params = params_from_state(state, soil_type=zone.soil_type)
-    if params is None:
         return {}
     horizon = _forecast_horizon(hass, zone, state, now)
     if not horizon:
@@ -252,9 +321,6 @@ def _predictive_kwargs(
         "predictive": True,
         "params": params,
         "horizon": horizon,
-        "target_band": _target_band(
-            hass, zone, state, target_moisture, params.field_capacity, params.wilting_point
-        ),
     }
 
 
@@ -354,7 +420,22 @@ def build_inputs(
         enabled = state.enabled
     if zone.target_moisture_low is not None:
         target_moisture = zone.target_moisture_low
-    predictive = _predictive_kwargs(hass, zone, state, target_moisture, now)
+
+    params = _zone_params(zone, state)
+    field_capacity = params.field_capacity if params is not None else None
+    wilting_point = params.wilting_point if params is not None else None
+    target_band = _target_band(
+        hass, zone, state, target_moisture, field_capacity, wilting_point
+    )
+
+    demand_profile = _effective_demand_profile(zone, state)
+    rain_fraction = _effective_rain_fraction(zone, state)
+    min_application = _effective_min_application(zone, state)
+    air_temp = _first_number(hass, _temperature_candidates(zone))
+    air_humidity = _first_number(hass, _humidity_candidates(zone))
+    heat_emergency = is_heat_emergency(demand_profile, air_temp, air_humidity)
+
+    predictive = _predictive_kwargs(hass, zone, state, params, target_moisture, now)
     forecast_rain_mm, forecast_rain_probability = _forecast_rain_inputs(
         hass, zone, state, now
     )
@@ -374,7 +455,12 @@ def build_inputs(
         in_season=in_season,
         zone_locked=zone_locked,
         force=force,
-        protected_rain=zone.protected_rain,
+        protected_rain=rain_fraction <= 0.0,
+        rain_fraction=rain_fraction,
+        min_application=min_application,
+        heat_emergency=heat_emergency,
+        field_capacity=field_capacity,
+        target_band=target_band,
         **predictive,
     )
 

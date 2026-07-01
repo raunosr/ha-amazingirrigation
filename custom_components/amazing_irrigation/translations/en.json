@@ -46,6 +46,9 @@
           "soil_type": "Soil type preset",
           "area_m2": "Bed area (m², optional)",
           "root_depth_mm": "Root depth (mm, optional)",
+          "sensor_depth_mm": "Moisture sensor depth (mm, optional)",
+          "rain_fraction": "Rain reaching this zone (%)",
+          "min_application": "Minimum watering amount (L)",
           "greenhouse": "Greenhouse Zone",
           "observed_air_temperature": "ET climate observed air temperature (optional)",
           "observed_air_humidity": "ET climate observed air humidity (optional)",
@@ -72,6 +75,9 @@
           "soil_type": "Seeds the water-balance model before enough learning history exists.",
           "area_m2": "Optional. Couples litres to depth so a new zone starts near the right gain. Steady-state learning overrides it.",
           "root_depth_mm": "Optional. Wetted root-zone depth used to convert mm of water to moisture % and ground FAO-56 ET. ~200 mm if unsure.",
+          "sensor_depth_mm": "Optional. Installation depth of the soil-moisture probe. Warns if much shallower than the root depth, which over-triggers watering.",
+          "rain_fraction": "Share of natural rainfall that reaches this zone. 100% for open beds, 0% for greenhouses, in between for covered or partly-covered zones.",
+          "min_application": "Skip watering when the computed amount is below this, unless a heat emergency applies. Avoids frequent tiny top-ups.",
           "weather_forecast_entity": "Optional weather entity used as the preferred hourly forecast source for temperature, humidity, wind and rain.",
           "observed_air_temperature": "Optional ET/model input. Use a local greenhouse sensor for greenhouse zones, or an outdoor weather-station sensor for outdoor zones.",
           "observed_air_humidity": "Optional ET/model input. Use a local greenhouse sensor for greenhouse zones, or an outdoor weather-station sensor for outdoor zones.",
@@ -110,6 +116,9 @@
           "soil_type": "Soil type preset",
           "area_m2": "Bed area (m², optional)",
           "root_depth_mm": "Root depth (mm, optional)",
+          "sensor_depth_mm": "Moisture sensor depth (mm, optional)",
+          "rain_fraction": "Rain reaching this zone (%)",
+          "min_application": "Minimum watering amount (L)",
           "greenhouse": "Greenhouse Zone",
           "observed_air_temperature": "ET climate observed air temperature (optional)",
           "observed_air_humidity": "ET climate observed air humidity (optional)",
@@ -136,6 +145,9 @@
           "soil_type": "Seeds the water-balance model before enough learning history exists.",
           "area_m2": "Optional. Couples litres to depth so a new zone starts near the right gain. Steady-state learning overrides it.",
           "root_depth_mm": "Optional. Wetted root-zone depth used to convert mm of water to moisture % and ground FAO-56 ET. ~200 mm if unsure.",
+          "sensor_depth_mm": "Optional. Installation depth of the soil-moisture probe. Warns if much shallower than the root depth, which over-triggers watering.",
+          "rain_fraction": "Share of natural rainfall that reaches this zone. 100% for open beds, 0% for greenhouses, in between for covered or partly-covered zones.",
+          "min_application": "Skip watering when the computed amount is below this, unless a heat emergency applies. Avoids frequent tiny top-ups.",
           "weather_forecast_entity": "Optional weather entity used as the preferred hourly forecast source for temperature, humidity, wind and rain.",
           "observed_air_temperature": "Optional ET/model input. Use a local greenhouse sensor for greenhouse zones, or an outdoor weather-station sensor for outdoor zones.",
           "observed_air_humidity": "Optional ET/model input. Use a local greenhouse sensor for greenhouse zones, or an outdoor weather-station sensor for outdoor zones.",
@@ -204,9 +216,12 @@
     },
     "soil_type": {
       "options": {
-        "loam": "Loam",
-        "sand": "Sand",
-        "clay": "Clay"
+        "sandy": "Sandy soil (~20% field capacity)",
+        "standard_mineral": "Standard mineral garden soil (~30%)",
+        "good_garden": "Good garden soil (~40%)",
+        "peat_compost": "New peat/compost-rich soil (~47%)",
+        "potting_mix": "Greenhouse / potting mix (~52%)",
+        "clay": "Clay (legacy)"
       }
     },
     "actuator_type": {

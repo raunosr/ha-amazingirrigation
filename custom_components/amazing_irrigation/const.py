@@ -35,6 +35,19 @@ CONF_SEASON_END = "season_end"
 CONF_ET_SOURCE = "et_source"
 CONF_SOIL_TYPE = "soil_type"
 
+# Depth (mm) at which the moisture sensor is installed. Diagnostic only: a sensor
+# much shallower than the root zone over-reports drying and can over-trigger.
+CONF_SENSOR_DEPTH_MM = "sensor_depth_mm"
+
+# Continuous rain influence (0-100 %) replacing the binary protected-rain flag.
+# 100 = fully exposed (outdoor), 0 = fully protected (greenhouse), values between
+# for covered zones. Applied to effective rainfall in the decision engine.
+CONF_RAIN_FRACTION = "rain_fraction"
+
+# Smallest worthwhile application per run. Below this the run is skipped unless a
+# heat emergency overrides it. Stored in liters (mm converted via area_m2).
+CONF_MIN_APPLICATION = "min_application"
+
 # Optional physical zone geometry: irrigated area (m^2) and effective root-zone
 # depth (mm). When provided they seed physical eta priors and couple irrigation
 # and rain efficiency (eta_rain ~= eta_irr * area). Both are optional.
@@ -56,6 +69,27 @@ DEFAULT_HISTORY_DAYS_OPTION = "60"
 # Plant water-demand profile + target-moisture mode selector options.
 DEMAND_PROFILE_OPTIONS = ("low", "medium", "high")
 TARGET_MODE_OPTIONS = ("auto", "manual")
+
+# Soil-type presets shown in the config flow and the SELECT entity. The first
+# five mirror the guided soil table (Sandy 20 %, Standard mineral 30 %, Good
+# garden 40 %, Peat/compost 47 %, Greenhouse/potting 52 % field capacity);
+# ``clay`` is retained for backward compatibility with pre-0.18 zones.
+SOIL_TYPE_OPTIONS = (
+    "sandy",
+    "standard_mineral",
+    "good_garden",
+    "peat_compost",
+    "potting_mix",
+    "clay",
+)
+DEFAULT_SOIL_TYPE = "good_garden"
+
+# Migration of legacy soil-type keys (pre-0.18) onto the new preset set.
+SOIL_TYPE_MIGRATION = {
+    "sand": "sandy",
+    "loam": "good_garden",
+    "clay": "clay",
+}
 
 # Greenhouse Zone keys (a zone subtype with protected-environment context).
 CONF_GREENHOUSE = "greenhouse"
@@ -120,6 +154,20 @@ DEFAULT_TARGET_MOISTURE = 40.0
 DEFAULT_MAX_LITERS = 30.0
 DEFAULT_RAIN_SKIP_MM = 3.0
 DEFAULT_RAIN_SKIP_PROBABILITY = 60.0
+
+# Default continuous rain influence (fully exposed) and greenhouse override.
+DEFAULT_RAIN_FRACTION = 100.0
+GREENHOUSE_RAIN_FRACTION = 0.0
+
+# Default smallest worthwhile application per run, in liters. Matches the legacy
+# hard-coded ``MIN_EFFECTIVE_LITERS`` so behaviour is unchanged until edited.
+DEFAULT_MIN_APPLICATION = 0.1
+
+# Heat-emergency override thresholds. A ``high`` demand zone that is below its
+# trigger will water even below ``min_application`` when air temperature or vapour
+# pressure deficit exceed these limits.
+HEAT_EMERGENCY_TEMP_C = 32.0
+HEAT_EMERGENCY_VPD_KPA = 2.2
 
 # Default effective root-zone depth (mm) used when area is set without a depth.
 DEFAULT_ROOT_DEPTH_MM = 200.0

@@ -29,12 +29,14 @@ from .const import (
     CONF_HUMIDITY_SENSOR,
     CONF_LEARNING_ENABLED,
     CONF_MAX_LITERS,
+    CONF_MIN_APPLICATION,
     CONF_MOISTURE_SENSORS,
     CONF_NAME,
     CONF_OBSERVED_AIR_HUMIDITY,
     CONF_OBSERVED_AIR_TEMPERATURE,
     CONF_OBSERVED_RAIN_AMOUNT,
     CONF_PROTECTED_RAIN,
+    CONF_RAIN_FRACTION,
     CONF_RAIN_SKIP_MM,
     CONF_RAIN_SKIP_PROBABILITY,
     CONF_ROOT_DEPTH_MM,
@@ -43,6 +45,7 @@ from .const import (
     CONF_SCHEDULE_WEEKDAYS,
     CONF_SEASON_END,
     CONF_SEASON_START,
+    CONF_SENSOR_DEPTH_MM,
     CONF_SOIL_TYPE,
     CONF_SOLAR_RADIATION,
     CONF_TARGET_MODE,
@@ -54,9 +57,14 @@ from .const import (
     CONF_WILTING_POINT,
     CONF_WIND_SPEED,
     DEFAULT_MAX_LITERS,
+    DEFAULT_MIN_APPLICATION,
+    DEFAULT_RAIN_FRACTION,
     DEFAULT_RAIN_SKIP_MM,
     DEFAULT_RAIN_SKIP_PROBABILITY,
+    DEFAULT_SOIL_TYPE,
     DEFAULT_TARGET_MOISTURE,
+    SOIL_TYPE_MIGRATION,
+    SOIL_TYPE_OPTIONS,
 )
 
 
@@ -134,11 +142,14 @@ class ZoneConfig:
     demand_profile: str = "medium"
     target_mode: str = "manual"
     et_source: str = "auto"
-    soil_type: str = "loam"
+    soil_type: str = DEFAULT_SOIL_TYPE
+    sensor_depth_mm: float | None = None
     area_m2: float | None = None
     root_depth_mm: float | None = None
     greenhouse: bool = False
     protected_rain: bool = False
+    rain_fraction: float = DEFAULT_RAIN_FRACTION
+    min_application: float = DEFAULT_MIN_APPLICATION
     temperature_sensor: str | None = None
     humidity_sensor: str | None = None
     observed_air_temperature: str | None = None
@@ -185,11 +196,16 @@ class ZoneConfig:
                 record.get(CONF_TARGET_MODE), {"auto", "manual"}, "manual"
             ),
             et_source=_select(record.get(CONF_ET_SOURCE), {"auto", "weather", "greenhouse"}, "auto"),
-            soil_type=_select(record.get(CONF_SOIL_TYPE), {"loam", "sand", "clay"}, "loam"),
+            soil_type=_soil_type(record.get(CONF_SOIL_TYPE)),
+            sensor_depth_mm=_as_float(record.get(CONF_SENSOR_DEPTH_MM), None),
             area_m2=_as_float(record.get(CONF_AREA_M2), None),
             root_depth_mm=_as_float(record.get(CONF_ROOT_DEPTH_MM), None),
             greenhouse=bool(record.get(CONF_GREENHOUSE, False)),
-            protected_rain=bool(record.get(CONF_PROTECTED_RAIN, False)),
+            protected_rain=_rain_fraction(record) <= 0.0,
+            rain_fraction=_rain_fraction(record),
+            min_application=max(
+                0.0, _as_float(record.get(CONF_MIN_APPLICATION), DEFAULT_MIN_APPLICATION)
+            ),
             temperature_sensor=record.get(CONF_TEMPERATURE_SENSOR) or None,
             humidity_sensor=record.get(CONF_HUMIDITY_SENSOR) or None,
             observed_air_temperature=(
@@ -221,6 +237,33 @@ def _select(value: object, allowed: set[str], default: str) -> str:
         return default
     normalized = value.strip().lower()
     return normalized if normalized in allowed else default
+
+
+def _soil_type(value: object) -> str:
+    """Return a valid soil-type key, migrating legacy keys to the new presets."""
+    if not isinstance(value, str):
+        return DEFAULT_SOIL_TYPE
+    normalized = value.strip().lower()
+    normalized = SOIL_TYPE_MIGRATION.get(normalized, normalized)
+    return normalized if normalized in SOIL_TYPE_OPTIONS else DEFAULT_SOIL_TYPE
+
+
+def _rain_fraction(record: dict) -> float:
+    """Resolve a zone's continuous rain influence (0-100 %).
+
+    An explicit ``rain_fraction`` wins; otherwise a greenhouse or legacy
+    protected-rain zone gets 0 (rain ignored) and every other zone is fully
+    exposed (100).
+    """
+    raw = record.get(CONF_RAIN_FRACTION)
+    if raw not in (None, ""):
+        try:
+            return max(0.0, min(100.0, float(raw)))  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            pass
+    if record.get(CONF_GREENHOUSE) or record.get(CONF_PROTECTED_RAIN):
+        return 0.0
+    return DEFAULT_RAIN_FRACTION
 
 
 def _as_history_days(value: object, default: int = 60) -> int:

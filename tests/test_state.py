@@ -8,8 +8,12 @@ from custom_components.amazing_irrigation.const import (
     CONF_GAIN_PER_LITER,
     CONF_LEARNING_ENABLED,
     CONF_MAX_LITERS,
+    CONF_MIN_APPLICATION,
     CONF_NAME,
+    CONF_RAIN_FRACTION,
     CONF_SCHEDULE_TIMES,
+    CONF_SENSOR_DEPTH_MM,
+    CONF_SOIL_TYPE,
     CONF_TARGET_MOISTURE,
     DEFAULT_SCHEDULE_TIME,
 )
@@ -69,6 +73,38 @@ def test_seed_uses_configured_tunables_and_two_times() -> None:
     assert state.schedule_2_time == "20:15"
     assert state.schedule_2_active is True
     assert state.active_schedule_times() == ["06:30", "20:15"]
+
+
+def test_seed_seeds_new_live_settings_from_config() -> None:
+    state = seed_zone_state(
+        "z1",
+        {
+            CONF_NAME: "Bed",
+            CONF_SOIL_TYPE: "sandy",
+            CONF_SENSOR_DEPTH_MM: 120,
+            CONF_RAIN_FRACTION: 50,
+            CONF_MIN_APPLICATION: 0.8,
+        },
+    )
+    assert state.soil_type == "sandy"
+    assert state.sensor_depth_mm == 120
+    assert state.rain_fraction == 50
+    assert state.min_application == 0.8
+
+
+def test_live_settings_survive_serialisation_roundtrip() -> None:
+    state = ZoneState(
+        zone_id="z1",
+        soil_type="peat_compost",
+        sensor_depth_mm=200.0,
+        rain_fraction=25.0,
+        min_application=1.5,
+    )
+    restored = ZoneState.from_dict("z1", state.to_dict())
+    assert restored.soil_type == "peat_compost"
+    assert restored.sensor_depth_mm == 200.0
+    assert restored.rain_fraction == 25.0
+    assert restored.min_application == 1.5
 
 
 def test_active_schedule_times_ignores_inactive_slot() -> None:

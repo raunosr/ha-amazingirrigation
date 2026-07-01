@@ -15,9 +15,9 @@ def test_profiles_order_trigger_low_to_high() -> None:
     medium = target_band_for_profile(10.0, 50.0, "medium")
     high = target_band_for_profile(10.0, 50.0, "high")
     assert low.low < medium.low < high.low
-    # medium = WP + 0.50*span = 10 + 20 = 30; high band = 30 + 0.15*40 = 36
-    assert medium.low == 30.0
-    assert medium.high == 36.0
+    # medium = WP + 0.45*span = 10 + 18 = 28; high band = WP + 0.80*span = 42
+    assert medium.low == 28.0
+    assert medium.high == 42.0
 
 
 def test_missing_or_invalid_calibration_returns_none() -> None:
@@ -32,7 +32,7 @@ def test_hot_day_lifts_trigger() -> None:
     """Above the hot-day threshold the trigger rises; mild days are unchanged."""
     mild = target_band_for_profile(10.0, 50.0, "medium", air_temp_c=20.0)
     hot = target_band_for_profile(10.0, 50.0, "medium", air_temp_c=38.0)
-    assert mild.low == 30.0
+    assert mild.low == 28.0
     assert hot.low > mild.low
 
 
