@@ -50,6 +50,17 @@ function humanizeReason(reason: string): string {
   return REASON_LABELS[reason] ?? reason.replace(/_/g, " ");
 }
 
+/** Turn a raw select option key (e.g. "good_garden") into a display label. */
+function prettyOption(value: string | null): string {
+  if (!value) {
+    return "–";
+  }
+  return value
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
 /** Turn a timestamp into a short relative label ("2h ago"). */
 function relativeTime(value: unknown): string | null {
   if (value === null || value === undefined) return null;
@@ -807,18 +818,60 @@ export class AmazingIrrigationOverviewCard extends LitElement {
     const numbers = [
       isAuto ? null : view.targetControl,
       view.maxLitersControl,
+      view.sensorDepthControl,
+      view.rainFractionControl,
+      view.minApplicationControl,
+    ].filter((c): c is ControlEntity => c !== null);
+    const selects = [
+      view.soilTypeControl,
+      view.plantProfileControl,
     ].filter((c): c is ControlEntity => c !== null);
     const toggles = [
       view.enabledControl,
       view.learningControl,
       view.autoTargetControl,
     ].filter((c): c is ControlEntity => c !== null);
-    if (!numbers.length && !toggles.length) return nothing;
+    if (!numbers.length && !toggles.length && !selects.length) return nothing;
 
     return html`
       <div class="section">
         <div class="section-label">Settings</div>
+        ${selects.map(
+          (c) => html`
+            <div
+              class="row clickable"
+              @click=${() => this._moreInfo(c.entityId)}
+            >
+              <span class="row-label">${c.label}</span>
+              <span class="row-value">${prettyOption(c.state)}</span>
+            </div>
+          `,
+        )}
         ${numbers.map(
+          (c) => html`
+            <div
+              class="row clickable"
+              @click=${() => this._moreInfo(c.entityId)}
+            >
+              <span class="row-label">${c.label}</span>
+              <span class="row-value"
+                >${c.state ?? "–"} ${c.unit ?? ""}</span
+              >
+            </div>
+          `,
+        )}
+        ${view.sensorDepthShallow
+          ? html`
+              <div class="row warning">
+                <ha-icon icon="mdi:alert-outline"></ha-icon>
+                <span class="row-label"
+                  >Sensor sits well above the root zone — moisture may read low
+                  and over-trigger watering.</span
+                >
+              </div>
+            `
+          : nothing}
+        ${toggles.map(
           (c) => html`
             <div
               class="row clickable"
@@ -1524,6 +1577,8 @@ export class AmazingIrrigationOverviewCard extends LitElement {
     .row-label { flex: 1; display: flex; align-items: center; gap: 4px; }
     .row-icon { --mdc-icon-size: 16px; opacity: 0.6; }
     .row-value { color: var(--secondary-text-color); text-align: right; }
+    .row.warning { color: var(--warning-color, #ff9800); font-size: 0.78rem; align-items: flex-start; }
+    .row.warning ha-icon { --mdc-icon-size: 18px; flex: 0 0 auto; }
     .clickable { cursor: pointer; }
     .clickable:hover { color: var(--primary-color); }
     .toggle {

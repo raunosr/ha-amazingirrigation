@@ -36,6 +36,17 @@ const KIND_LABELS: Record<string, string> = {
   watering_event: "Watering",
 };
 
+/** Turn a raw select option key (e.g. "good_garden") into a display label. */
+function prettyOption(value: string | null): string {
+  if (!value) {
+    return "–";
+  }
+  return value
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
 /**
  * Single-zone detail card. Kept for backward compatibility — users who prefer
  * one card per zone can still use this. The overview card is now the primary
@@ -291,6 +302,13 @@ export class AmazingIrrigationCard extends LitElement {
     const numbers = [
       isAuto ? null : view.targetControl,
       view.maxLitersControl,
+      view.sensorDepthControl,
+      view.rainFractionControl,
+      view.minApplicationControl,
+    ].filter((c): c is ControlEntity => c !== null);
+    const selects = [
+      view.soilTypeControl,
+      view.plantProfileControl,
     ].filter((c): c is ControlEntity => c !== null);
     const toggles = [
       view.enabledControl,
@@ -299,7 +317,7 @@ export class AmazingIrrigationCard extends LitElement {
     ].filter((c): c is ControlEntity => c !== null);
     const hasBand =
       isAuto && view.targetBandLow !== null && view.targetBandHigh !== null;
-    if (!numbers.length && !toggles.length && !hasBand) {
+    if (!numbers.length && !toggles.length && !selects.length && !hasBand) {
       return nothing;
     }
     return html`
@@ -317,6 +335,17 @@ export class AmazingIrrigationCard extends LitElement {
               </div>
             `
           : nothing}
+        ${selects.map(
+          (c) => html`
+            <div
+              class="row clickable"
+              @click=${() => this._moreInfo(c.entityId)}
+            >
+              <span class="row-label">${c.label}</span>
+              <span class="row-value">${prettyOption(c.state)}</span>
+            </div>
+          `,
+        )}
         ${numbers.map(
           (c) => html`
             <div
@@ -330,6 +359,17 @@ export class AmazingIrrigationCard extends LitElement {
             </div>
           `,
         )}
+        ${view.sensorDepthShallow
+          ? html`
+              <div class="row warning">
+                <ha-icon icon="mdi:alert-outline"></ha-icon>
+                <span class="row-label"
+                  >Sensor sits well above the root zone — moisture may read low
+                  and over-trigger watering.</span
+                >
+              </div>
+            `
+          : nothing}
         ${toggles.map(
           (c) => html`
             <div class="row">
@@ -734,6 +774,15 @@ export class AmazingIrrigationCard extends LitElement {
     .row-value {
       color: var(--secondary-text-color);
       text-align: right;
+    }
+    .row.warning {
+      color: var(--warning-color, #ff9800);
+      font-size: 0.78rem;
+      align-items: flex-start;
+    }
+    .row.warning ha-icon {
+      --mdc-icon-size: 18px;
+      flex: 0 0 auto;
     }
     .clickable {
       cursor: pointer;

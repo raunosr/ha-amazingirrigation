@@ -91,6 +91,61 @@ async def test_toggling_switch_persists_to_zone_state(hass: HomeAssistant) -> No
     assert _state(hass, entry).learning_enabled is True
 
 
+async def test_new_knob_numbers_present_and_persist(hass: HomeAssistant) -> None:
+    """Sensor depth, rain fraction and min application write through to state."""
+    hass.states.async_set("sensor.a", "20.0")
+    entry = await _setup(hass, _ZONE)
+
+    assert float(hass.states.get("number.herb_bed_rain_fraction").state) == 100.0
+    assert (
+        float(hass.states.get("number.herb_bed_minimum_application").state) == 0.1
+    )
+
+    await hass.services.async_call(
+        "number",
+        "set_value",
+        {"entity_id": "number.herb_bed_rain_fraction", "value": 40},
+        blocking=True,
+    )
+    await hass.services.async_call(
+        "number",
+        "set_value",
+        {"entity_id": "number.herb_bed_sensor_depth", "value": 150},
+        blocking=True,
+    )
+    await hass.async_block_till_done()
+
+    assert _state(hass, entry).rain_fraction == 40.0
+    assert _state(hass, entry).sensor_depth_mm == 150.0
+
+
+async def test_soil_and_profile_selects_present_and_persist(
+    hass: HomeAssistant,
+) -> None:
+    """Soil Type and Plant Profile selects write through to the ZoneState."""
+    hass.states.async_set("sensor.a", "20.0")
+    entry = await _setup(hass, _ZONE)
+
+    assert hass.states.get("select.herb_bed_soil_type").state == "good_garden"
+
+    await hass.services.async_call(
+        "select",
+        "select_option",
+        {"entity_id": "select.herb_bed_soil_type", "option": "sandy"},
+        blocking=True,
+    )
+    await hass.services.async_call(
+        "select",
+        "select_option",
+        {"entity_id": "select.herb_bed_plant_profile", "option": "high"},
+        blocking=True,
+    )
+    await hass.async_block_till_done()
+
+    assert _state(hass, entry).soil_type == "sandy"
+    assert _state(hass, entry).demand_profile == "high"
+
+
 async def test_auto_target_switch_persists_mode(hass: HomeAssistant) -> None:
     """The Automatic Target switch toggles ZoneState target mode auto/manual."""
     hass.states.async_set("sensor.a", "20.0")

@@ -42,11 +42,12 @@ from .zone import ZoneConfig
 
 _LOGGER = logging.getLogger(__name__)
 
-# Sensors observe; buttons run/stop; number/switch/time edit live tunables.
+# Sensors observe; buttons run/stop; number/select/switch/time edit live tunables.
 PLATFORMS: list[Platform] = [
     Platform.SENSOR,
     Platform.BUTTON,
     Platform.NUMBER,
+    Platform.SELECT,
     Platform.SWITCH,
     Platform.TIME,
 ]

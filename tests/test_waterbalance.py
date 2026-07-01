@@ -125,7 +125,20 @@ def test_default_params_seeds_from_geometry():
     assert legacy.eta_irr == pytest.approx(1.2)
 
 
-def test_fao56_et_only_when_root_depth_set():
+def test_soil_presets_and_legacy_aliases():
+    """The five image presets order by field capacity and legacy keys migrate."""
+    keys = ["sandy", "standard_mineral", "good_garden", "peat_compost", "potting_mix"]
+    fcs = [default_params(k).field_capacity for k in keys]
+    assert fcs == sorted(fcs)  # Sandy (driest) -> potting mix (wettest)
+    assert default_params("sandy").field_capacity == pytest.approx(20.0)
+    assert default_params("potting_mix").field_capacity == pytest.approx(52.0)
+
+    # Pre-0.18 keys resolve to their migrated preset.
+    assert default_params("sand") == default_params("sandy")
+    assert default_params("loam") == default_params("good_garden")
+    # Unknown soil falls back to the default preset (good_garden).
+    assert default_params("does-not-exist") == default_params("good_garden")
+
     climate = Climate(28.0, 40.0)
     legacy = default_params("loam")
     fao = default_params("loam", area_m2=2.0, root_depth_mm=300.0, demand_profile="high")

@@ -410,6 +410,26 @@ describe("surfaced zone entities", () => {
         state: "15",
         attributes: { unit_of_measurement: "L" },
       },
+      [`select.${slug}_soil_type`]: {
+        state: "good_garden",
+        attributes: {},
+      },
+      [`select.${slug}_plant_profile`]: {
+        state: "medium",
+        attributes: {},
+      },
+      [`number.${slug}_sensor_depth`]: {
+        state: "150",
+        attributes: { unit_of_measurement: "mm" },
+      },
+      [`number.${slug}_rain_fraction`]: {
+        state: "100",
+        attributes: { unit_of_measurement: "%" },
+      },
+      [`number.${slug}_minimum_application`]: {
+        state: "0.5",
+        attributes: { unit_of_measurement: "L" },
+      },
       [`switch.${slug}_zone_enabled`]: { state: "on", attributes: {} },
       [`switch.${slug}_learning_enabled`]: { state: "off", attributes: {} },
       [`switch.${slug}_target_automatic`]: { state: "on", attributes: {} },
@@ -495,6 +515,27 @@ describe("surfaced zone entities", () => {
     expect(view.maxLitersControl?.state).toBe("15");
     expect(view.enabledControl?.isOn).toBe(true);
     expect(view.learningControl?.isOn).toBe(false);
+  });
+
+  it("maps the soil/plant selects and new knob numbers", () => {
+    const view = buildZoneView(cfg, fullStates());
+    expect(view.soilTypeControl?.state).toBe("good_garden");
+    expect(view.plantProfileControl?.state).toBe("medium");
+    expect(view.sensorDepthControl?.state).toBe("150");
+    expect(view.rainFractionControl?.state).toBe("100");
+    expect(view.minApplicationControl?.state).toBe("0.5");
+    expect(view.sensorDepthShallow).toBe(false);
+  });
+
+  it("flags a shallow sensor when the decision sensor reports it", () => {
+    const view = buildZoneView(cfg, {
+      ...fullStates(),
+      [decisionEntity]: {
+        state: "skip",
+        attributes: { sensor_depth_shallow: true },
+      },
+    });
+    expect(view.sensorDepthShallow).toBe(true);
   });
 
   it("builds model insight from the diagnostic sensor", () => {

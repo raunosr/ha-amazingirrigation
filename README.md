@@ -86,7 +86,26 @@ always override learned ones, and every value stays inside safe bounds.
   species. In **Automatic** target mode the model derives the Target Range from
   learned Wilting Point / Field Capacity and the profile (with an automatic
   hot-day margin); **Manual** keeps your fixed Target Moisture. Explicit low/high
-  bounds always win, and the soil water-balance physics is unchanged.
+  bounds always win, and the soil water-balance physics is unchanged. In Automatic
+  mode the card hides the manual Target Moisture and shows the derived band
+  read-only, so there is only ever one live target control.
+- **Soil-type presets.** Choose from five texture presets — Sandy (~20% FC),
+  Standard mineral (~30%), Good garden (~40%), Peat/compost (~47%) and
+  Greenhouse/potting mix (~52%) — plus a retained Clay option. Presets only seed
+  the model; learned, Discovery or manual Field Capacity / Wilting Point always win.
+- **Hysteresis irrigation.** A single rule drives every decision: watering starts
+  once moisture drops below the band low and refills toward the band high (never
+  above Field Capacity), instead of topping up on every small dip.
+- **Rain fraction (0–100%).** Set how much natural rainfall reaches a zone —
+  100% for open beds, 0% for greenhouses, in between for covered zones. Effective
+  rainfall uses an event-based curve so light showers barely count. On hot days,
+  **high**-demand zones get a heat-emergency override of the minimum-application skip.
+- **Minimum application & sensor depth.** Skip negligible top-ups below a
+  configurable minimum (unless a heat emergency applies), and record the moisture
+  probe's installation depth (warned when much shallower than the root zone).
+- **Unified selection.** Soil type, plant profile, sensor depth, rain fraction and
+  minimum application are set the same way in the initial config flow, on the
+  device page (auto-created Number/Select entities), and in the card.
 - **Bed area & root depth (optional).** Enter a zone's area and rooting depth to seed
   irrigation/rain gains physically for faster, more accurate cold-start; learning
   refines them and manual parameters override. See *Scientific background* below.

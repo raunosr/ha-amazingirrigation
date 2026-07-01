@@ -38,6 +38,10 @@ ROOT_DEPTH_MIN, ROOT_DEPTH_MAX = 20.0, 2000.0  # mm
 DEFAULT_IRRIG_EFFICIENCY = 0.8  # fraction of applied water reaching the root zone
 KC_BY_PROFILE = {"low": 0.55, "medium": 0.85, "high": 1.1}
 
+# Legacy soil-type keys (pre-0.18) mapped onto the current preset set. Kept local
+# so this pure physics module stays free of package-level imports.
+_SOIL_TYPE_ALIASES = {"sand": "sandy", "loam": "good_garden"}
+
 
 @dataclass(frozen=True)
 class Climate:
@@ -138,6 +142,22 @@ def _nonnegative(value: float | None) -> float:
     return max(0.0, _clamp(value, 0.0, float("inf")))
 
 
+def vpd_kpa(air_temp_c: float | None, air_humidity_pct: float | None = None) -> float | None:
+    """Return the vapour-pressure deficit (kPa) for an air temp/humidity pair.
+
+    Uses Tetens' saturation-vapour-pressure equation. Humidity defaults to a
+    mild value when unknown. Returns ``None`` only when temperature is missing.
+    """
+    if air_temp_c is None:
+        return None
+    temp_c = _clamp(air_temp_c, -30.0, 60.0)
+    humidity = DEFAULT_HUMIDITY_PCT
+    if air_humidity_pct is not None:
+        humidity = _clamp(air_humidity_pct, 0.0, 100.0)
+    svp = 0.6108 * float(np.exp((17.27 * temp_c) / (temp_c + 237.3)))
+    return max(0.0, svp * (1.0 - humidity / 100.0))
+
+
 def area_eta(
     area_m2: float, root_depth_mm: float, efficiency: float = DEFAULT_IRRIG_EFFICIENCY
 ) -> tuple[float, float]:
@@ -162,7 +182,7 @@ def area_eta(
 
 
 def default_params(
-    soil_type: str = "loam",
+    soil_type: str = "good_garden",
     *,
     area_m2: float | None = None,
     root_depth_mm: float | None = None,
@@ -170,29 +190,55 @@ def default_params(
 ) -> WaterBalanceParams:
     """Return conservative soil-type priors for a new zone.
 
-    Sandy soils have lower field capacity and faster drainage, loam is the
-    balanced default, and clay retains more water while draining slowly.
-    Unknown soil types fall back to loam. When ``area_m2`` is given, the
-    eta priors are replaced by geometry-derived values (using ``root_depth_mm``
-    or a 200 mm default), coupling irrigation and rain efficiency. A demand
-    profile attaches a crop coefficient for FAO-56 reference ET.
+    The presets follow the guided soil table: sandy soils drain fast and hold
+    little water, mineral/garden soils sit in the middle, and peat/potting and
+    clay retain the most. ``clay`` is retained for backward compatibility.
+    Unknown or legacy soil types fall back through the migration map to
+    ``good_garden``. When ``area_m2`` is given, the eta priors are replaced by
+    geometry-derived values (using ``root_depth_mm`` or a 200 mm default),
+    coupling irrigation and rain efficiency. A demand profile attaches a crop
+    coefficient for FAO-56 reference ET.
     """
     priors = {
-        "sand": WaterBalanceParams(
-            eta_irr=1.6,
-            eta_rain=1.1,
-            k_et=0.9,
-            drain_rate=0.18,
-            field_capacity=30.0,
-            wilting_point=10.0,
+        "sandy": WaterBalanceParams(
+            eta_irr=1.8,
+            eta_rain=1.2,
+            k_et=0.95,
+            drain_rate=0.20,
+            field_capacity=20.0,
+            wilting_point=7.0,
         ),
-        "loam": WaterBalanceParams(
+        "standard_mineral": WaterBalanceParams(
+            eta_irr=1.4,
+            eta_rain=1.0,
+            k_et=0.85,
+            drain_rate=0.12,
+            field_capacity=30.0,
+            wilting_point=11.0,
+        ),
+        "good_garden": WaterBalanceParams(
             eta_irr=1.2,
             eta_rain=0.9,
             k_et=0.75,
             drain_rate=0.08,
-            field_capacity=45.0,
-            wilting_point=18.0,
+            field_capacity=40.0,
+            wilting_point=15.0,
+        ),
+        "peat_compost": WaterBalanceParams(
+            eta_irr=1.0,
+            eta_rain=0.85,
+            k_et=0.70,
+            drain_rate=0.06,
+            field_capacity=47.0,
+            wilting_point=20.0,
+        ),
+        "potting_mix": WaterBalanceParams(
+            eta_irr=0.9,
+            eta_rain=0.8,
+            k_et=0.65,
+            drain_rate=0.05,
+            field_capacity=52.0,
+            wilting_point=22.0,
         ),
         "clay": WaterBalanceParams(
             eta_irr=0.9,
@@ -203,7 +249,9 @@ def default_params(
             wilting_point=28.0,
         ),
     }
-    base = priors.get(soil_type.strip().lower(), priors["loam"])
+    key = (soil_type or "").strip().lower()
+    key = _SOIL_TYPE_ALIASES.get(key, key)
+    base = priors.get(key, priors["good_garden"])
     depth = root_depth_mm if root_depth_mm is not None else 200.0
     kc = KC_BY_PROFILE.get((demand_profile or "").strip().lower())
     if area_m2 is not None and area_m2 > 0:

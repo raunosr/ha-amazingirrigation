@@ -73,7 +73,10 @@ Rain inputs are typed rather than arbitrary entities:
 | Target moisture mode | `Automatic` lets the model own the Target Range, deriving it from learned Wilting Point / Field Capacity and the Plant Water Demand profile (lifted on hot days); `Manual` keeps your single Target Moisture fixed. Explicit low/high bounds always win. New zones default to Automatic, and the mode is also toggleable live via the **Automatic Target** switch on the device/card. |
 | Plant water demand | `Low` (drought-tolerant, e.g. lavender/sedum), `Medium` (typical, e.g. tomatoes/lawn), or `High` (thirsty, e.g. leafy greens/cucumbers). Shapes trigger threshold, target available water, drought tolerance and hot-day margin only — the Soil Water Balance physics is unchanged. Default `Medium`. |
 | ET source | Which climate inputs drive Evapotranspiration: `auto` (greenhouse sensors for greenhouse zones, otherwise weather), `weather`, or `greenhouse`. |
-| Soil type | Prior preset (`loam`, `sand`, `clay`) used to seed a new or freshly bootstrapped Learned Model. |
+| Soil type | Prior preset used to seed a new or freshly bootstrapped Learned Model: `sandy` (~20% FC), `standard_mineral` (~30%), `good_garden` (~40%, default), `peat_compost` (~47%), `potting_mix` (~52%), plus retained `clay`. Presets only seed the model — learned, Discovery or manual Field Capacity / Wilting Point always win. Legacy `sand`/`loam` zones migrate to `sandy`/`good_garden`. |
+| Sensor depth | Optional installation depth (mm) of the soil-moisture probe. A diagnostic warning appears when it is much shallower than the root depth (the probe then reads only the top layer and over-triggers watering). |
+| Rain fraction | Share of natural rainfall that reaches the zone (`0–100%`, default `100`; greenhouse zones default `0`). Replaces the binary Protected rain flag — use it for covered or partly-covered zones. Effective rainfall uses an event-based curve (`<3 mm → 0`, `3–10 → 0.5`, `10–25 → 0.75`, `>25 → 0.80`) before this fraction is applied. |
+| Minimum application | Skip watering when the computed amount is below this (litres, default `0.1`), avoiding frequent tiny top-ups — unless a heat emergency applies (a `high`-demand zone in hot/high-VPD conditions). |
 | Learning enabled | Per-zone toggle. When on, Amazing Irrigation learns a physics-informed **Soil Water Balance** (Irrigation Efficiency, Rain Efficiency, an Evapotranspiration coefficient, a Drainage rate, and bounded Field Capacity / Wilting Point — each with a Model Confidence) and uses it for **Predictive Control**, always bounded by safety limits with any manual value winning. When off, observations are still collected but never change decisions. |
 | History to learn from | Lookback window for the **History Bootstrap** (`2 weeks` / `1 month` / `2 months` / `3 months`, default `2 months`). Beyond the recorder's ~10-day raw retention this draws on Home Assistant long-term statistics. |
 
@@ -109,7 +112,7 @@ A Greenhouse Zone is a subtype of Irrigation Zone:
 | Field | Purpose |
 | --- | --- |
 | Greenhouse | Marks the zone as a protected environment. |
-| Protected rain | When enabled, rain never skips/reduces watering (effective rain is treated as 0). All other rules still apply. |
+| Protected rain | Legacy flag: when enabled, rain never skips/reduces watering (effective rain is treated as 0). Superseded by **Rain fraction** — greenhouse/protected zones migrate to `rain_fraction = 0`. |
 | Temperature / humidity sensor | Optional protected-environment context shown on the zone. |
 
 ## Watering actuator setup
@@ -323,9 +326,11 @@ sibling entities from the Decision sensor (no extra config needed):
 
 - **Settings** — In **Manual** target mode: Target Moisture and Max Liters per
   Run (click to edit). In **Automatic** mode the Target Moisture slider is hidden
-  and the live model-chosen **Target band (auto)** range is shown instead. The
-  **Automatic Target** toggle switches between modes from the card, plus Zone
-  Enabled / Learning Enabled toggles.
+  and the live model-chosen **Target band (auto)** range is shown instead. Soil
+  Type and Plant Profile selects, plus Sensor Depth, Rain Fraction and Minimum
+  Application numbers, are editable here too (a warning row appears when the
+  sensor sits well above the root zone). The **Automatic Target** toggle switches
+  between modes from the card, plus Zone Enabled / Learning Enabled toggles.
 - **Schedule** — both daily slots with their time and an independent Active
   toggle each.
 - **Learned model** — the five learned parameters, shown as `learning…` until

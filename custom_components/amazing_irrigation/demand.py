@@ -26,16 +26,21 @@ HOT_DAY_MARGIN_MAX = 0.15
 
 @dataclass(frozen=True)
 class DemandProfile:
-    """Available-water fractions (WP→FC) defining a zone's target band."""
+    """Available-water fractions (WP→FC) defining a zone's target band.
+
+    ``trigger_fraction`` is where irrigation starts (band low) and
+    ``target_fraction`` is where it refills to (band high), both as fractions of
+    available water between wilting point and field capacity.
+    """
 
     trigger_fraction: float
-    band_width: float
+    target_fraction: float
 
 
 _PROFILES: Mapping[str, DemandProfile] = {
-    "low": DemandProfile(trigger_fraction=0.35, band_width=0.15),
-    "medium": DemandProfile(trigger_fraction=0.50, band_width=0.15),
-    "high": DemandProfile(trigger_fraction=0.65, band_width=0.15),
+    "low": DemandProfile(trigger_fraction=0.35, target_fraction=0.72),
+    "medium": DemandProfile(trigger_fraction=0.45, target_fraction=0.80),
+    "high": DemandProfile(trigger_fraction=0.55, target_fraction=0.88),
 }
 
 
@@ -73,8 +78,9 @@ def target_band_for_profile(
         return None
     span = field_capacity - wilting_point
     spec = resolve_profile(profile)
-    low_frac = min(1.0, spec.trigger_fraction + _hot_day_margin(air_temp_c))
-    high_frac = min(1.0, low_frac + spec.band_width)
+    margin = _hot_day_margin(air_temp_c)
+    low_frac = min(1.0, spec.trigger_fraction + margin)
+    high_frac = min(1.0, max(spec.target_fraction + margin, low_frac))
     low = wilting_point + low_frac * span
     high = wilting_point + high_frac * span
     low = max(MOISTURE_MIN, min(MOISTURE_MAX, low))

@@ -12,6 +12,8 @@ from custom_components.amazing_irrigation.engine import (
     DecisionInputs,
     DecisionReason,
     decide,
+    effective_rainfall,
+    is_heat_emergency,
 )
 from custom_components.amazing_irrigation.waterbalance import WaterBalanceParams
 from custom_components.amazing_irrigation.zone import ZoneMoisture
@@ -38,8 +40,9 @@ def test_below_target_waters_full_deficit() -> None:
     decision = decide(_inputs(moisture=_moisture(20.0), target_moisture=40.0))
     assert decision.action is DecisionAction.WATER
     assert decision.reason is DecisionReason.BELOW_TARGET
-    # deficit 20% / 1% per liter = 20 L
-    assert decision.recommended_liters == 20.0
+    # Hysteresis refills toward the band high (target 40 + 5 deadband = 45):
+    # deficit 25% / 1% per liter = 25 L
+    assert decision.recommended_liters == 25.0
 
 
 def test_liters_bounded_by_max() -> None:
@@ -120,8 +123,9 @@ def test_no_target_skips() -> None:
 
 
 def test_sufficient_rain_skips() -> None:
+    # 20 mm forecast -> 20 * 0.75 effective = 15 mm >= 3 mm threshold -> skip.
     decision = decide(
-        _inputs(forecast_rain_mm=5.0, forecast_rain_probability=80.0, rain_skip_mm=3.0)
+        _inputs(forecast_rain_mm=20.0, forecast_rain_probability=80.0, rain_skip_mm=3.0)
     )
     assert decision.action is DecisionAction.SKIP
     assert decision.reason is DecisionReason.RAIN_SUFFICIENT
@@ -129,25 +133,28 @@ def test_sufficient_rain_skips() -> None:
 
 def test_unlikely_forecast_rain_is_ignored() -> None:
     decision = decide(
-        _inputs(forecast_rain_mm=5.0, forecast_rain_probability=20.0, rain_skip_mm=3.0)
+        _inputs(forecast_rain_mm=20.0, forecast_rain_probability=20.0, rain_skip_mm=3.0)
     )
     assert decision.action is DecisionAction.WATER
     assert decision.reason is DecisionReason.BELOW_TARGET
 
 
 def test_partial_rain_reduces_volume() -> None:
-    # 1.5 mm of 3 mm threshold -> 50% reduction of the 20 L deficit run.
+    # 3 mm observed -> 3 * 0.5 effective = 1.5 mm of 3 mm threshold -> 50 %
+    # reduction of the 25 L hysteresis refill run.
     decision = decide(
-        _inputs(observed_rain_mm=1.5, forecast_rain_mm=None, rain_skip_mm=3.0)
+        _inputs(observed_rain_mm=3.0, forecast_rain_mm=None, rain_skip_mm=3.0)
     )
     assert decision.action is DecisionAction.REDUCE
     assert decision.reason is DecisionReason.RAIN_REDUCE
-    assert decision.recommended_liters == 10.0
+    assert decision.recommended_liters == 12.5
 
 
 def test_observed_rain_counts_regardless_of_probability() -> None:
+    # 10 mm observed -> 10 * 0.75 effective = 7.5 mm >= 3 mm -> skip even with
+    # zero forecast probability (probability only gates forecast rain).
     decision = decide(
-        _inputs(observed_rain_mm=3.0, forecast_rain_probability=0.0, rain_skip_mm=3.0)
+        _inputs(observed_rain_mm=10.0, forecast_rain_probability=0.0, rain_skip_mm=3.0)
     )
     assert decision.action is DecisionAction.SKIP
     assert decision.reason is DecisionReason.RAIN_SUFFICIENT
@@ -167,7 +174,7 @@ def test_protected_rain_ignores_rain_in_greenhouse() -> None:
     )
     assert decision.action is DecisionAction.WATER
     assert decision.reason is DecisionReason.BELOW_TARGET
-    assert decision.recommended_liters == 20.0
+    assert decision.recommended_liters == 25.0
 
 
 def test_protected_rain_false_still_skips_on_rain() -> None:
@@ -252,3 +259,80 @@ def test_predictive_false_preserves_rule_based_output() -> None:
     )
 
     assert asdict(decide(with_unused_predictive_fields)) == asdict(decide(base))
+
+
+def test_below_min_application_skips_tiny_topup() -> None:
+    # 39 -> band high 45 = 6% deficit / 3% per liter = 2 L, but min_application
+    # is 5 L, so the negligible top-up is skipped.
+    decision = decide(
+        _inputs(
+            moisture=_moisture(39.0),
+            target_moisture=40.0,
+            gain_per_liter=3.0,
+            min_application=5.0,
+        )
+    )
+    assert decision.action is DecisionAction.SKIP
+    assert decision.reason is DecisionReason.BELOW_MIN
+    assert decision.details["min_application"] == 5.0
+
+
+def test_heat_emergency_overrides_min_application() -> None:
+    # Same tiny top-up, but a heat emergency waives the minimum and waters.
+    decision = decide(
+        _inputs(
+            moisture=_moisture(39.0),
+            target_moisture=40.0,
+            gain_per_liter=3.0,
+            min_application=5.0,
+            heat_emergency=True,
+        )
+    )
+    assert decision.action is DecisionAction.WATER
+    assert decision.reason is DecisionReason.BELOW_TARGET
+
+
+def test_rain_fraction_scales_effective_rain() -> None:
+    # 10 mm observed * 0.75 curve = 7.5 mm effective at 100 %, enough to skip.
+    # At 40 % rain fraction only 3.0 mm reaches the zone: still >= 3 mm skip
+    # threshold, so we drop to 6 mm (below threshold) to force a partial run.
+    decision = decide(
+        _inputs(observed_rain_mm=6.0, rain_skip_mm=3.0, rain_fraction=40.0)
+    )
+    # 6 mm * 0.5 curve * 0.4 fraction = 1.2 mm effective -> 40 % of threshold ->
+    # 60 % of the 25 L refill run remains.
+    assert decision.action is DecisionAction.REDUCE
+    assert decision.recommended_liters == pytest.approx(15.0)
+
+
+def test_zero_rain_fraction_ignores_rain() -> None:
+    decision = decide(
+        _inputs(observed_rain_mm=20.0, rain_skip_mm=3.0, rain_fraction=0.0)
+    )
+    assert decision.action is DecisionAction.WATER
+    assert decision.reason is DecisionReason.BELOW_TARGET
+
+
+def test_every_decision_carries_the_active_band() -> None:
+    watered = decide(_inputs(moisture=_moisture(20.0), target_moisture=40.0))
+    held = decide(_inputs(moisture=_moisture(45.0), target_moisture=40.0))
+    for decision in (watered, held):
+        assert decision.details["target_band_low"] == 40.0
+        assert decision.details["target_band_high"] == 45.0
+
+
+def test_effective_rainfall_curve() -> None:
+    assert effective_rainfall(2.0) == 0.0
+    assert effective_rainfall(6.0) == pytest.approx(3.0)
+    assert effective_rainfall(20.0) == pytest.approx(15.0)
+    assert effective_rainfall(40.0) == pytest.approx(32.0)
+    # Covered zone at 50 % rain fraction halves the usable rain.
+    assert effective_rainfall(20.0, 0.5) == pytest.approx(7.5)
+
+
+def test_is_heat_emergency_only_for_hot_high_demand() -> None:
+    assert is_heat_emergency("high", 33.0) is True
+    assert is_heat_emergency("high", 28.0, 20.0) is True  # dry air -> high VPD
+    assert is_heat_emergency("medium", 40.0) is False
+    assert is_heat_emergency("high", None) is False
+

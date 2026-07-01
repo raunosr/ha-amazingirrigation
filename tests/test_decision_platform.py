@@ -410,8 +410,8 @@ def test_build_inputs_auto_mode_derives_band_from_profile(
     inputs = build_inputs(hass, zone, state=state)
 
     assert inputs.target_band is not None
-    assert inputs.target_band.low == 30.0
-    assert inputs.target_band.high == 36.0
+    assert inputs.target_band.low == 28.0
+    assert inputs.target_band.high == 42.0
 
 
 def test_build_inputs_auto_mode_explicit_bounds_win(hass: HomeAssistant) -> None:

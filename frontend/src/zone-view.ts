@@ -134,6 +134,12 @@ export interface ZoneView {
   targetControl: ControlEntity | null;
   autoTargetControl: ControlEntity | null;
   maxLitersControl: ControlEntity | null;
+  soilTypeControl: ControlEntity | null;
+  plantProfileControl: ControlEntity | null;
+  sensorDepthControl: ControlEntity | null;
+  rainFractionControl: ControlEntity | null;
+  minApplicationControl: ControlEntity | null;
+  sensorDepthShallow: boolean;
   enabledControl: ControlEntity | null;
   learningControl: ControlEntity | null;
   modelInsight: ModelInsight | null;
@@ -592,6 +598,32 @@ export function buildZoneView(
       `number.${slug}_max_liters_per_run`,
       "Max Liters per Run",
     ),
+    soilTypeControl: controlEntity(
+      states,
+      `select.${slug}_soil_type`,
+      "Soil Type",
+    ),
+    plantProfileControl: controlEntity(
+      states,
+      `select.${slug}_plant_profile`,
+      "Plant Profile",
+    ),
+    sensorDepthControl: controlEntity(
+      states,
+      `number.${slug}_sensor_depth`,
+      "Sensor Depth",
+    ),
+    rainFractionControl: controlEntity(
+      states,
+      `number.${slug}_rain_fraction`,
+      "Rain Fraction",
+    ),
+    minApplicationControl: controlEntity(
+      states,
+      `number.${slug}_minimum_application`,
+      "Minimum Application",
+    ),
+    sensorDepthShallow: decisionAttrs["sensor_depth_shallow"] === true,
     enabledControl: controlEntity(
       states,
       `switch.${slug}_zone_enabled`,

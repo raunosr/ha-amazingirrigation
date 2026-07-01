@@ -26,7 +26,10 @@ from homeassistant.helpers.storage import Store
 
 from .const import (
     DEFAULT_MAX_LITERS,
+    DEFAULT_MIN_APPLICATION,
+    DEFAULT_RAIN_FRACTION,
     DEFAULT_SCHEDULE_TIME,
+    DEFAULT_SOIL_TYPE,
     DOMAIN,
     STORAGE_VERSION,
 )
@@ -83,6 +86,10 @@ class ZoneState:
     learning_enabled: bool = False
     target_mode: str = "manual"
     demand_profile: str = "medium"
+    soil_type: str = DEFAULT_SOIL_TYPE
+    sensor_depth_mm: float | None = None
+    rain_fraction: float = DEFAULT_RAIN_FRACTION
+    min_application: float = DEFAULT_MIN_APPLICATION
     # Two schedule slots, each independently active.
     schedule_1_time: str | None = DEFAULT_SCHEDULE_TIME
     schedule_1_active: bool = True
@@ -165,6 +172,10 @@ def zone_config_signature(zone: ZoneConfig) -> dict[str, Any]:
         "max_liters": max(0.0, zone.max_liters),
         "target_mode": zone.target_mode,
         "demand_profile": zone.demand_profile,
+        "soil_type": zone.soil_type,
+        "sensor_depth_mm": zone.sensor_depth_mm,
+        "rain_fraction": max(0.0, min(100.0, zone.rain_fraction)),
+        "min_application": max(0.0, zone.min_application),
         "schedule_times": _normalized_schedule_times(zone),
     }
 
@@ -199,13 +210,29 @@ def _apply_config_field(state: ZoneState, key: str, value: Any) -> None:
         state.target_mode = value
     elif key == "demand_profile":
         state.demand_profile = value
+    elif key == "soil_type":
+        state.soil_type = value
+    elif key == "sensor_depth_mm":
+        state.sensor_depth_mm = value
+    elif key == "rain_fraction":
+        state.rain_fraction = value
+    elif key == "min_application":
+        state.min_application = value
 
 
 # Boolean flags re-synced from config on the first reconcile (e.g. when
 # upgrading from a build that stored no signature), so a config edit predating
 # this version takes effect without resetting numeric/schedule values that may
 # have been tuned through the live entities.
-_FIRST_RUN_CONFIG_FIELDS = ("enabled", "learning_enabled", "target_mode", "demand_profile")
+_FIRST_RUN_CONFIG_FIELDS = (
+    "enabled",
+    "learning_enabled",
+    "target_mode",
+    "demand_profile",
+    "soil_type",
+    "rain_fraction",
+    "min_application",
+)
 
 
 def reconcile_zone_state(state: ZoneState, zone: ZoneConfig) -> None:
@@ -245,6 +272,10 @@ def seed_zone_state(zone_id: str, record: dict[str, Any]) -> ZoneState:
         learning_enabled=zone.learning_enabled,
         target_mode=zone.target_mode,
         demand_profile=zone.demand_profile,
+        soil_type=zone.soil_type,
+        sensor_depth_mm=zone.sensor_depth_mm,
+        rain_fraction=max(0.0, min(100.0, zone.rain_fraction)),
+        min_application=max(0.0, zone.min_application),
         learned_gain_per_liter=zone.gain_per_liter,
         learned_field_capacity=zone.field_capacity,
         learned_wilting_point=zone.wilting_point,
@@ -346,7 +377,7 @@ def apply_model_to_state(
 def params_from_state(
     state: ZoneState,
     *,
-    soil_type: str = "loam",
+    soil_type: str = DEFAULT_SOIL_TYPE,
     area_m2: float | None = None,
     root_depth_mm: float | None = None,
     demand_profile: str | None = None,

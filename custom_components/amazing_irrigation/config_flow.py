@@ -56,12 +56,14 @@ from .const import (
     CONF_LINKTAP_ID,
     CONF_LINKTAP_TOPIC,
     CONF_MAX_LITERS,
+    CONF_MIN_APPLICATION,
     CONF_MOISTURE_SENSORS,
     CONF_NAME,
     CONF_OBSERVED_AIR_HUMIDITY,
     CONF_OBSERVED_AIR_TEMPERATURE,
     CONF_OBSERVED_RAIN_AMOUNT,
     CONF_PROTECTED_RAIN,
+    CONF_RAIN_FRACTION,
     CONF_RAIN_SKIP_MM,
     CONF_RAIN_SKIP_PROBABILITY,
     CONF_ROOT_DEPTH_MM,
@@ -70,6 +72,7 @@ from .const import (
     CONF_SCHEDULE_WEEKDAYS,
     CONF_SEASON_END,
     CONF_SEASON_START,
+    CONF_SENSOR_DEPTH_MM,
     CONF_SOIL_TYPE,
     CONF_SOLAR_RADIATION,
     CONF_TARGET_MODE,
@@ -88,14 +91,18 @@ from .const import (
     DEFAULT_LINKTAP_FAILSAFE,
     DEFAULT_LINKTAP_TOPIC,
     DEFAULT_MAX_LITERS,
+    DEFAULT_MIN_APPLICATION,
+    DEFAULT_RAIN_FRACTION,
     DEFAULT_RAIN_SKIP_MM,
     DEFAULT_RAIN_SKIP_PROBABILITY,
+    DEFAULT_SOIL_TYPE,
     DEFAULT_TARGET_MOISTURE,
     DEFAULT_VOLUME_FIELD,
     DEMAND_PROFILE_OPTIONS,
     DOMAIN,
     HISTORY_DAYS_OPTIONS,
     INTEGRATION_TITLE,
+    SOIL_TYPE_OPTIONS,
     TARGET_MODE_OPTIONS,
     WEEKDAYS,
 )
@@ -109,7 +116,6 @@ from .linktap import (
 # stored ``CONF_SCHEDULE_TIMES`` list of ``HH:MM`` strings.
 SCHEDULE_TIME_SLOTS = ("schedule_time_1", "schedule_time_2", "schedule_time_3")
 ET_SOURCE_OPTIONS = ("auto", "weather", "greenhouse")
-SOIL_TYPE_OPTIONS = ("loam", "sand", "clay")
 
 
 def _times_from_slots(user_input: dict[str, Any]) -> None:
@@ -266,9 +272,20 @@ def _zone_basics_schema() -> vol.Schema:
                     options=list(ET_SOURCE_OPTIONS), translation_key="et_source"
                 )
             ),
-            vol.Optional(CONF_SOIL_TYPE, default="loam"): selector.SelectSelector(
+            vol.Optional(
+                CONF_SOIL_TYPE, default=DEFAULT_SOIL_TYPE
+            ): selector.SelectSelector(
                 selector.SelectSelectorConfig(
                     options=list(SOIL_TYPE_OPTIONS), translation_key="soil_type"
+                )
+            ),
+            vol.Optional(CONF_SENSOR_DEPTH_MM): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=0.0,
+                    max=1500.0,
+                    step=10.0,
+                    unit_of_measurement="mm",
+                    mode=selector.NumberSelectorMode.BOX,
                 )
             ),
             vol.Optional(CONF_AREA_M2): selector.NumberSelector(
@@ -286,6 +303,28 @@ def _zone_basics_schema() -> vol.Schema:
                     max=2000.0,
                     step=10.0,
                     unit_of_measurement="mm",
+                    mode=selector.NumberSelectorMode.BOX,
+                )
+            ),
+            vol.Optional(
+                CONF_RAIN_FRACTION, default=DEFAULT_RAIN_FRACTION
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=0.0,
+                    max=100.0,
+                    step=5.0,
+                    unit_of_measurement="%",
+                    mode=selector.NumberSelectorMode.SLIDER,
+                )
+            ),
+            vol.Optional(
+                CONF_MIN_APPLICATION, default=DEFAULT_MIN_APPLICATION
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=0.0,
+                    max=100.0,
+                    step=0.1,
+                    unit_of_measurement="L",
                     mode=selector.NumberSelectorMode.BOX,
                 )
             ),

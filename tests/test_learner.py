@@ -13,9 +13,9 @@ from custom_components.amazing_irrigation.const import (
     ACTUATOR_SWITCH,
     CONF_ACTUATOR_SWITCH,
     CONF_ACTUATOR_TYPE,
+    CONF_ET_SOURCE,
     CONF_FIELD_CAPACITY,
     CONF_GAIN_PER_LITER,
-    CONF_GREENHOUSE,
     CONF_HUMIDITY_SENSOR,
     CONF_LEARNING_ENABLED,
     CONF_MAX_LITERS,
@@ -182,7 +182,7 @@ async def test_learner_jointly_assembles_water_rain_drying_and_greenhouse_climat
     """Water, rain, drying and greenhouse climate feed one estimator interval."""
     record = {
         **_ZONE,
-        CONF_GREENHOUSE: True,
+        CONF_ET_SOURCE: "greenhouse",
         CONF_TEMPERATURE_SENSOR: "sensor.house_temp",
         CONF_HUMIDITY_SENSOR: "sensor.house_humidity",
         CONF_WIND_SPEED: "sensor.wind",
