@@ -13,7 +13,14 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import CONF_ZONES, DATA_CONTROLLERS, DATA_ZONE_STATE, DOMAIN
+from .const import (
+    CONF_ZONES,
+    DATA_CONTROLLERS,
+    DATA_DISCOVERY,
+    DATA_ZONE_STATE,
+    DOMAIN,
+)
+from .discovery_controller import DiscoveryController
 from .history_ingest import async_bootstrap_zone
 from .state import ZoneStateStore
 from .watering import WateringController
@@ -30,6 +37,9 @@ async def async_setup_entry(
         DATA_CONTROLLERS
     ]
     store: ZoneStateStore = hass.data[DOMAIN][entry.entry_id][DATA_ZONE_STATE]
+    discovery: dict[str, DiscoveryController] = hass.data[DOMAIN][entry.entry_id].get(
+        DATA_DISCOVERY, {}
+    )
     zones = entry.options.get(CONF_ZONES, {})
 
     entities: list[ButtonEntity] = []
@@ -42,6 +52,17 @@ async def async_setup_entry(
         entities.append(RelearnHistoryButton(hass, entry, zone, store))
         if controller.can_stop:
             entities.append(StopZoneButton(entry, zone, controller))
+        discovery_controller = discovery.get(zone_id)
+        if discovery_controller is not None:
+            entities.append(
+                StartDiscoveryButton(entry, zone, discovery_controller)
+            )
+            entities.append(
+                ConfirmSaturatedButton(entry, zone, discovery_controller)
+            )
+            entities.append(
+                CancelDiscoveryButton(entry, zone, discovery_controller)
+            )
     async_add_entities(entities)
 
 
@@ -118,3 +139,63 @@ class RelearnHistoryButton(ButtonEntity):
     async def async_press(self) -> None:
         """Handle a button press by bootstrapping from recorder history."""
         await async_bootstrap_zone(self._hass, self._zone, self._store)
+
+
+class StartDiscoveryButton(ButtonEntity):
+    """Begin the guided Field Capacity Discovery workflow for a zone."""
+
+    _attr_has_entity_name = True
+    _attr_name = "Discovery · Start Field Capacity"
+    _attr_icon = "mdi:water-percent"
+
+    def __init__(
+        self, entry: ConfigEntry, zone: ZoneConfig, controller: DiscoveryController
+    ) -> None:
+        """Initialise the start-discovery button for a zone."""
+        self._controller = controller
+        self._attr_unique_id = f"{entry.entry_id}_{zone.zone_id}_discovery_start"
+        self._attr_device_info = _zone_device_info(entry, zone)
+
+    async def async_press(self) -> None:
+        """Handle a button press by starting discovery."""
+        await self._controller.async_start_discovery()
+
+
+class ConfirmSaturatedButton(ButtonEntity):
+    """Confirm the soil is saturated and covered; begin drainage monitoring."""
+
+    _attr_has_entity_name = True
+    _attr_name = "Discovery · Saturated & Covered"
+    _attr_icon = "mdi:check-decagram"
+
+    def __init__(
+        self, entry: ConfigEntry, zone: ZoneConfig, controller: DiscoveryController
+    ) -> None:
+        """Initialise the confirm-saturated button for a zone."""
+        self._controller = controller
+        self._attr_unique_id = f"{entry.entry_id}_{zone.zone_id}_discovery_confirm"
+        self._attr_device_info = _zone_device_info(entry, zone)
+
+    async def async_press(self) -> None:
+        """Handle a button press by beginning monitoring."""
+        await self._controller.async_confirm_saturated()
+
+
+class CancelDiscoveryButton(ButtonEntity):
+    """Cancel an in-progress Field Capacity Discovery."""
+
+    _attr_has_entity_name = True
+    _attr_name = "Discovery · Cancel"
+    _attr_icon = "mdi:close-circle"
+
+    def __init__(
+        self, entry: ConfigEntry, zone: ZoneConfig, controller: DiscoveryController
+    ) -> None:
+        """Initialise the cancel-discovery button for a zone."""
+        self._controller = controller
+        self._attr_unique_id = f"{entry.entry_id}_{zone.zone_id}_discovery_cancel"
+        self._attr_device_info = _zone_device_info(entry, zone)
+
+    async def async_press(self) -> None:
+        """Handle a button press by cancelling discovery."""
+        await self._controller.async_cancel_discovery()

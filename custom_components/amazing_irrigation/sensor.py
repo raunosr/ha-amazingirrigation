@@ -28,19 +28,30 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_track_state_change_event
+from homeassistant.util import dt as dt_util
 
 from .calibration import available_water_fraction
 from .const import (
     CONF_ZONES,
     DATA_CONTROLLERS,
     DATA_DECISION_ENTITIES,
+    DATA_DISCOVERY,
     DATA_HISTORY,
     DATA_LEARNERS,
     DATA_MODEL_INSIGHT_ENTITIES,
     DATA_ZONE_STATE,
+    DISCOVERY_AWAITING_SATURATION,
+    DISCOVERY_CANCELLED,
+    DISCOVERY_COMPLETED,
+    DISCOVERY_FAILED,
+    DISCOVERY_IDLE,
+    DISCOVERY_MAX_WAIT_HOURS,
+    DISCOVERY_MIN_WAIT_HOURS,
+    DISCOVERY_MONITORING,
     DOMAIN,
 )
 from .decision import evaluate_zone
+from .discovery_controller import DiscoveryController
 from .engine import Decision, DecisionAction
 from .history import IrrigationHistory
 from .learner import ZoneLearner
@@ -67,12 +78,20 @@ async def async_setup_entry(
     learners: dict[str, ZoneLearner] = hass.data[DOMAIN][entry.entry_id].get(
         DATA_LEARNERS, {}
     )
+    discovery: dict[str, DiscoveryController] = hass.data[DOMAIN][entry.entry_id].get(
+        DATA_DISCOVERY, {}
+    )
     zones = entry.options.get(CONF_ZONES, {})
     entities: list[SensorEntity] = []
     for zone_id, record in zones.items():
         zone = ZoneConfig.from_record(zone_id, record)
         entities.append(ZoneMoistureSensor(entry, zone))
         entities.append(IrrigationDecisionSensor(entry, zone))
+        discovery_controller = discovery.get(zone_id)
+        if discovery_controller is not None:
+            entities.append(
+                DiscoveryStatusSensor(entry, zone, discovery_controller)
+            )
         learner = learners.get(zone_id)
         if zone_state is not None:
             entities.append(ModelInsightSensor(entry, zone, zone_state, learner))
@@ -600,6 +619,76 @@ class WateringStatusSensor(SensorEntity):
             "is_watering": self._controller.is_watering,
             "can_stop": self._controller.can_stop,
             "reason": event.reason,
+        }
+
+
+class DiscoveryStatusSensor(SensorEntity):
+    """Reflects a zone's guided Field Capacity Discovery workflow state."""
+
+    _attr_has_entity_name = True
+    _attr_name = "Field Capacity Discovery"
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_icon = "mdi:water-percent"
+    _attr_options = [
+        DISCOVERY_IDLE,
+        DISCOVERY_AWAITING_SATURATION,
+        DISCOVERY_MONITORING,
+        DISCOVERY_COMPLETED,
+        DISCOVERY_FAILED,
+        DISCOVERY_CANCELLED,
+    ]
+
+    def __init__(
+        self, entry: ConfigEntry, zone: ZoneConfig, controller: DiscoveryController
+    ) -> None:
+        """Initialise the discovery status sensor for a zone."""
+        self._zone = zone
+        self._controller = controller
+        self._attr_unique_id = f"{entry.entry_id}_{zone.zone_id}_discovery_status"
+        self._attr_device_info = _zone_device_info(entry, zone)
+
+    async def async_added_to_hass(self) -> None:
+        """Subscribe to the controller's updates."""
+        self.async_on_remove(self._controller.add_listener(self._on_update))
+        self._refresh()
+
+    @callback
+    def _on_update(self) -> None:
+        """Handle a controller update."""
+        self._refresh()
+        self.async_write_ha_state()
+
+    @staticmethod
+    def _elapsed_hours(started_at: str | None) -> float | None:
+        """Hours since ``started_at`` (ISO string), or ``None``."""
+        if not started_at:
+            return None
+        started = dt_util.parse_datetime(started_at)
+        if started is None:
+            return None
+        return round((dt_util.utcnow() - started).total_seconds() / 3600.0, 2)
+
+    @callback
+    def _refresh(self) -> None:
+        """Read the controller's discovery state into entity attributes."""
+        discovery = self._controller.discovery
+        self._attr_native_value = discovery.phase
+        self._attr_extra_state_attributes = {
+            "zone_id": self._zone.zone_id,
+            "instruction": self._controller.instruction,
+            "elapsed_hours": self._elapsed_hours(discovery.monitor_started_at),
+            "current_moisture": discovery.last_moisture,
+            "saturation_peak": discovery.peak_moisture,
+            "drainage_rate_pct_per_h": (
+                None
+                if discovery.drainage_rate is None
+                else round(discovery.drainage_rate, 3)
+            ),
+            "provisional_field_capacity": discovery.provisional_fc,
+            "field_capacity": discovery.result_fc,
+            "min_wait_hours": DISCOVERY_MIN_WAIT_HOURS,
+            "max_wait_hours": DISCOVERY_MAX_WAIT_HOURS,
+            "reason": discovery.reason,
         }
 
 

@@ -188,6 +188,22 @@ class ZoneLearner:
         hours = (now - previous).total_seconds() / 3600.0
         return hours if math.isfinite(hours) and hours > 0.0 else None
 
+    def apply_discovered_field_capacity(self, field_capacity: float) -> ZoneState | None:
+        """Anchor FC from a guided-discovery drainage measurement, then persist.
+
+        Seeds the live estimator's moisture-envelope high to the measured Drained
+        Upper Limit (in sensor-%) and mirrors the updated model into the persisted
+        ZoneState. Returns the updated state, or ``None`` when unavailable. A
+        manual ``field_capacity`` override on the zone still wins.
+        """
+        state = self.state
+        if state is None:
+            return None
+        estimator = self._ensure_estimator(state)
+        estimator.seed_field_capacity(field_capacity)
+        self._persist_model(state, dt_util.utcnow().isoformat())
+        return state
+
     def _persist_model(self, state: ZoneState, updated: str) -> None:
         """Mirror estimator output into ZoneState and schedule persistence."""
         if self._estimator is None:

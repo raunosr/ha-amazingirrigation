@@ -215,10 +215,50 @@ service call); the integration owns the skip/reduce/water decision.
 | `amazing_irrigation.run_zone` | Create a Run Request that waters through the actuator when the decision allows. Optional `force`. |
 | `amazing_irrigation.stop_zone` | Stop an in-progress Watering Event (only zones with a configured stop path). |
 | `amazing_irrigation.relearn_from_history` | Re-run the **History Bootstrap** for the targeted zones: replay recorder history through the Soil Water Balance estimator to (re)initialise the Learned Model. Returns how many intervals/days were used, or notes when history was insufficient. |
+| `amazing_irrigation.start_field_capacity_discovery` | Begin the guided **Field Capacity Discovery** workflow for the targeted zones (equivalent to the per-zone *Start Field Capacity* button). |
 
 Normal manual UI runs use the same decision engine. **Force Water** bypasses soft
 checks (moisture above target, rain, etc.) but never bypasses hard Safety
 Blockers.
+
+## Field Capacity Discovery
+
+**Field Capacity (FC)** is the moisture a soil holds once free gravity drainage
+has stopped — the *Drained Upper Limit* in FAO-56 (Allen et al. 1998). It is the
+ceiling the controller schedules against, so measuring it on-site (in your own
+sensor's units) is more accurate than generic soil-texture tables.
+
+The integration measures it with a **guided, human-in-the-loop** workflow: you do
+the two things automation can't do reliably — deeply saturate the sensor and cover
+the soil so it can't dry by evaporation — and the integration does the part it is
+good at: watching the drainage curve and deciding *when* the soil has reached FC.
+
+Per zone (with a moisture sensor) you get three buttons and a status sensor:
+
+1. **Discovery · Start Field Capacity** (`button.<zone>_discovery_start_field_capacity`)
+   — begins the workflow and asks you to saturate and cover the soil.
+2. Water the zone until the moisture sensor **stops rising** (fully saturated),
+   then **cover the soil** (e.g. a plastic sheet) so only gravity drainage occurs.
+3. **Discovery · Saturated & Covered** (`button.<zone>_discovery_saturated_covered`)
+   — starts monitoring. Keep the soil covered and do not water.
+4. The integration samples moisture every few minutes and records FC when the
+   **drainage rate settles** — not after a fixed clock. The stop threshold is
+   *relative* to the initial post-saturation drainage rate, so it adapts to soil
+   texture (sand drains in ~a day, clay in several). A **minimum wait** (12 h)
+   skips the early transient and a **maximum wait** (48 h) is a graceful fallback.
+5. When done you're notified with the measured FC and can uncover the soil.
+   **Discovery · Cancel** aborts at any time.
+
+The **`sensor.<zone>_field_capacity_discovery`** entity exposes the current phase
+(`idle` → `awaiting_saturation` → `monitoring` → `completed`/`failed`/`cancelled`)
+plus a human-readable instruction, elapsed time, live drainage rate and the
+provisional/final FC. The measured FC is anchored into the zone's learned model in
+the same sensor-% space the rest of the controller learns in.
+
+Only **Field Capacity** is measured this way. **Wilting Point** cannot be obtained
+from a drainage test (it needs a weeks-long dry-down to plant stress, risking the
+crop); it stays derived from the soil-texture prior or the observed seasonal
+minimum. A manual Field Capacity override always wins over a discovered value.
 
 ## Learning, prediction and explainability
 
