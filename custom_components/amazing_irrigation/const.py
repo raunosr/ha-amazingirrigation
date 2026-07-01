@@ -216,6 +216,9 @@ DATA_DECISION_ENTITIES = "decision_entities"
 # hass.data[DOMAIN][entry_id] sub-key holding Model Insight sensors by zone_id.
 DATA_MODEL_INSIGHT_ENTITIES = "model_insight_entities"
 
+# hass.data[DOMAIN][entry_id] sub-key holding Target Range sensors by zone_id.
+DATA_TARGET_RANGE_ENTITIES = "target_range_entities"
+
 # hass.data[DOMAIN][entry_id] sub-key holding WateringController by zone_id.
 DATA_CONTROLLERS = "controllers"
 

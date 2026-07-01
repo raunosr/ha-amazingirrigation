@@ -299,6 +299,31 @@ safe bounds. See
 [`docs/adr/0003-physics-informed-water-balance-learning.md`](./adr/0003-physics-informed-water-balance-learning.md)
 for the design rationale.
 
+## Understanding the target
+
+The controller waters towards a **band**, not a single number, and every zone
+exposes that band plainly so you never have to reverse-engineer it:
+
+- **Target Range** (`sensor.<zone>_target_range`) answers *"what is this zone
+  watering towards right now?"* on any surface (device page, dashboards,
+  automations). Its state reads like `33–58%`, and its attributes give
+  `start_watering_below`, `refill_to`, `field_capacity_cap`, `mode`
+  (`automatic`/`manual`) and `source` (e.g. *medium plant profile*). In
+  **Automatic** mode the band is derived from the learned Wilting Point / Field
+  Capacity and the plant profile; in **Manual** mode it comes from your Target
+  Moisture.
+- **Plain-language decision.** The Irrigation Decision sensor carries a `summary`
+  attribute (also shown on the cards) such as *"Skip — moisture 50% is within
+  target 33–58%"* or *"Water 4.2 L — moisture 25% is below target 33–58%"*, so
+  the terse `skip`/`water`/`reduce` state is always explained.
+- **Manual Target Moisture is inactive in Automatic mode.** Because the band is
+  derived automatically, the `number.<zone>_target_moisture` control is shown
+  **unavailable** while the Automatic Target switch is on — it only takes effect
+  in Manual mode, so it never silently does nothing.
+- **Learned parameters are grouped as Diagnostic.** The eight `Learned …` and
+  `Model Confidence` sensors are categorised as diagnostic, so the device page's
+  main view stays focused on the handful of everyday controls.
+
 ## Lovelace cards
 
 The integration auto-registers two cards (no manual resource setup):

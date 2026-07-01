@@ -214,11 +214,13 @@ export class AmazingIrrigationCard extends LitElement {
 
         <div class="decision">
           <span class="decision-action">${view.decision ?? "–"}</span>
-          ${view.decisionReason
-            ? html`<span class="decision-reason"
-                >${view.decisionReason.replace(/_/g, " ")}</span
-              >`
-            : nothing}
+          ${view.decisionSummary
+            ? html`<span class="decision-reason">${view.decisionSummary}</span>`
+            : view.decisionReason
+              ? html`<span class="decision-reason"
+                  >${view.decisionReason.replace(/_/g, " ")}</span
+                >`
+              : nothing}
         </div>
 
         ${this._renderGreenhouse(view)}

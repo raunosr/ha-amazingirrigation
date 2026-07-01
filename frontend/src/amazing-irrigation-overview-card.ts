@@ -573,11 +573,13 @@ export class AmazingIrrigationOverviewCard extends LitElement {
     return html`
       <div class="decision-banner ${cls}">
         <span class="decision-label">${view.decision}</span>
-        ${view.decisionReason
-          ? html`<span class="decision-reason"
-              >${humanizeReason(view.decisionReason)}</span
-            >`
-          : nothing}
+        ${view.decisionSummary
+          ? html`<span class="decision-reason">${view.decisionSummary}</span>`
+          : view.decisionReason
+            ? html`<span class="decision-reason"
+                >${humanizeReason(view.decisionReason)}</span
+              >`
+            : nothing}
       </div>
     `;
   }

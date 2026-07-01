@@ -105,6 +105,20 @@ class TargetMoistureNumber(_ZoneStateNumber):
         super().__init__(entry, zone, store)
         self._attr_unique_id = f"{entry.entry_id}_{zone.zone_id}_target_moisture"
 
+    @property
+    def available(self) -> bool:
+        """Inactive while the zone derives its target automatically.
+
+        In Automatic mode the target band comes from the plant profile and
+        field capacity, so this manual value is ignored. Marking it unavailable
+        makes that clear on the device page instead of showing a number that
+        silently has no effect.
+        """
+        state = self._store.get(self._zone.zone_id)
+        if state is None:
+            return False
+        return (state.target_mode or "").strip().lower() != "auto"
+
 
 class MaxLitersNumber(_ZoneStateNumber):
     """The safety cap on the Watering Volume of a single run."""

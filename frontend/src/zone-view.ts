@@ -112,6 +112,7 @@ export interface ZoneView {
   availableWater: number | null;
   decision: string | null;
   decisionReason: string | null;
+  decisionSummary: string | null;
   wateringStatus: string | null;
   isWatering: boolean;
   canStop: boolean;
@@ -553,6 +554,10 @@ export function buildZoneView(
     availableWater: num(decisionAttrs["available_water"]),
     decision: isUnavailable(decision) ? null : (decision?.state ?? null),
     decisionReason: (decisionAttrs["reason"] as string | undefined) ?? null,
+    decisionSummary:
+      typeof decisionAttrs["summary"] === "string"
+        ? (decisionAttrs["summary"] as string)
+        : null,
     wateringStatus: isUnavailable(status) ? null : (status?.state ?? null),
     isWatering: statusAttrs["is_watering"] === true,
     canStop: statusAttrs["can_stop"] === true,

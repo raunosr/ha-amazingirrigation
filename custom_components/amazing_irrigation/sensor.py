@@ -39,6 +39,7 @@ from .const import (
     DATA_HISTORY,
     DATA_LEARNERS,
     DATA_MODEL_INSIGHT_ENTITIES,
+    DATA_TARGET_RANGE_ENTITIES,
     DATA_ZONE_STATE,
     DEMAND_PROFILE_OPTIONS,
     DISCOVERY_AWAITING_SATURATION,
@@ -54,7 +55,7 @@ from .const import (
 )
 from .decision import evaluate_zone
 from .discovery_controller import DiscoveryController
-from .engine import Decision, DecisionAction
+from .engine import Decision, DecisionAction, DecisionReason
 from .history import IrrigationHistory
 from .learner import ZoneLearner
 from .state import ZoneStateStore
@@ -89,6 +90,7 @@ async def async_setup_entry(
         zone = ZoneConfig.from_record(zone_id, record)
         entities.append(ZoneMoistureSensor(entry, zone))
         entities.append(IrrigationDecisionSensor(entry, zone))
+        entities.append(TargetRangeSensor(entry, zone))
         discovery_controller = discovery.get(zone_id)
         if discovery_controller is not None:
             entities.append(
@@ -335,9 +337,14 @@ class IrrigationDecisionSensor(SensorEntity):
             if live and live.target_moisture is not None
             else self._zone.target_moisture
         )
+        band_low = _finite_float(decision.details.get("target_band_low"))
+        band_high = _finite_float(decision.details.get("target_band_high"))
+        band_fc = _finite_float(decision.details.get("band_field_capacity"))
+        summary = _decision_summary(decision, current, band_low, band_high)
         self._attr_extra_state_attributes = {
             "zone_id": self._zone.zone_id,
             "reason": decision.reason.value,
+            "summary": summary,
             "recommended_liters": round(decision.recommended_liters, 2),
             "degraded": decision.degraded,
             "target_moisture": target_moisture,
@@ -368,6 +375,27 @@ class IrrigationDecisionSensor(SensorEntity):
             "references": self._references(),
             **decision.details,
         }
+        self._notify_target_range(
+            band_low, band_high, band_fc, target_mode, demand_profile
+        )
+
+    @callback
+    def _notify_target_range(
+        self,
+        low: float | None,
+        high: float | None,
+        field_capacity: float | None,
+        mode: str | None,
+        profile: str | None,
+    ) -> None:
+        """Push the active target band to the per-zone Target Range sensor."""
+        entity = (
+            self.hass.data[DOMAIN][self._entry.entry_id]
+            .get(DATA_TARGET_RANGE_ENTITIES, {})
+            .get(self._zone.zone_id)
+        )
+        if entity is not None:
+            entity.update_band(low, high, field_capacity, mode, profile)
 
     @callback
     def _persist_decision_explanation(self, explanation: dict | None) -> None:
@@ -431,6 +459,169 @@ class IrrigationDecisionSensor(SensorEntity):
             self._store(decision)
             self.async_write_ha_state()
         return decision
+
+
+_ACTION_LABELS = {
+    DecisionAction.SKIP: "Skip",
+    DecisionAction.REDUCE: "Reduce",
+    DecisionAction.WATER: "Water",
+}
+
+
+def _decision_summary(
+    decision: Decision,
+    moisture: float | None,
+    band_low: float | None,
+    band_high: float | None,
+) -> str:
+    """Build a plain-language, one-line explanation of the live decision.
+
+    Turns the terse action + reason enum into a human sentence that names the
+    active target band and the current moisture, so the meaning is clear on the
+    device page and dashboards without the user knowing the internal model.
+    """
+    reason = decision.reason
+    m = None if moisture is None else round(moisture)
+    band = (
+        f"{round(band_low)}\u2013{round(band_high)}%"
+        if band_low is not None and band_high is not None
+        else None
+    )
+    liters = round(decision.recommended_liters, 1)
+
+    if reason == DecisionReason.SAFETY_BLOCKER:
+        return "Skip \u2014 a safety blocker is active"
+    if reason == DecisionReason.DISABLED:
+        return "Skip \u2014 zone is disabled"
+    if reason == DecisionReason.OUT_OF_SEASON:
+        return "Skip \u2014 outside the watering season"
+    if reason == DecisionReason.MOISTURE_UNAVAILABLE:
+        return "Skip \u2014 no moisture reading available"
+    if reason == DecisionReason.ZONE_LOCKED:
+        return "Skip \u2014 zone is busy watering"
+    if reason == DecisionReason.NO_TARGET:
+        return "Skip \u2014 no target moisture is set"
+    if reason == DecisionReason.FORCED:
+        return f"Water {liters} L \u2014 forced run"
+    if reason in (DecisionReason.ABOVE_TARGET, DecisionReason.PREDICTIVE_HOLD):
+        if m is not None and band is not None:
+            return f"Skip \u2014 moisture {m}% is within target {band}"
+        return "Skip \u2014 moisture is on target"
+    if reason == DecisionReason.RAIN_SUFFICIENT:
+        return "Skip \u2014 rain is enough to reach the target"
+    if reason == DecisionReason.RAIN_REDUCE:
+        return f"Reduce to {liters} L \u2014 rain covers part of the need"
+    if reason == DecisionReason.BELOW_MIN:
+        return "Skip \u2014 needed amount is below the minimum application"
+    if reason in (DecisionReason.BELOW_TARGET, DecisionReason.PREDICTIVE_WATER):
+        if m is not None and band is not None:
+            return f"Water {liters} L \u2014 moisture {m}% is below target {band}"
+        return f"Water {liters} L \u2014 below target"
+    label = _ACTION_LABELS.get(decision.action, decision.action.value.title())
+    return f"{label} \u2014 {reason.value.replace('_', ' ')}"
+
+
+class TargetRangeSensor(SensorEntity):
+    """Human-readable active target band for a zone (e.g. ``33\u201358%``).
+
+    Answers the question "what is this zone watering towards right now?" on any
+    surface \u2014 the device page, dashboards and automations \u2014 without the user
+    needing to know how the band is derived from soil, field capacity and the
+    plant profile. The value is pushed by the Irrigation Decision sensor, which
+    computes the band on every input change.
+    """
+
+    _attr_has_entity_name = True
+    _attr_name = "Target Range"
+    _attr_icon = "mdi:target-variant"
+
+    def __init__(self, entry: ConfigEntry, zone: ZoneConfig) -> None:
+        """Initialise the target range sensor for a single zone."""
+        self._entry = entry
+        self._zone = zone
+        self._attr_unique_id = f"{entry.entry_id}_{zone.zone_id}_target_range"
+        self._attr_device_info = _zone_device_info(entry, zone)
+        self._attr_native_value = None
+        self._attr_extra_state_attributes = {"zone_id": zone.zone_id}
+
+    async def async_added_to_hass(self) -> None:
+        """Register so the decision sensor can push band updates here."""
+        store = self.hass.data[DOMAIN][self._entry.entry_id].setdefault(
+            DATA_TARGET_RANGE_ENTITIES, {}
+        )
+        store[self._zone.zone_id] = self
+        # Seed from the decision sensor's latest attributes if it is already up.
+        decisions = self.hass.data[DOMAIN][self._entry.entry_id].get(
+            DATA_DECISION_ENTITIES, {}
+        )
+        decision = next(
+            (
+                entity
+                for entity in decisions.values()
+                if getattr(entity, "_zone", None) is not None
+                and entity._zone.zone_id == self._zone.zone_id
+            ),
+            None,
+        )
+        if decision is not None:
+            attrs = decision.extra_state_attributes or {}
+            self.update_band(
+                _finite_float(attrs.get("target_band_low")),
+                _finite_float(attrs.get("target_band_high")),
+                _finite_float(attrs.get("band_field_capacity")),
+                attrs.get("target_mode"),
+                attrs.get("demand_profile"),
+                write=False,
+            )
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Deregister from the entry's lookup table."""
+        store = (
+            self.hass.data.get(DOMAIN, {})
+            .get(self._entry.entry_id, {})
+            .get(DATA_TARGET_RANGE_ENTITIES, {})
+        )
+        store.pop(self._zone.zone_id, None)
+
+    @callback
+    def update_band(
+        self,
+        low: float | None,
+        high: float | None,
+        field_capacity: float | None,
+        mode: str | None,
+        profile: str | None,
+        *,
+        write: bool = True,
+    ) -> None:
+        """Reflect the active band; keep the last value when none is available.
+
+        Some decision paths (disabled, safety-blocked, no moisture) return before
+        a band is computed. In those cases the previously known range is retained
+        so the sensor keeps answering "what is the target" instead of blanking.
+        """
+        if low is None or high is None:
+            if write:
+                self.async_write_ha_state()
+            return
+        auto = (mode or "").strip().lower() == "auto"
+        if auto:
+            source = f"{profile} plant profile" if profile else "plant profile"
+        else:
+            source = "manual target"
+        self._attr_native_value = f"{round(low)}\u2013{round(high)}%"
+        self._attr_extra_state_attributes = {
+            "zone_id": self._zone.zone_id,
+            "start_watering_below": round(low),
+            "refill_to": round(high),
+            "field_capacity_cap": (
+                None if field_capacity is None else round(field_capacity)
+            ),
+            "mode": "automatic" if auto else "manual",
+            "source": source,
+        }
+        if write:
+            self.async_write_ha_state()
 
 
 @dataclass(frozen=True)
@@ -864,6 +1055,7 @@ class LearnedValueSensor(SensorEntity):
     _attr_has_entity_name = True
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_suggested_display_precision = 2
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(
         self,
