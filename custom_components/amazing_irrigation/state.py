@@ -90,6 +90,11 @@ class ZoneState:
     sensor_depth_mm: float | None = None
     rain_fraction: float = DEFAULT_RAIN_FRACTION
     min_application: float = DEFAULT_MIN_APPLICATION
+    # Trusted manual soil-calibration anchors. When set (> 0) they win over the
+    # learned model everywhere (target band + physics); the learner never writes
+    # them. ``None`` (or 0) means "auto" - fall back to the learned/soil value.
+    field_capacity_override: float | None = None
+    wilting_point_override: float | None = None
     # Two schedule slots, each independently active.
     schedule_1_time: str | None = DEFAULT_SCHEDULE_TIME
     schedule_1_active: bool = True
@@ -176,6 +181,8 @@ def zone_config_signature(zone: ZoneConfig) -> dict[str, Any]:
         "sensor_depth_mm": zone.sensor_depth_mm,
         "rain_fraction": max(0.0, min(100.0, zone.rain_fraction)),
         "min_application": max(0.0, zone.min_application),
+        "field_capacity": zone.field_capacity,
+        "wilting_point": zone.wilting_point,
         "schedule_times": _normalized_schedule_times(zone),
     }
 
@@ -218,6 +225,10 @@ def _apply_config_field(state: ZoneState, key: str, value: Any) -> None:
         state.rain_fraction = value
     elif key == "min_application":
         state.min_application = value
+    elif key == "field_capacity":
+        state.field_capacity_override = value
+    elif key == "wilting_point":
+        state.wilting_point_override = value
 
 
 # Boolean flags re-synced from config on the first reconcile (e.g. when
@@ -232,6 +243,8 @@ _FIRST_RUN_CONFIG_FIELDS = (
     "soil_type",
     "rain_fraction",
     "min_application",
+    "field_capacity",
+    "wilting_point",
 )
 
 
@@ -276,9 +289,9 @@ def seed_zone_state(zone_id: str, record: dict[str, Any]) -> ZoneState:
         sensor_depth_mm=zone.sensor_depth_mm,
         rain_fraction=max(0.0, min(100.0, zone.rain_fraction)),
         min_application=max(0.0, zone.min_application),
+        field_capacity_override=zone.field_capacity,
+        wilting_point_override=zone.wilting_point,
         learned_gain_per_liter=zone.gain_per_liter,
-        learned_field_capacity=zone.field_capacity,
-        learned_wilting_point=zone.wilting_point,
     )
 
     _apply_schedule(state, _normalized_schedule_times(zone))
@@ -305,6 +318,19 @@ def _finite(value: object) -> float | None:
     except (TypeError, ValueError):
         return None
     return result if math.isfinite(result) else None
+
+
+def _override(value: object) -> float | None:
+    """Return a manual soil-calibration anchor, or ``None`` when unset/auto.
+
+    A value of ``0`` (or any non-positive/invalid number) means "auto" - fall
+    back to the learned/soil value - so a cleared override never pins a
+    physically meaningless 0 % field capacity or wilting point.
+    """
+    result = _finite(value)
+    if result is None or result <= 0.0:
+        return None
+    return result
 
 
 def _params_dict(params: WaterBalanceParams) -> dict[str, float]:
@@ -403,10 +429,14 @@ def params_from_state(
         if drying is not None and _DAILY_DRYING_PER_K_ET > 0:
             k_et = drying / _DAILY_DRYING_PER_K_ET
     drain_rate = _finite(source.get("drain_rate"))
-    field_capacity = _finite(source.get("field_capacity"))
+    field_capacity = _override(state.field_capacity_override)
+    if field_capacity is None:
+        field_capacity = _finite(source.get("field_capacity"))
     if field_capacity is None:
         field_capacity = _finite(state.learned_field_capacity)
-    wilting_point = _finite(source.get("wilting_point"))
+    wilting_point = _override(state.wilting_point_override)
+    if wilting_point is None:
+        wilting_point = _finite(source.get("wilting_point"))
     if wilting_point is None:
         wilting_point = _finite(state.learned_wilting_point)
 

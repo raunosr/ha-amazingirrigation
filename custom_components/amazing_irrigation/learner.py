@@ -152,13 +152,30 @@ class ZoneLearner:
         return self._estimator
 
     def _apply_overrides(self, estimator: JointEstimator) -> None:
-        """Apply manual zone settings that must always win over learning."""
+        """Apply manual zone settings that must always win over learning.
+
+        Field-capacity / wilting-point anchors are read from the live ZoneState
+        override (set via the device number, Discovery or the config flow) so a
+        runtime edit re-anchors the estimator, falling back to the static config
+        value only when no live override is set.
+        """
         if self.zone.gain_per_liter is not None:
             estimator.set_override("eta_irr", self.zone.gain_per_liter)
-        if self.zone.field_capacity is not None:
-            estimator.set_override("field_capacity", self.zone.field_capacity)
-        if self.zone.wilting_point is not None:
-            estimator.set_override("wilting_point", self.zone.wilting_point)
+        field_capacity = self._anchor("field_capacity_override", self.zone.field_capacity)
+        if field_capacity is not None:
+            estimator.set_override("field_capacity", field_capacity)
+        wilting_point = self._anchor("wilting_point_override", self.zone.wilting_point)
+        if wilting_point is not None:
+            estimator.set_override("wilting_point", wilting_point)
+
+    def _anchor(self, attr: str, config_value: float | None) -> float | None:
+        """Return the live positive override for ``attr`` else the config value."""
+        state = self.state
+        if state is not None:
+            override = self._finite(getattr(state, attr, None))
+            if override is not None and override > 0.0:
+                return override
+        return config_value
 
     @staticmethod
     def _finite(value: object) -> float | None:
@@ -191,14 +208,16 @@ class ZoneLearner:
     def apply_discovered_field_capacity(self, field_capacity: float) -> ZoneState | None:
         """Anchor FC from a guided-discovery drainage measurement, then persist.
 
-        Seeds the live estimator's moisture-envelope high to the measured Drained
-        Upper Limit (in sensor-%) and mirrors the updated model into the persisted
-        ZoneState. Returns the updated state, or ``None`` when unavailable. A
-        manual ``field_capacity`` override on the zone still wins.
+        Writes the measured Drained Upper Limit as the zone's trusted manual
+        ``field_capacity_override`` so it survives further learning, seeds the
+        live estimator's moisture-envelope high to the same value, and mirrors
+        the updated model into the persisted ZoneState. Returns the updated
+        state, or ``None`` when unavailable.
         """
         state = self.state
         if state is None:
             return None
+        state.field_capacity_override = field_capacity
         estimator = self._ensure_estimator(state)
         estimator.seed_field_capacity(field_capacity)
         self._persist_model(state, dt_util.utcnow().isoformat())

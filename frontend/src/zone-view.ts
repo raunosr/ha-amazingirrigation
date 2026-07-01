@@ -140,6 +140,10 @@ export interface ZoneView {
   sensorDepthControl: ControlEntity | null;
   rainFractionControl: ControlEntity | null;
   minApplicationControl: ControlEntity | null;
+  fieldCapacityControl: ControlEntity | null;
+  wiltingPointControl: ControlEntity | null;
+  fieldCapacityAnchored: boolean;
+  wiltingPointAnchored: boolean;
   sensorDepthShallow: boolean;
   enabledControl: ControlEntity | null;
   learningControl: ControlEntity | null;
@@ -628,6 +632,18 @@ export function buildZoneView(
       `number.${slug}_minimum_application`,
       "Minimum Application",
     ),
+    fieldCapacityControl: controlEntity(
+      states,
+      `number.${slug}_field_capacity`,
+      "Field Capacity",
+    ),
+    wiltingPointControl: controlEntity(
+      states,
+      `number.${slug}_wilting_point`,
+      "Wilting Point",
+    ),
+    fieldCapacityAnchored: decisionAttrs["field_capacity_anchored"] === true,
+    wiltingPointAnchored: decisionAttrs["wilting_point_anchored"] === true,
     sensorDepthShallow: decisionAttrs["sensor_depth_shallow"] === true,
     enabledControl: controlEntity(
       states,

@@ -434,6 +434,14 @@ describe("surfaced zone entities", () => {
         state: "0.5",
         attributes: { unit_of_measurement: "L" },
       },
+      [`number.${slug}_field_capacity`]: {
+        state: "40",
+        attributes: { unit_of_measurement: "%" },
+      },
+      [`number.${slug}_wilting_point`]: {
+        state: "15",
+        attributes: { unit_of_measurement: "%" },
+      },
       [`switch.${slug}_zone_enabled`]: { state: "on", attributes: {} },
       [`switch.${slug}_learning_enabled`]: { state: "off", attributes: {} },
       [`switch.${slug}_target_automatic`]: { state: "on", attributes: {} },
@@ -528,6 +536,8 @@ describe("surfaced zone entities", () => {
     expect(view.sensorDepthControl?.state).toBe("150");
     expect(view.rainFractionControl?.state).toBe("100");
     expect(view.minApplicationControl?.state).toBe("0.5");
+    expect(view.fieldCapacityControl?.state).toBe("40");
+    expect(view.wiltingPointControl?.state).toBe("15");
     expect(view.sensorDepthShallow).toBe(false);
   });
 

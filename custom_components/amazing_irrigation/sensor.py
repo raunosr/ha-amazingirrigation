@@ -58,7 +58,7 @@ from .discovery_controller import DiscoveryController
 from .engine import Decision, DecisionAction, DecisionReason
 from .history import IrrigationHistory
 from .learner import ZoneLearner
-from .state import ZoneStateStore
+from .state import ZoneStateStore, params_from_state
 from .watering import WateringController, WateringStatus
 from .zone import ZoneConfig, aggregate_zone_moisture
 
@@ -341,6 +341,31 @@ class IrrigationDecisionSensor(SensorEntity):
         band_high = _finite_float(decision.details.get("target_band_high"))
         band_fc = _finite_float(decision.details.get("band_field_capacity"))
         summary = _decision_summary(decision, current, band_low, band_high)
+        fc_override = _finite_float(live.field_capacity_override) if live else None
+        wp_override = _finite_float(live.wilting_point_override) if live else None
+        fc_anchored = fc_override is not None and fc_override > 0.0
+        wp_anchored = wp_override is not None and wp_override > 0.0
+        effective = (
+            params_from_state(
+                live,
+                soil_type=soil_type,
+                area_m2=self._zone.area_m2,
+                root_depth_mm=root_depth_mm,
+                demand_profile=demand_profile,
+            )
+            if live is not None
+            else None
+        )
+        effective_fc = (
+            round(effective.field_capacity, 1)
+            if effective is not None
+            else self._zone.field_capacity
+        )
+        effective_wp = (
+            round(effective.wilting_point, 1)
+            if effective is not None
+            else self._zone.wilting_point
+        )
         self._attr_extra_state_attributes = {
             "zone_id": self._zone.zone_id,
             "reason": decision.reason.value,
@@ -358,8 +383,12 @@ class IrrigationDecisionSensor(SensorEntity):
             "rain_fraction": rain_fraction,
             "min_application": min_application,
             "max_liters": self._zone.max_liters,
-            "field_capacity": self._zone.field_capacity,
-            "wilting_point": self._zone.wilting_point,
+            "field_capacity": effective_fc,
+            "wilting_point": effective_wp,
+            "field_capacity_override": fc_override if fc_anchored else None,
+            "wilting_point_override": wp_override if wp_anchored else None,
+            "field_capacity_anchored": fc_anchored,
+            "wilting_point_anchored": wp_anchored,
             "available_water": (
                 None if available is None else round(available, 3)
             ),
@@ -376,7 +405,13 @@ class IrrigationDecisionSensor(SensorEntity):
             **decision.details,
         }
         self._notify_target_range(
-            band_low, band_high, band_fc, target_mode, demand_profile
+            band_low,
+            band_high,
+            band_fc,
+            target_mode,
+            demand_profile,
+            fc_anchored,
+            wp_anchored,
         )
 
     @callback
@@ -387,6 +422,8 @@ class IrrigationDecisionSensor(SensorEntity):
         field_capacity: float | None,
         mode: str | None,
         profile: str | None,
+        fc_anchored: bool = False,
+        wp_anchored: bool = False,
     ) -> None:
         """Push the active target band to the per-zone Target Range sensor."""
         entity = (
@@ -395,7 +432,9 @@ class IrrigationDecisionSensor(SensorEntity):
             .get(self._zone.zone_id)
         )
         if entity is not None:
-            entity.update_band(low, high, field_capacity, mode, profile)
+            entity.update_band(
+                low, high, field_capacity, mode, profile, fc_anchored, wp_anchored
+            )
 
     @callback
     def _persist_decision_explanation(self, explanation: dict | None) -> None:
@@ -466,6 +505,17 @@ _ACTION_LABELS = {
     DecisionAction.REDUCE: "Reduce",
     DecisionAction.WATER: "Water",
 }
+
+
+def _anchor_note(fc_anchored: bool, wp_anchored: bool) -> str | None:
+    """Return a short note naming the manually anchored soil calibration."""
+    if fc_anchored and wp_anchored:
+        return "manual field capacity & wilting point"
+    if fc_anchored:
+        return "manual field capacity"
+    if wp_anchored:
+        return "manual wilting point"
+    return None
 
 
 def _decision_summary(
@@ -571,6 +621,8 @@ class TargetRangeSensor(SensorEntity):
                 _finite_float(attrs.get("band_field_capacity")),
                 attrs.get("target_mode"),
                 attrs.get("demand_profile"),
+                bool(attrs.get("field_capacity_anchored")),
+                bool(attrs.get("wilting_point_anchored")),
                 write=False,
             )
 
@@ -591,6 +643,8 @@ class TargetRangeSensor(SensorEntity):
         field_capacity: float | None,
         mode: str | None,
         profile: str | None,
+        fc_anchored: bool = False,
+        wp_anchored: bool = False,
         *,
         write: bool = True,
     ) -> None:
@@ -609,6 +663,9 @@ class TargetRangeSensor(SensorEntity):
             source = f"{profile} plant profile" if profile else "plant profile"
         else:
             source = "manual target"
+        anchor = _anchor_note(fc_anchored, wp_anchored)
+        if anchor:
+            source = f"{source} \u00b7 {anchor}"
         self._attr_native_value = f"{round(low)}\u2013{round(high)}%"
         self._attr_extra_state_attributes = {
             "zone_id": self._zone.zone_id,
@@ -617,6 +674,8 @@ class TargetRangeSensor(SensorEntity):
             "field_capacity_cap": (
                 None if field_capacity is None else round(field_capacity)
             ),
+            "field_capacity_anchored": fc_anchored,
+            "wilting_point_anchored": wp_anchored,
             "mode": "automatic" if auto else "manual",
             "source": source,
         }

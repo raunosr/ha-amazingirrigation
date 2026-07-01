@@ -267,8 +267,8 @@ class DiscoveryController:
         applied = field_capacity
         if self._learner is not None:
             state = self._learner.apply_discovered_field_capacity(field_capacity)
-            if state is not None and state.learned_field_capacity is not None:
-                applied = float(state.learned_field_capacity)
+            if state is not None and state.field_capacity_override is not None:
+                applied = float(state.field_capacity_override)
         discovery.phase = DISCOVERY_COMPLETED
         discovery.result_fc = round(applied, 2)
         discovery.provisional_fc = round(applied, 2)

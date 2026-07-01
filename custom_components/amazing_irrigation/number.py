@@ -9,6 +9,8 @@ decision engine and scheduler, which read the same store.
 
 from __future__ import annotations
 
+from typing import Any
+
 from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import PERCENTAGE, UnitOfLength, UnitOfVolume
@@ -17,7 +19,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import CONF_ZONES, DATA_ZONE_STATE, DOMAIN
-from .state import ZoneStateStore
+from .state import ZoneState, ZoneStateStore, params_from_state
 from .zone import ZoneConfig
 
 
@@ -41,6 +43,8 @@ async def async_setup_entry(
         entities.append(SensorDepthNumber(entry, zone, store))
         entities.append(RainFractionNumber(entry, zone, store))
         entities.append(MinApplicationNumber(entry, zone, store))
+        entities.append(FieldCapacityNumber(entry, zone, store))
+        entities.append(WiltingPointNumber(entry, zone, store))
     async_add_entities(entities)
 
 
@@ -195,3 +199,94 @@ class MinApplicationNumber(_ZoneStateNumber):
         """Initialise the Minimum Application number for a zone."""
         super().__init__(entry, zone, store)
         self._attr_unique_id = f"{entry.entry_id}_{zone.zone_id}_min_application"
+
+
+class _SoilAnchorNumber(_ZoneStateNumber):
+    """A trusted manual soil-calibration anchor (Field Capacity / Wilting Point).
+
+    The box shows the value currently in use: the manual override when pinned,
+    otherwise the effective learned/soil value so the user sees a sensible
+    starting point. Setting a value pins it (wins over learning everywhere);
+    setting ``0`` clears the override back to auto.
+    """
+
+    _attr_native_unit_of_measurement = PERCENTAGE
+    _attr_native_min_value = 0.0
+    _attr_native_max_value = 100.0
+    _attr_native_step = 1.0
+    _param: str
+
+    def _effective(self, state: ZoneState) -> float | None:
+        """Return the effective (used) FC/WP for the zone, or ``None``."""
+        params = params_from_state(
+            state,
+            soil_type=state.soil_type or self._zone.soil_type,
+            area_m2=self._zone.area_m2,
+            root_depth_mm=self._zone.root_depth_mm,
+            demand_profile=state.demand_profile or self._zone.demand_profile,
+        )
+        if params is None:
+            return None
+        return round(float(getattr(params, self._param)), 1)
+
+    @property
+    def native_value(self) -> float | None:
+        """Return the pinned override, else the effective learned/soil value."""
+        state = self._store.get(self._zone.zone_id)
+        if state is None:
+            return None
+        override = getattr(state, self._attribute)
+        if override is not None and float(override) > 0.0:
+            return round(float(override), 1)
+        return self._effective(state)
+
+    async def async_set_native_value(self, value: float) -> None:
+        """Pin the anchor, or clear it back to auto when set to 0."""
+        state = self._store.get(self._zone.zone_id)
+        if state is None:
+            return
+        setattr(state, self._attribute, float(value) if value and value > 0.0 else None)
+        await self._store.async_save()
+        self.async_write_ha_state()
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Expose whether the anchor is pinned and the underlying auto value."""
+        state = self._store.get(self._zone.zone_id)
+        if state is None:
+            return {}
+        override = getattr(state, self._attribute)
+        pinned = override is not None and float(override) > 0.0
+        return {"manual_override": pinned, "auto_value": self._effective(state)}
+
+
+class FieldCapacityNumber(_SoilAnchorNumber):
+    """The moisture level at field capacity (band ceiling). 0 = auto."""
+
+    _attr_name = "Field Capacity"
+    _attr_icon = "mdi:water-percent"
+    _param = "field_capacity"
+    _attribute = "field_capacity_override"
+
+    def __init__(
+        self, entry: ConfigEntry, zone: ZoneConfig, store: ZoneStateStore
+    ) -> None:
+        """Initialise the Field Capacity anchor for a zone."""
+        super().__init__(entry, zone, store)
+        self._attr_unique_id = f"{entry.entry_id}_{zone.zone_id}_field_capacity"
+
+
+class WiltingPointNumber(_SoilAnchorNumber):
+    """The moisture level at the wilting point (band floor). 0 = auto."""
+
+    _attr_name = "Wilting Point"
+    _attr_icon = "mdi:water-off"
+    _param = "wilting_point"
+    _attribute = "wilting_point_override"
+
+    def __init__(
+        self, entry: ConfigEntry, zone: ZoneConfig, store: ZoneStateStore
+    ) -> None:
+        """Initialise the Wilting Point anchor for a zone."""
+        super().__init__(entry, zone, store)
+        self._attr_unique_id = f"{entry.entry_id}_{zone.zone_id}_wilting_point"
