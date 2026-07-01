@@ -68,7 +68,7 @@ Rain inputs are typed rather than arbitrary entities:
 | --- | --- |
 | Safety blockers | Binary sensors that block watering when `on`. **Unavailable blockers block by default** (fail closed). The skip reason is recorded. |
 | Season start / end | Optional active watering season; out-of-season zones never run. |
-| Field capacity / wilting point | Advanced per-zone calibration that explains Target Available Water and learning. |
+| Field capacity / wilting point | Optional **trusted manual anchors** for the band top (Field Capacity) and floor (Wilting Point). When set they win over the learned model everywhere and survive learning; blank means auto. Also live-editable via `number.<zone>_field_capacity` / `number.<zone>_wilting_point` (set to `0` to clear back to auto). |
 | Target moisture low / high | Optional **Target Range** for Predictive Control. When set, the controller keeps predicted moisture within `[low, high]`; when unset, a band is derived from the single Target Moisture (unchanged behaviour). These act as explicit safety bounds and override the Automatic target band. |
 | Target moisture mode | `Automatic` lets the model own the Target Range, deriving it from learned Wilting Point / Field Capacity and the Plant Water Demand profile (lifted on hot days); `Manual` keeps your single Target Moisture fixed. Explicit low/high bounds always win. New zones default to Automatic, and the mode is also toggleable live via the **Automatic Target** switch on the device/card. |
 | Plant water demand | `Low` (drought-tolerant, e.g. lavender/sedum), `Medium` (typical, e.g. tomatoes/lawn), or `High` (thirsty, e.g. leafy greens/cucumbers). Shapes trigger threshold, target available water, drought tolerance and hot-day margin only — the Soil Water Balance physics is unchanged. Default `Medium`. |
@@ -255,13 +255,15 @@ Per zone (with a moisture sensor) you get three buttons and a status sensor:
 The **`sensor.<zone>_field_capacity_discovery`** entity exposes the current phase
 (`idle` → `awaiting_saturation` → `monitoring` → `completed`/`failed`/`cancelled`)
 plus a human-readable instruction, elapsed time, live drainage rate and the
-provisional/final FC. The measured FC is anchored into the zone's learned model in
-the same sensor-% space the rest of the controller learns in.
+provisional/final FC. The measured FC is stored as the zone's trusted **Field
+Capacity anchor** (`number.<zone>_field_capacity`), so it drives the target band
+and physics and survives further learning until you clear or change it.
 
 Only **Field Capacity** is measured this way. **Wilting Point** cannot be obtained
 from a drainage test (it needs a weeks-long dry-down to plant stress, risking the
 crop); it stays derived from the soil-texture prior or the observed seasonal
-minimum. A manual Field Capacity override always wins over a discovered value.
+minimum, unless you pin a manual Wilting Point anchor. Setting a Field Capacity
+anchor by hand (or via the config flow) overrides a discovered value.
 
 ## Learning, prediction and explainability
 
@@ -308,10 +310,20 @@ exposes that band plainly so you never have to reverse-engineer it:
   watering towards right now?"* on any surface (device page, dashboards,
   automations). Its state reads like `33–58%`, and its attributes give
   `start_watering_below`, `refill_to`, `field_capacity_cap`, `mode`
-  (`automatic`/`manual`) and `source` (e.g. *medium plant profile*). In
-  **Automatic** mode the band is derived from the learned Wilting Point / Field
+  (`automatic`/`manual`) and `source` (e.g. *medium plant profile*, or
+  *medium plant profile · manual field capacity* when you pin an anchor). In
+  **Automatic** mode the band is derived from the Wilting Point / Field
   Capacity and the plant profile; in **Manual** mode it comes from your Target
   Moisture.
+- **Manual Field Capacity / Wilting Point anchors.** Rather than hand-computing a
+  Target Moisture, set **Field Capacity** (`number.<zone>_field_capacity`) and
+  **Wilting Point** (`number.<zone>_wilting_point`) directly — from the config
+  flow, the device page or the card. A pinned anchor is *trusted*: it wins over
+  the learned model everywhere (both the Automatic band and the water-balance
+  physics) and **survives further learning**, so a wrong or low-confidence learned
+  value can never override it. The box shows the value currently in use; set it to
+  **0** to clear the anchor and fall back to the learned/soil value. Field Capacity
+  Discovery writes this same anchor, so a calibrated result is trusted too.
 - **Plain-language decision.** The Irrigation Decision sensor carries a `summary`
   attribute (also shown on the cards) such as *"Skip — moisture 50% is within
   target 33–58%"* or *"Water 4.2 L — moisture 25% is below target 33–58%"*, so

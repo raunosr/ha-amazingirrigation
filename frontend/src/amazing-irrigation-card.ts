@@ -304,6 +304,8 @@ export class AmazingIrrigationCard extends LitElement {
     const numbers = [
       isAuto ? null : view.targetControl,
       view.maxLitersControl,
+      view.fieldCapacityControl,
+      view.wiltingPointControl,
       view.sensorDepthControl,
       view.rainFractionControl,
       view.minApplicationControl,

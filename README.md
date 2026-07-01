@@ -84,11 +84,16 @@ always override learned ones, and every value stays inside safe bounds.
   A zone with only a single Target Moisture keeps working unchanged.
 - **Plant Water Demand profiles.** Pick Low / Medium / High instead of an exact
   species. In **Automatic** target mode the model derives the Target Range from
-  learned Wilting Point / Field Capacity and the profile (with an automatic
+  the Wilting Point / Field Capacity and the profile (with an automatic
   hot-day margin); **Manual** keeps your fixed Target Moisture. Explicit low/high
   bounds always win, and the soil water-balance physics is unchanged. In Automatic
   mode the card hides the manual Target Moisture and shows the derived band
   read-only, so there is only ever one live target control.
+- **Trusted Field Capacity / Wilting Point anchors.** Pin Field Capacity and
+  Wilting Point directly — from the config flow, device page or card — and the
+  Automatic band is computed from them (no hand-calculated Target Moisture). A
+  pinned anchor wins over the learned model everywhere and survives learning; set
+  it to `0` to fall back to auto. Field Capacity Discovery writes the same anchor.
 - **Soil-type presets.** Choose from five texture presets — Sandy (~20% FC),
   Standard mineral (~30%), Good garden (~40%), Peat/compost (~47%) and
   Greenhouse/potting mix (~52%) — plus a retained Clay option. Presets only seed
@@ -103,9 +108,10 @@ always override learned ones, and every value stays inside safe bounds.
 - **Minimum application & sensor depth.** Skip negligible top-ups below a
   configurable minimum (unless a heat emergency applies), and record the moisture
   probe's installation depth (warned when much shallower than the root zone).
-- **Unified selection.** Soil type, plant profile, sensor depth, rain fraction and
-  minimum application are set the same way in the initial config flow, on the
-  device page (auto-created Number/Select entities), and in the card.
+- **Unified selection.** Soil type, plant profile, sensor depth, rain fraction,
+  minimum application and the Field Capacity / Wilting Point anchors are set the
+  same way in the initial config flow, on the device page (auto-created
+  Number/Select entities), and in the card.
 - **Transparent target.** A **Target Range** sensor (`33–58%`, with
   start/refill/cap/mode/source attributes) shows what each zone waters towards
   right now, the Irrigation Decision carries a plain-language summary
@@ -123,8 +129,9 @@ always override learned ones, and every value stays inside safe bounds.
   history is available and reports how much it used and from which source.
 - **Field Capacity Discovery.** A guided, human-in-the-loop calibration (FAO-56
   in-situ drainage method): you saturate the sensor and cover the soil, and the
-  integration monitors the drainage curve and records **Field Capacity** when
-  drainage settles — a rate-based, texture-adaptive stop (not a fixed clock). See
+  integration monitors the drainage curve and records **Field Capacity** as the
+  zone's trusted manual anchor when drainage settles — a rate-based,
+  texture-adaptive stop (not a fixed clock). See
   [`docs/usage.md`](./docs/usage.md#field-capacity-discovery).
 - **Model Insight.** A per-zone diagnostic sensor and the card section above make
   every learned parameter, its confidence, the bootstrap summary and the reasoning
